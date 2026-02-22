@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          check-latest: true
+      - name: Build darwin/amd64
+        run: make build-amd64
+      - name: Build darwin/arm64
+        run: make build-arm64
+      - name: Generate checksums
+        run: |
+          sha256sum macnoise-darwin-amd64 > macnoise-darwin-amd64.sha256
+          sha256sum macnoise-darwin-arm64 > macnoise-darwin-arm64.sha256
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            macnoise-darwin-amd64
+            macnoise-darwin-amd64.sha256
+            macnoise-darwin-arm64
+            macnoise-darwin-arm64.sha256
+          generate_release_notes: true

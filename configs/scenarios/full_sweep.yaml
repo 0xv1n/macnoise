@@ -1,0 +1,19 @@
+name: Full Telemetry Sweep
+description: Runs all modules across every category (excludes root-only modules)
+
+steps:
+  - category: network
+
+  - category: process
+
+  - category: file
+    params:
+      base_dir: "/tmp/macnoise_sweep"
+
+  - category: endpoint_security
+
+  - category: tcc
+
+  - category: plist
+
+  - category: xpc

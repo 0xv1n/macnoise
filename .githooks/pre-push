@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+# Pre-push hook: runs lint and unit tests before allowing a push.
+# Install once with: make install-hooks
+set -euo pipefail
+
+echo "pre-push: running lint..."
+make lint
+
+echo "pre-push: running unit tests..."
+make test
+
+echo "pre-push: all checks passed."

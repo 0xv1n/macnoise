@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          check-latest: true
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.10.1
+      - name: govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
+
+  test-unit:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          check-latest: true
+      - name: Run unit tests
+        run: make test
+
+  test-integration:
+    name: Integration Tests (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          check-latest: true
+      - name: Run integration tests
+        run: make test-integration
+
+  build:
+    name: Build
+    needs: [lint, test-unit]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        goarch: [amd64, arm64]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version: '1.24'
+          check-latest: true
+      - name: Build darwin/${{ matrix.goarch }}
+        run: make build-${{ matrix.goarch }}
+      - uses: actions/upload-artifact@v6
+        with:
+          name: macnoise-darwin-${{ matrix.goarch }}
+          path: macnoise-darwin-${{ matrix.goarch }}

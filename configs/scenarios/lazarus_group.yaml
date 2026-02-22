@@ -1,0 +1,57 @@
+name: Lazarus Group Emulation
+description: |
+  Emulates a representative Lazarus Group (G0032) intrusion sequence on macOS.
+  Lazarus (DPRK-attributed) is known for macOS-targeting operations (AppleJeus,
+  BlindingCan) using trojanized apps, dylib injection into legitimate processes,
+  service enumeration for discovery, and multi-stage C2.
+
+  Sequence: dropper execution → dylib injection → service discovery → C2 resolution
+             → reverse shell attempt → payload staging → plist persistence → C2 comms
+
+  MITRE ATT&CK techniques: T1059.004, T1574.006, T1057, T1071.004, T1059.004,
+                            T1074.001, T1543.001, T1071.001
+
+steps:
+  # T1059.004 — initial execution via trojanized application dropper
+  - module: proc_spawn
+    params:
+      command: "uname -a && sysctl hw.model"
+
+  # T1574.006 — inject dylib into legitimate process (classic Lazarus macOS technique)
+  - module: proc_inject
+    params:
+      dylib_path: "/tmp/macnoise_lazarus.dylib"
+      target: "/usr/bin/true"
+
+  # T1057 — enumerate system XPC services for discovery and lateral movement planning
+  - module: xpc_connect
+
+  # T1071.004 — resolve multi-stage C2 domains
+  - module: net_dns
+    params:
+      domains: "downloads.example.com,assets.example.net,api.example.org"
+
+  # T1059.004 — attempt reverse shell for interactive operator access
+  - module: net_revshell
+    params:
+      target: "127.0.0.1"
+      port: "4444"
+
+  # T1074.001 — write implant/payload files to disk for staging
+  - module: file_create
+    params:
+      base_dir: "/tmp/macnoise_lazarus"
+      count: "4"
+      prefix: "stage2_"
+
+  # T1543.001 — write plist for persistence (masquerading as system component)
+  - module: plist_create
+    params:
+      output_path: "/tmp/macnoise_lazarus/com.apple.coredata.plist"
+
+  # T1071.001 — establish persistent beaconing to C2 for tasking
+  - module: net_beacon
+    params:
+      target: "http://example.com"
+      count: "4"
+      interval: "3"

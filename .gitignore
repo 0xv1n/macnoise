@@ -1,0 +1,29 @@
+# Binaries
+/macnoise
+/macnoise-darwin-amd64
+/macnoise-darwin-arm64
+*.exe
+dist/
+
+# Output files
+*.jsonl
+*.log
+
+# Go
+vendor/
+coverage.out
+*.test
+
+# IDE
+.claude/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# macOS
+.DS_Store
+__MACOSX/
+
+# Test artifacts
+/tmp/macnoise_*

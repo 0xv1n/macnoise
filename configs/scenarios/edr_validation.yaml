@@ -1,0 +1,54 @@
+name: EDR Validation Suite
+description: Modules most relevant to EDR detection validation — covers process, network, file, persistence, and TCC telemetry
+
+steps:
+  - module: proc_spawn
+    params:
+      command: "echo 'Telemetry Payload Executed' && id"
+
+  - module: proc_inject
+    params:
+      dylib_path: "/tmp/macnoise_inject.dylib"
+      target: "/usr/bin/true"
+
+  - module: proc_signal
+    params:
+      target_command: "sleep 5"
+
+  - module: net_connect
+    params:
+      target: "127.0.0.1"
+      port: "4444"
+
+  - module: net_beacon
+    params:
+      target: "http://example.com"
+      count: "3"
+      interval: "1"
+
+  - module: net_dns
+    params:
+      domains: "example.com,pastebin.com,raw.githubusercontent.com"
+
+  - module: file_create
+    params:
+      base_dir: "/tmp/macnoise_edr"
+      count: "5"
+      prefix: "edr_test_"
+
+  - module: es_file
+    params:
+      work_dir: "/tmp/macnoise_edr_es"
+
+  - module: es_process
+    params:
+      chain_depth: "4"
+
+  - module: svc_launch_agent
+    params:
+      label: "com.macnoise.edrtest"
+      program: "/usr/bin/true"
+
+  - module: tcc_fda
+
+  - module: tcc_contacts

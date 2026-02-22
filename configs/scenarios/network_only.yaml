@@ -1,0 +1,22 @@
+name: Network Telemetry Sweep
+description: Runs all network category modules to generate comprehensive network telemetry
+
+steps:
+  - module: net_connect
+    params:
+      target: "127.0.0.1"
+      port: "8080"
+
+  - module: net_listen
+    params:
+      port: "9999"
+
+  - module: net_dns
+    params:
+      domains: "example.com,google.com,github.com"
+
+  - module: net_beacon
+    params:
+      target: "http://example.com"
+      count: "3"
+      interval: "1"

