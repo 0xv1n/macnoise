@@ -20,7 +20,7 @@ func (n *netDNS) Info() module.ModuleInfo {
 		Tags:        []string{"dns", "lookup", "outbound"},
 		Privileges:  module.PrivilegeNone,
 		MITRE: []module.MITRE{
-			{Technique: "T1071", SubTech: ".004", Name: "Application Layer Protocol: DNS"},
+			{Technique: "T1568", Name: "Dynamic Resolution"},
 		},
 		Author:   "0xv1n",
 		MinMacOS: "12.0",
