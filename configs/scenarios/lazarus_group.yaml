@@ -8,11 +8,11 @@ description: |
   Sequence: dropper execution → dylib injection → service discovery → C2 resolution
              → reverse shell attempt → payload staging → plist persistence → C2 comms
 
-  MITRE ATT&CK techniques: T1059.004, T1574.006, T1057, T1071.004, T1059.004,
+  MITRE ATT&CK techniques: T1059.004, T1574.006, T1057, T1568, T1059.004,
                             T1074.001, T1543.001, T1071.001
 
 steps:
-  # T1059.004 — initial execution via trojanized application dropper
+  # T1059.004 + T1082 — system fingerprinting via shell (typical Lazarus first-stage recon)
   - module: proc_spawn
     params:
       command: "uname -a && sysctl hw.model"
@@ -26,7 +26,7 @@ steps:
   # T1057 — enumerate system XPC services for discovery and lateral movement planning
   - module: xpc_connect
 
-  # T1071.004 — resolve multi-stage C2 domains
+  # T1568 — resolve multi-stage C2 domains (dynamic resolution)
   - module: net_dns
     params:
       domains: "downloads.example.com,assets.example.net,api.example.org"
@@ -44,10 +44,13 @@ steps:
       count: "4"
       prefix: "stage2_"
 
-  # T1543.001 — write plist for persistence (masquerading as system component)
+  # T1543.001 — write LaunchAgent plist for persistence (masquerading as system component)
   - module: plist_create
     params:
       output_path: "/tmp/macnoise_lazarus/com.apple.coredata.plist"
+      bundle_id: "com.apple.coredata"
+      mode: "launchagent"
+      label: "com.apple.coredata"
 
   # T1071.001 — establish persistent beaconing to C2 for tasking
   - module: net_beacon
