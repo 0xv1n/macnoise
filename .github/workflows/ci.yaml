@@ -68,7 +68,7 @@ jobs:
           check-latest: true
       - name: Build darwin/${{ matrix.goarch }}
         run: make build-${{ matrix.goarch }}
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: macnoise-darwin-${{ matrix.goarch }}
           path: macnoise-darwin-${{ matrix.goarch }}
