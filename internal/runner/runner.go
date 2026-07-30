@@ -129,7 +129,21 @@ func RunScenario(ctx context.Context, path string, emit module.EventEmitter, opt
 	stepsPassed := 0
 	stepsFailed := 0
 
+	var interruptErr error
+
+stepLoop:
 	for i, step := range sc.Steps {
+		// Stop on cancellation rather than fast-failing every remaining step.
+		// An interrupted scenario should end at the step it reached, and still
+		// record a scenario audit entry describing how far it got.
+		select {
+		case <-ctx.Done():
+			interruptErr = fmt.Errorf("scenario %q: interrupted after %d of %d step(s): %w",
+				sc.Name, i, len(sc.Steps), ctx.Err())
+			break stepLoop
+		default:
+		}
+
 		params := module.Params(step.Params)
 		if params == nil {
 			params = module.Params{}
@@ -177,12 +191,18 @@ func RunScenario(ctx context.Context, path string, emit module.EventEmitter, opt
 			StepsFailed: stepsFailed,
 			TotalSteps:  len(sc.Steps),
 		}
-		if stepsFailed > 0 {
+		switch {
+		case interruptErr != nil:
+			ld.GenerateError = interruptErr.Error()
+		case stepsFailed > 0:
 			ld.GenerateError = fmt.Sprintf("%d step(s) failed", stepsFailed)
 		}
 		opts.AuditLog.LogScenario(sc.Name, path, ld)
 	}
 
+	if interruptErr != nil {
+		return interruptErr
+	}
 	if stepsFailed > 0 {
 		return fmt.Errorf("scenario %q: %d of %d step(s) failed", sc.Name, stepsFailed, len(sc.Steps))
 	}

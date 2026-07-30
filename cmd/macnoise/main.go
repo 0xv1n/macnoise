@@ -5,7 +5,9 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
 	"strings"
+	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -125,6 +127,37 @@ func buildAuditLogger(path string) (*audit.Logger, func(), error) {
 	return l, func() { _ = l.Close() }, nil
 }
 
+// signalContext returns a context that is cancelled on SIGINT or SIGTERM.
+//
+// Several modules install real persistence (LaunchAgents, cron entries, shell
+// profile blocks, defaults keys) that only the runner's Cleanup step removes.
+// Without a cancellable context an interrupted run leaves those artifacts on
+// the host, so the signal must reach the module rather than killing the process.
+//
+// After the first signal, delivery is stopped so the default disposition is
+// restored: a second Ctrl-C aborts immediately rather than trapping an operator
+// behind a slow or wedged cleanup.
+func signalContext() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithCancel(context.Background())
+	ch := make(chan os.Signal, 1)
+	signal.Notify(ch, os.Interrupt, syscall.SIGTERM)
+
+	go func() {
+		select {
+		case <-ch:
+			fmt.Fprintln(os.Stderr, "\ninterrupted - running module cleanup (Ctrl-C again to abort immediately)")
+			signal.Stop(ch)
+			cancel()
+		case <-ctx.Done():
+		}
+	}()
+
+	return ctx, func() {
+		signal.Stop(ch)
+		cancel()
+	}
+}
+
 func buildRunOpts(auditLogger *audit.Logger) runner.Options {
 	timeout := time.Duration(globalTimeout) * time.Second
 	return runner.Options{
@@ -163,7 +196,8 @@ func buildRun() *cobra.Command {
 
 			params := parseParams(paramFlags)
 			opts := buildRunOpts(auditLogger)
-			ctx := context.Background()
+			ctx, stop := signalContext()
+			defer stop()
 
 			switch {
 			case runAll:
@@ -302,7 +336,10 @@ func buildScenario() *cobra.Command {
 			defer closeAL()
 
 			opts := buildRunOpts(auditLogger)
-			return runner.RunScenario(context.Background(), args[0], em.EmitFunc(), opts)
+			ctx, stop := signalContext()
+			defer stop()
+
+			return runner.RunScenario(ctx, args[0], em.EmitFunc(), opts)
 		},
 	}
 }
