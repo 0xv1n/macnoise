@@ -29,7 +29,7 @@ jobs:
           sha256sum macnoise-darwin-amd64 > macnoise-darwin-amd64.sha256
           sha256sum macnoise-darwin-arm64 > macnoise-darwin-arm64.sha256
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             macnoise-darwin-amd64
