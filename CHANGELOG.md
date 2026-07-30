@@ -13,10 +13,14 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
   leaves persistence artifacts on the host.
 - An interrupted scenario stops at the step it reached and still writes its
   audit record.
+- `svc_cron` no longer overwrites the user's crontab when `crontab -l` fails
+  for a reason other than "no crontab exists" (e.g. access denied); it now
+  aborts instead. `Cleanup()` also reports an error instead of silently
+  succeeding when it can't verify the installed entry was removed.
 
 ### Changed
 
-- `make test` and `make coverage` now include `./cmd/...`.
+- `make test` and `make coverage` now include `./cmd/...` and `./modules/...`.
 
 <!-- Subsections (remove any that are empty):
 ### Added
