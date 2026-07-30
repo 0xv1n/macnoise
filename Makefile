@@ -23,7 +23,7 @@ release: build-amd64 build-arm64
 
 ## Run unit tests (no macOS required)
 test:
-	go test -race -count=1 ./pkg/... ./internal/...
+	go test -race -count=1 ./cmd/... ./pkg/... ./internal/...
 
 ## Run integration tests (macOS only)
 test-integration:
@@ -39,7 +39,7 @@ vet:
 	go vet ./...
 
 coverage:
-	go test -race -coverprofile=coverage.out ./pkg/... ./internal/...
+	go test -race -coverprofile=coverage.out ./cmd/... ./pkg/... ./internal/...
 	go tool cover -html=coverage.out
 
 ## Install git hooks (one-time setup per clone)

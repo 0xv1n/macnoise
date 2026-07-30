@@ -7,7 +7,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
-_Add your changes here under the appropriate subsection before opening a PR._
+### Fixed
+
+- Module `Cleanup()` now runs when a run is interrupted, so Ctrl-C no longer
+  leaves persistence artifacts on the host.
+- An interrupted scenario stops at the step it reached and still writes its
+  audit record.
+
+### Changed
+
+- `make test` and `make coverage` now include `./cmd/...`.
 
 <!-- Subsections (remove any that are empty):
 ### Added
