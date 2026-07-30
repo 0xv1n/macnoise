@@ -1,0 +1,12 @@
+# Normalize line endings to LF in the repository and on checkout for every
+# platform. Without this, core.autocrlf=true on a Windows checkout rewrites
+# tracked files to CRLF locally, which produces false-positive `gofmt -l`
+# diffs and noisy "LF will be replaced by CRLF" warnings on every git
+# operation even though git already normalizes back to LF on commit. This
+# project targets macOS/Linux exclusively (build scripts, CI, and the
+# release binaries are all Unix), so there is no case where CRLF checkouts
+# are wanted.
+* text=auto eol=lf
+
+*.png binary
+*.ico binary
