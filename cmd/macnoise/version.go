@@ -9,4 +9,4 @@ package main
 // `git describe --tags --always --dirty`, so no source edit is needed at
 // release time - tag the commit and let the build system handle the rest.
 // The fallback string below is kept in sync automatically by release-please.
-var version = "0.1.0" // x-release-please-version
+var version = "0.2.0" // x-release-please-version
