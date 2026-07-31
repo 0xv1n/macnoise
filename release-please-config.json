@@ -2,10 +2,15 @@
   "release-type": "go",
   "bump-minor-pre-major": true,
   "bump-patch-for-minor-pre-major": false,
-  "extra-files": [
-    {
-      "type": "generic",
-      "path": "cmd/macnoise/version.go"
+  "include-component-in-tag": false,
+  "packages": {
+    ".": {
+      "extra-files": [
+        {
+          "type": "generic",
+          "path": "cmd/macnoise/version.go"
+        }
+      ]
     }
-  ]
+  }
 }
