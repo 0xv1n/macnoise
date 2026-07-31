@@ -10,6 +10,14 @@ steps:
     params:
       base_dir: "/tmp/macnoise_sweep"
 
+  # service category is not run wholesale: svc_launch_daemon requires root
+  # and this scenario is scoped to run without elevated privileges.
+  - module: svc_cron
+
+  - module: svc_launch_agent
+
+  - module: svc_shell_profile
+
   - category: endpoint_security
 
   - category: tcc
