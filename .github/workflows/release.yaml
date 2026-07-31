@@ -2,23 +2,41 @@ name: Release
 
 on:
   push:
-    tags:
-      - 'v*'
+    branches: [main]
 
-permissions:
-  contents: write
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Build and Release
+  release-please:
+    name: Release Please
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+
+  build:
+    name: Build and Attach Release Assets
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
         with:
           fetch-depth: 0
       - uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version: '1.25'
           check-latest: true
       - name: Build darwin/amd64
         run: make build-amd64
@@ -28,12 +46,12 @@ jobs:
         run: |
           sha256sum macnoise-darwin-amd64 > macnoise-darwin-amd64.sha256
           sha256sum macnoise-darwin-arm64 > macnoise-darwin-arm64.sha256
-      - name: Create GitHub Release
+      - name: Attach binaries to the release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ needs.release-please.outputs.tag_name }}
           files: |
             macnoise-darwin-amd64
             macnoise-darwin-amd64.sha256
             macnoise-darwin-arm64
             macnoise-darwin-arm64.sha256
-          generate_release_notes: true

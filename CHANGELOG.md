@@ -5,6 +5,11 @@ All notable changes to MacNoise will be documented here.
 Format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+> Entries from this point on are generated automatically by
+> [release-please](https://github.com/googleapis/release-please) from
+> Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
+> required format. You no longer need to hand-edit this file.
+
 ## [Unreleased]
 
 ### Fixed
@@ -17,15 +22,6 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Changed
 
 - `make test` and `make coverage` now include `./cmd/...`.
-
-<!-- Subsections (remove any that are empty):
-### Added
-### Changed
-### Deprecated
-### Removed
-### Fixed
-### Security
--->
 
 ---
 
