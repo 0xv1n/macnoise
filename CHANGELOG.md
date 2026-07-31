@@ -10,6 +10,19 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
 > required format. You no longer need to hand-edit this file.
 
+## [0.2.0](https://github.com/0xv1n/macnoise/compare/v0.1.0...v0.2.0) (2026-07-31)
+
+
+### Features
+
+* automate releases with release-please and Conventional Commits ([#7](https://github.com/0xv1n/macnoise/issues/7)) ([87a00c4](https://github.com/0xv1n/macnoise/commit/87a00c4fc7d7c6728394e2c2b0dc1c4688eb5925))
+
+
+### Bug Fixes
+
+* correct release-please tag component config for existing repo ([#8](https://github.com/0xv1n/macnoise/issues/8)) ([7b813f7](https://github.com/0xv1n/macnoise/commit/7b813f79fafb48a6a4930dddd6c5b07a84c601df))
+* don't overwrite crontab when listing it fails ([#6](https://github.com/0xv1n/macnoise/issues/6)) ([7f1335f](https://github.com/0xv1n/macnoise/commit/7f1335f6b1c75e75e5cf033b14061ef8e0019887))
+
 ## [Unreleased]
 
 ### Fixed
