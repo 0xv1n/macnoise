@@ -93,9 +93,14 @@ steps:
   #   Title: "Auto-Updates System"
   #   Body:  "The launcher needs permissions to enable background auto-updates."
   # The 'with hidden answer' flag hides the typed password in the dialog field.
+  # 'giving up after 5' auto-dismisses so an unattended scenario run can't
+  # block indefinitely on a real console. proc_osascript also redacts
+  # whatever was typed before it's captured into telemetry/audit output -
+  # this scenario reproduces AMOS's exact prompt to exercise the same
+  # detection signature, not to actually collect a credential.
   - module: proc_osascript
     params:
-      script: 'display dialog "The launcher needs permissions to enable background auto-updates.\n\nPlease enter your password." with title "Auto-Updates System" default answer "" with icon caution buttons {"Continue"} default button "Continue" with hidden answer'
+      script: 'display dialog "The launcher needs permissions to enable background auto-updates.\n\nPlease enter your password." with title "Auto-Updates System" default answer "" with icon caution buttons {"Continue"} default button "Continue" with hidden answer giving up after 5'
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 3 — CREDENTIAL VALIDATION
