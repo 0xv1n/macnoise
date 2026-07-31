@@ -38,6 +38,33 @@ func (s *svcCron) ParamSpecs() []module.ParamSpec {
 
 func (s *svcCron) CheckPrereqs() error { return nil }
 
+// noCrontabMarker is the substring `crontab -l` prints to stderr when a user
+// genuinely has no crontab yet (e.g. "crontab: no crontab for alice"). It is
+// the only listing failure treated as safe to overwrite; see
+// classifyCrontabList for why every other failure is not.
+const noCrontabMarker = "no crontab for"
+
+// classifyCrontabList inspects the result of `crontab -l` and reports whether
+// it is safe to treat the user's crontab as known (existing, possibly empty).
+//
+// `crontab -l` exits non-zero both when the user genuinely has no crontab yet
+// and when access is denied - for example when the calling terminal lacks
+// Full Disk Access on modern macOS, or another read failure occurs. Treating
+// every listing failure as "empty crontab" and overwriting it, as this
+// function's caller previously did, risks silently destroying a real
+// crontab that macnoise was simply unable to read. Only the well-known
+// "no crontab for <user>" message is trusted as genuinely empty; any other
+// failure is reported unsafe so the caller can abort instead of guessing.
+func classifyCrontabList(out []byte, err error) (existing string, safe bool) {
+	if err == nil {
+		return string(out), true
+	}
+	if strings.Contains(strings.ToLower(string(out)), noCrontabMarker) {
+		return "", true
+	}
+	return "", false
+}
+
 func (s *svcCron) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	schedule := params.Get("schedule", "*/5 * * * *")
 	command := params.Get("command", "/usr/bin/true")
@@ -48,13 +75,18 @@ func (s *svcCron) Generate(ctx context.Context, params module.Params, emit modul
 
 	listEv := output.NewEvent(info, "cron_job_list", false, "listing current crontab entries")
 	listOut, listErr := exec.CommandContext(ctx, "crontab", "-l").CombinedOutput()
-	existing := ""
+	existing, safe := classifyCrontabList(listOut, listErr)
+	if !safe {
+		listEv = output.WithError(listEv, fmt.Errorf("crontab -l failed without reporting an empty crontab, refusing to overwrite: %v: %s", listErr, strings.TrimSpace(string(listOut))))
+		emit(listEv)
+		return fmt.Errorf("svc_cron: cannot safely determine existing crontab contents, aborting rather than risk overwriting it: %w", listErr)
+	}
+
 	if listErr != nil {
 		listEv.Success = true
 		listEv.Message = "no existing crontab (empty crontab)"
 		listEv = output.WithDetails(listEv, map[string]any{"entries": ""})
 	} else {
-		existing = string(listOut)
 		lineCount := len(strings.Split(strings.TrimSpace(existing), "\n"))
 		listEv.Success = true
 		listEv.Message = fmt.Sprintf("retrieved crontab (%d lines)", lineCount)
@@ -96,12 +128,16 @@ func (s *svcCron) Cleanup() error {
 	if s.addedEntry == "" {
 		return nil
 	}
-	out, err := exec.Command("crontab", "-l").Output()
-	if err != nil {
-		s.addedEntry = ""
-		return nil
+	out, err := exec.Command("crontab", "-l").CombinedOutput()
+	existing, safe := classifyCrontabList(out, err)
+	if !safe {
+		// Leave addedEntry set: we don't know whether our entry is still
+		// installed, so a caller retrying Cleanup should try again rather
+		// than have this silently reported as done.
+		return fmt.Errorf("svc_cron: cleanup cannot safely list crontab, entry %q may still be installed: %v: %s", s.addedEntry, err, strings.TrimSpace(string(out)))
 	}
-	lines := strings.Split(string(out), "\n")
+
+	lines := strings.Split(existing, "\n")
 	filtered := make([]string, 0, len(lines))
 	for _, line := range lines {
 		if strings.TrimSpace(line) != strings.TrimSpace(s.addedEntry) {
@@ -111,8 +147,11 @@ func (s *svcCron) Cleanup() error {
 	newCrontab := strings.Join(filtered, "\n")
 	cmd := exec.Command("crontab", "-")
 	cmd.Stdin = strings.NewReader(newCrontab)
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("svc_cron: failed to reinstall filtered crontab during cleanup: %w", err)
+	}
 	s.addedEntry = ""
-	return cmd.Run()
+	return nil
 }
 
 func init() {
