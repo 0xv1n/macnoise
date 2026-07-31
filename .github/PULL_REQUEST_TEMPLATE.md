@@ -1,3 +1,5 @@
+<!-- PR title must follow Conventional Commits (feat:/fix:/chore:/etc.) - checked automatically and used as your changelog entry. See CONTRIBUTING.md#versioning. -->
+
 ## Summary
 
 <!-- One or two sentences: what does this PR do and why? -->
@@ -56,7 +58,7 @@
 
 - [ ] `make test` passes
 - [ ] `make lint` passes (no `go vet` or `golangci-lint` warnings)
-- [ ] `CHANGELOG.md` updated under `[Unreleased]`
+- [ ] PR title follows Conventional Commits format (checked automatically)
 - [ ] Targets the `main` branch
 - [ ] PR scope is limited to a single fix or module (see AI Code Policy in CONTRIBUTING.md)
 
