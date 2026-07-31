@@ -5,17 +5,18 @@
 ---
 
 [![CI](https://github.com/0xv1n/macnoise/actions/workflows/ci.yaml/badge.svg)](https://github.com/0xv1n/macnoise/actions/workflows/ci.yaml)
+[![Release](https://img.shields.io/github/v/release/0xv1n/macnoise)](https://github.com/0xv1n/macnoise/releases/latest)
 
 # MacNoise
 
-MacNoise is an extensible and modular macOS system telemetry generation framework. It generates real system events (network connections, file writes, process spawns, plist mutations, TCC permission probes, and more) so security teams can validate that their EDR, SIEM, and firewall tooling detects what it is supposed to detect.
+MacNoise generates real macOS telemetry: network connections, file writes, process spawns, plist mutations, TCC probes, and more. Point it at a machine running your EDR, SIEM, or firewall stack and see what actually fires - not what the vendor datasheet claims will fire.
 
 For background on the motivation and design, see the [release blog post](https://0xv1n.github.io/posts/macnoise/).
 
 ## Quick Start
 
 ```bash
-# Build
+# Build (add build-amd64 / build-arm64 to cross-compile for Darwin, or release for both)
 make build
 
 # List available modules
@@ -77,41 +78,13 @@ macnoise version                              Print version
 
 ## Audit Logging
 
-MacNoise produces two distinct output streams:
-
-- **Telemetry events**: the `TelemetryEvent` records written to stdout (or a file via `--output`) by every module. These are what your EDR, SIEM, or firewall sees.
-- **Audit records**: a separate, structured log of what MacNoise itself did: which modules ran, prereq outcomes, timing, events emitted, cleanup results, and MITRE technique mappings.
-
-Audit records are written in [OCSF 1.7.0](https://schema.ocsf.io/) (Open Cybersecurity Schema Framework) JSONL format. Each record maps to a valid OCSF class (HTTP: 4002, DNS: 4003, network: 4001, file system: 1001, etc.), with MacNoise-specific fields placed in the `unmapped` object so the record remains schema-compliant.
-
-Enable audit logging with `--audit-log`:
+MacNoise writes two separate streams. Telemetry events - what your EDR/SIEM actually sees - go to stdout or `--output`. A second, optional stream records what MacNoise itself did: which modules ran, prereq/cleanup outcomes, and MITRE mappings, in [OCSF 1.7.0](https://schema.ocsf.io/) JSONL.
 
 ```bash
-# Audit a single module run
-./macnoise run net_connect --audit-log /tmp/audit.jsonl
-
-# Audit a full scenario
-./macnoise scenario configs/scenarios/amos_atomic_stealer.yaml \
-  --audit-log /tmp/amos_audit.jsonl --format jsonl
-
-# Audit log path can also be set per-scenario in the YAML (audit_log: /tmp/audit.jsonl)
-# or as a default in a config file passed via --config
+./macnoise scenario configs/scenarios/amos_atomic_stealer.yaml --audit-log /tmp/audit.jsonl
 ```
 
-Each OCSF record contains:
-
-| Field | Description |
-|-------|-------------|
-| `class_uid` / `class_name` | OCSF class (e.g. `4001 Network Activity`) |
-| `activity_id` / `activity_name` | OCSF activity (e.g. `Connect`, `Listen`, `Create`) |
-| `severity_id` / `status_id` | Reflects module step success or failure |
-| `time` | Epoch milliseconds |
-| `metadata.correlation_uid` | Shared run ID linking all records from one execution |
-| `actor.process` | PID, executable, and username of the macnoise process |
-| `attacks[]` | MITRE ATT&CK techniques from the module's `Info()` |
-| `unmapped` | Module name, category, params, and lifecycle details |
-
-The audit log is opened in append mode, so records from multiple runs accumulate in one file for batch analysis. Lifecycle records (prereq check, dry-run, cleanup) are written automatically by the runner; individual modules require no changes.
+The audit log opens in append mode, so records from multiple runs pile up in one file for batch analysis. If you're adding a module and want to know how a new event type gets classified into OCSF, see [CONTRIBUTING.md](CONTRIBUTING.md#audit-logging-ocsf).
 
 ## Module Reference
 
@@ -128,39 +101,9 @@ Module documentation lives alongside each category:
 | `plist` | [modules/plist/README.md](modules/plist/README.md) |
 | `xpc` | [modules/xpc/README.md](modules/xpc/README.md) |
 
-## MITRE ATT&CK Coverage
-
-| Technique | Name | Modules |
-|-----------|------|---------|
-| T1041 | Exfiltration Over C2 Channel | net_exfil |
-| T1053.003 | Scheduled Task/Job: Cron | svc_cron |
-| T1059.002 | AppleScript | proc_osascript |
-| T1059.004 | Unix Shell | net_revshell, proc_spawn, es_process |
-| T1059.007 | JavaScript for Automation (JXA) | proc_osascript |
-| T1071.001 | Web Protocols | net_connect, net_beacon |
-| T1568 | Dynamic Resolution | net_dns |
-| T1016 | System Network Configuration Discovery | proc_discovery |
-| T1033 | System Owner/User Discovery | proc_discovery |
-| T1082 | System Information Discovery | proc_discovery |
-| T1106 | Native API | proc_signal |
-| T1518 | Software Discovery | proc_discovery |
-| T1543.001 | Launch Agent | svc_launch_agent, plist_create |
-| T1543.004 | Launch Daemon | svc_launch_daemon |
-| T1546.004 | Unix Shell Configuration Modification | svc_shell_profile |
-| T1553.001 | Gatekeeper Bypass | proc_gatekeeper |
-| T1555 | Credentials from Password Stores | tcc_fda |
-| T1555.001 | Keychain | tcc_keychain |
-| T1555.003 | Credentials from Web Browsers | file_browser_creds |
-| T1560.001 | Archive via Utility | file_archive |
-| T1564.001 | Hidden Files and Directories | file_hide |
-| T1574.006 | Dylib Injection | proc_inject |
-| T1636.003 | Contact List | tcc_contacts |
-
 ## Scenarios
 
-Scenarios chain modules into ordered sequences that emulate realistic attacker behavior. Each step runs a module or an entire category, optionally with params, making it straightforward to replay multi-stage intrusion patterns against your detections.
-
-Pre-built scenarios are in `configs/scenarios/` to provide users with an example of the framework's capabilities:
+Scenarios chain modules into ordered sequences - a single YAML file that replays a multi-stage intrusion pattern against your detections.
 
 | File | Description |
 |------|-------------|
@@ -168,41 +111,18 @@ Pre-built scenarios are in `configs/scenarios/` to provide users with an example
 | `edr_validation.yaml` | Comprehensive EDR detection coverage |
 | `full_sweep.yaml` | All categories |
 | `lazarus_group.yaml` | Lazarus Group: dylib injection, service discovery, reverse shell, plist persistence |
-| `amos_atomic_stealer.yaml` | AMOS / Atomic Stealer (2023-2026): MaaS infostealer, Gatekeeper bypass, keychain dump, ZIP exfil, backdoor persistence |
+| `amos_atomic_stealer.yaml` | AMOS / Atomic Stealer: MaaS infostealer, Gatekeeper bypass, keychain dump, ZIP exfil, backdoor persistence |
 
-### APT Scenarios
+The two APT scenarios follow real documented intrusion sequences, technique by technique - each YAML file cites the actual threat intel it's built from and annotates every step with the MITRE technique it exercises, so start there for the full breakdown rather than a retelling here.
 
-The APT emulation scenarios follow documented intrusion sequences attributed to real threat groups, mapped to MITRE ATT&CK. Each step is annotated with the technique it exercises so you can correlate generated telemetry directly against expected alerts.
-
-#### **Lazarus Group** (`lazarus_group.yaml`) 
-
-Models a DPRK-style implant deployment: dropper execution → dylib injection into a legitimate process → XPC service enumeration → DNS C2 → reverse shell attempt → payload staging → plist persistence → persistent beaconing.
-
-#### **AMOS / Atomic macOS Stealer** (`amos_atomic_stealer.yaml`)
-
-Models the full 2025 variant kill chain across 10 phases: Gatekeeper bypass → defense evasion → credential access (keychain, browser sweeps) → discovery → collection → staging → exfiltration → cleanup → persistence → C2 establishment. Unlike the APT scenarios, AMOS is financially motivated crimeware with an aggressive, fast-moving collection profile.
-
-### Validating Scenarios
-
-**Dry-run first**: preview the full sequence without executing anything:
+**Dry-run first:**
 ```bash
 ./macnoise scenario configs/scenarios/<scenario>.yaml --dry-run
 ```
 
-**Structured output for automated correlation**: emit JSONL so every event carries module name, params, timestamps, and outcome:
-```bash
-./macnoise scenario configs/scenarios/<scenario>.yaml --format jsonl --output /tmp/<scenario>.jsonl
-```
+**Cross-reference with your SIEM/EDR:** each step comment names the technique it should trigger. No matching alert after a real run is a gap in your coverage.
 
-**Check individual module behavior before running a scenario**: inspect params and MITRE mappings:
-```bash
-./macnoise info proc_inject
-```
-
-**Cross-reference with your SIEM/EDR**: each step comment in the scenario YAML includes the expected MITRE technique. Use those to search for corresponding alerts after the run. If an alert is missing, the module that maps to that technique is a gap in your coverage.
-
-### Writing Custom Scenarios
-
+**Writing your own:**
 ```yaml
 name: My Custom Scenario
 steps:
@@ -215,25 +135,16 @@ steps:
       base_dir: "/tmp/test"
 ```
 
-## Building
-
-```bash
-make build          # host OS
-make build-amd64    # darwin/amd64
-make build-arm64    # darwin/arm64
-make release        # both Darwin architectures
-```
-
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for how to add new modules, code style expectations, and the PR process.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new modules, code style, and the full PR process.
 
-This project follows [Semantic Versioning](https://semver.org/). Every PR that changes user-visible behaviour must include a [CHANGELOG.md](CHANGELOG.md) entry under `[Unreleased]`.
+Releases are automated - [release-please](https://github.com/googleapis/release-please) cuts a new version straight from your [Conventional Commit](https://www.conventionalcommits.org/) PR title, so `feat: add net_tls module` or `fix: correct beacon jitter` is both your PR title and your changelog entry.
 
 ## Disclaimer
 
 MacNoise is intended for **authorized** security testing, EDR validation, and detection engineering on systems you own or have explicit written permission to test. The authors assume no liability for misuse.
 
-# AI Code Policy
+## AI Code Policy
 
-AI Code contributions are fine, but please keep in mind that code review is currently going to be a human-led process which means there is only so much code we can review. Please limit PRs to a specific fix, or new telemetry module. PRs with extensive changes are likely going to be closed. 
+AI Code contributions are fine, but please keep in mind that code review is currently going to be a human-led process which means there is only so much code we can review. Please limit PRs to a specific fix, or new telemetry module. PRs with extensive changes are likely going to be closed.

@@ -25,7 +25,6 @@ func (n *netConnect) Info() module.ModuleInfo {
 		Privileges:  module.PrivilegeNone,
 		MITRE: []module.MITRE{
 			{Technique: "T1071", SubTech: ".001", Name: "Application Layer Protocol: Web Protocols"},
-			{Technique: "T1043", Name: "Commonly Used Port"},
 		},
 		Author:   "0xv1n",
 		MinMacOS: "12.0",
