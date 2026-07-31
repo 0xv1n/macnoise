@@ -14,6 +14,7 @@ import (
 type fileModify struct {
 	targetPath  string
 	origContent []byte
+	existed     bool
 }
 
 func (f *fileModify) Info() module.ModuleInfo {
@@ -48,7 +49,8 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 	f.targetPath = targetPath
 
 	orig, err := os.ReadFile(targetPath)
-	if os.IsNotExist(err) {
+	switch {
+	case os.IsNotExist(err):
 		if err2 := os.MkdirAll(filepath.Dir(targetPath), 0o755); err2 != nil {
 			ev := output.NewEvent(info, "file_modify", false, "failed to create parent directory")
 			ev = output.WithError(ev, err2)
@@ -56,11 +58,14 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 			return err2
 		}
 		orig = []byte{}
-	} else if err != nil {
+		f.existed = false
+	case err != nil:
 		ev := output.NewEvent(info, "file_modify", false, fmt.Sprintf("failed to read %s", targetPath))
 		ev = output.WithError(ev, err)
 		emit(ev)
 		return err
+	default:
+		f.existed = true
 	}
 	f.origContent = orig
 
@@ -95,8 +100,11 @@ func (f *fileModify) Cleanup() error {
 	if f.targetPath == "" {
 		return nil
 	}
-	if f.origContent == nil {
-		return os.Remove(f.targetPath)
+	if !f.existed {
+		if err := os.Remove(f.targetPath); err != nil && !os.IsNotExist(err) {
+			return err
+		}
+		return nil
 	}
 	return os.WriteFile(f.targetPath, f.origContent, 0o644)
 }
