@@ -22,7 +22,7 @@ macnoise run proc_discovery --param commands="sw_vers,whoami,csrutil status"
 ```
 
 ### `proc_gatekeeper`
-Sets and removes the `com.apple.quarantine` xattr on a test file, then queries `spctl --status`. Emits `xattr_quarantine_remove` and `spctl_status_check` events. Maps to T1553.001. Cleanup removes the test file.
+Sets and removes the `com.apple.quarantine` xattr on a test file, then queries `spctl --status`. Emits `xattr_quarantine_set`, `xattr_quarantine_remove`, and `spctl_status_check` events. Maps to T1553.001. Cleanup removes the test file.
 
 ```bash
 macnoise run proc_gatekeeper

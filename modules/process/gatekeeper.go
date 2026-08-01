@@ -50,13 +50,13 @@ func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emi
 	info := p.Info()
 
 	if err := os.WriteFile(targetPath, []byte("macnoise gatekeeper test\n"), 0o644); err != nil {
-		ev := output.NewEvent(info, "xattr_quarantine_remove", false, fmt.Sprintf("failed to create test file %s", targetPath))
+		ev := output.NewEvent(info, "test_file_create_fail", false, fmt.Sprintf("failed to create test file %s", targetPath))
 		ev = output.WithError(ev, err)
 		emit(ev)
 		return err
 	}
 
-	setEv := output.NewEvent(info, "xattr_quarantine_remove", false, fmt.Sprintf("setting quarantine xattr on %s", targetPath))
+	setEv := output.NewEvent(info, "xattr_quarantine_set", false, fmt.Sprintf("setting quarantine xattr on %s", targetPath))
 	setOut, setErr := exec.CommandContext(ctx, "xattr", "-w", "com.apple.quarantine", "0081;00000000;macnoise;", targetPath).CombinedOutput()
 	if setErr != nil {
 		setEv = output.WithError(setEv, fmt.Errorf("%v: %s", setErr, setOut))
