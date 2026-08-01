@@ -34,20 +34,10 @@ func (e *esProcess) ParamSpecs() []module.ParamSpec {
 
 func (e *esProcess) CheckPrereqs() error { return nil }
 
-// buildExecChainArgs returns an argv slice that, when exec'd, nests depth-1
-// levels of `sh -c '"$@"' sh <rest>` around a final `echo es_exit`, so each
-// level really forks/execs the next.
-//
-// The fixed script '"$@"' just re-executes its own positional parameters as
-// a command, so nesting threads through argv directly - no shell-quote
-// escaping needed at any level. The previous implementation built this by
-// literally wrapping the growing string in `sh -c '%s'` via fmt.Sprintf,
-// which breaks past depth 2 (the embedded single quotes from the inner
-// layer aren't escaped, so the shell parser doesn't see what the code
-// intends) and, even fixed to escape correctly, grows exponentially and
-// fails outright by depth 10 - this module's own clamp ceiling. Verified
-// against real POSIX sh at every depth up to 50 with zero issues; argv
-// length here grows linearly (4 elements per depth) instead.
+// buildExecChainArgs nests depth-1 levels of `sh -c '"$@"' sh <rest>` around
+// a final `echo es_exit`. The '"$@"' script just re-execs its own
+// positional params, so nesting threads through argv with no shell-quote
+// escaping needed.
 func buildExecChainArgs(depth int) []string {
 	args := []string{"echo", "es_exit"}
 	for i := 0; i < depth-1; i++ {

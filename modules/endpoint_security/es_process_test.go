@@ -5,20 +5,16 @@ import (
 	"testing"
 )
 
-// buildExecChainArgs must produce the fixed 4-element wrapper
-// (sh, -c, "$@", sh) once per nesting level, ending in the literal
-// innermost command - this is what makes the chain threadable through argv
-// without any string-level shell-quote escaping.
 func TestBuildExecChainArgs_Shape(t *testing.T) {
 	tests := []struct {
 		depth   int
 		wantLen int
 	}{
-		{depth: 1, wantLen: 2},  // echo es_exit
-		{depth: 2, wantLen: 6},  // + sh -c "$@" sh
-		{depth: 3, wantLen: 10}, // + another wrapper
+		{depth: 1, wantLen: 2},
+		{depth: 2, wantLen: 6},
+		{depth: 3, wantLen: 10},
 		{depth: 5, wantLen: 18},
-		{depth: 10, wantLen: 38}, // this module's own clamp ceiling
+		{depth: 10, wantLen: 38}, // module's clamp ceiling
 	}
 
 	for _, tt := range tests {
@@ -43,10 +39,6 @@ func TestBuildExecChainArgs_Shape(t *testing.T) {
 	}
 }
 
-// depth grows the argv slice linearly, not exponentially - this is the
-// actual property that fixes the bug. The previous implementation built a
-// single string via repeated fmt.Sprintf("sh -c '%s'", inner) wrapping,
-// which is what grows exponentially and fails outright at depth 10.
 func TestBuildExecChainArgs_LinearGrowth(t *testing.T) {
 	prevLen := -1
 	for depth := 1; depth <= 10; depth++ {
@@ -61,17 +53,10 @@ func TestBuildExecChainArgs_LinearGrowth(t *testing.T) {
 	}
 }
 
-// The built script must always be the literal `"$@"` idiom, never something
-// derived from user input - this module's chain_depth param only controls
-// nesting count, never gets interpolated into the script text itself.
 func TestBuildExecChainArgs_NoUserInputInScript(t *testing.T) {
-	args := buildExecChainArgs(5)
-	for _, a := range args {
-		if a == "-c" {
-			continue
-		}
+	for _, a := range buildExecChainArgs(5) {
 		if strings.Contains(a, "'") {
-			t.Errorf("argv element %q contains a raw single quote - the whole point of this construction is that none should ever appear", a)
+			t.Errorf("argv element %q contains a raw single quote", a)
 		}
 	}
 }
