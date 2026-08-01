@@ -62,10 +62,10 @@ func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit m
 		label := params.Get("label", bundleID)
 		program := params.Get("program", "/usr/bin/true")
 		plistData = map[string]any{
-			"Label":             label,
-			"ProgramArguments":  []string{program},
-			"RunAtLoad":         true,
-			"KeepAlive":         false,
+			"Label":            label,
+			"ProgramArguments": []string{program},
+			"RunAtLoad":        true,
+			"KeepAlive":        false,
 		}
 		evAction = "plist_create_launchagent"
 		evMsg = fmt.Sprintf("creating LaunchAgent plist at %s (label: %s)", outPath, label)
