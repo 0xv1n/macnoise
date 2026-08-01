@@ -21,11 +21,13 @@ func (t *testGen) Info() module.ModuleInfo {
 		Privileges: module.PrivilegeNone,
 	}
 }
-func (t *testGen) ParamSpecs() []module.ParamSpec                                                { return nil }
-func (t *testGen) CheckPrereqs() error                                                           { return nil }
-func (t *testGen) Generate(_ context.Context, _ module.Params, _ module.EventEmitter) error     { return nil }
-func (t *testGen) DryRun(_ module.Params) []string                                              { return nil }
-func (t *testGen) Cleanup() error                                                               { return nil }
+func (t *testGen) ParamSpecs() []module.ParamSpec { return nil }
+func (t *testGen) CheckPrereqs() error            { return nil }
+func (t *testGen) Generate(_ context.Context, _ module.Params, _ module.EventEmitter) error {
+	return nil
+}
+func (t *testGen) DryRun(_ module.Params) []string { return nil }
+func (t *testGen) Cleanup() error                  { return nil }
 
 func TestRegisterAndGet(t *testing.T) {
 	gen := &testGen{name: "test_reg_get", category: "network"}

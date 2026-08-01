@@ -44,7 +44,7 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 	intervalStr := params.Get("interval", "2")
 
 	count := 3
-	fmt.Sscanf(countStr, "%d", &count)         //nolint:errcheck
+	fmt.Sscanf(countStr, "%d", &count) //nolint:errcheck
 	intervalSecs := 2
 	fmt.Sscanf(intervalStr, "%d", &intervalSecs) //nolint:errcheck
 	interval := time.Duration(intervalSecs) * time.Second
