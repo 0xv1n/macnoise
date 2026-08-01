@@ -34,6 +34,21 @@ func (e *esProcess) ParamSpecs() []module.ParamSpec {
 
 func (e *esProcess) CheckPrereqs() error { return nil }
 
+// buildExecChainArgs nests depth-1 levels of `sh -c '"$@"' sh <rest>` around
+// a final `echo es_exit`. The '"$@"' script just re-execs its own
+// positional params, so nesting threads through argv with no shell-quote
+// escaping needed.
+func buildExecChainArgs(depth int) []string {
+	args := []string{"echo", "es_exit"}
+	for i := 0; i < depth-1; i++ {
+		wrapped := make([]string, 0, len(args)+4)
+		wrapped = append(wrapped, "sh", "-c", `"$@"`, "sh")
+		wrapped = append(wrapped, args...)
+		args = wrapped
+	}
+	return args
+}
+
 func (e *esProcess) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	depthStr := params.Get("chain_depth", "3")
 	depth := 3
@@ -44,15 +59,11 @@ func (e *esProcess) Generate(ctx context.Context, params module.Params, emit mod
 
 	info := e.Info()
 
-	inner := "echo es_exit"
-	for i := 0; i < depth-1; i++ {
-		inner = fmt.Sprintf("sh -c '%s'", inner)
-	}
-
 	ev := output.NewEvent(info, "es_exec_chain", false,
 		fmt.Sprintf("executing %d-deep process fork/exec chain", depth))
 
-	cmd := exec.CommandContext(ctx, "sh", "-c", inner)
+	chainArgs := buildExecChainArgs(depth)
+	cmd := exec.CommandContext(ctx, chainArgs[0], chainArgs[1:]...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		ev = output.WithError(ev, err)
