@@ -10,6 +10,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
 > required format. You no longer need to hand-edit this file.
 
+## [0.2.1](https://github.com/0xv1n/macnoise/compare/v0.2.0...v0.2.1) (2026-08-01)
+
+
+### Bug Fixes
+
+* give proc_gatekeeper's 4 events distinct labels ([#15](https://github.com/0xv1n/macnoise/issues/15)) ([83944e5](https://github.com/0xv1n/macnoise/commit/83944e5e71ad5abc76daa48f47ebe940030a3d33))
+* redact hidden-answer osascript output and cap AMOS dialog timeout ([#13](https://github.com/0xv1n/macnoise/issues/13)) ([e1be04b](https://github.com/0xv1n/macnoise/commit/e1be04ba762557413990864ab07ac516abd2a6c4))
+* restore prior state correctly in file_modify and plist_modify cleanup ([#11](https://github.com/0xv1n/macnoise/issues/11)) ([d53203c](https://github.com/0xv1n/macnoise/commit/d53203c581a3bc04eac04466f8adf70f821e1b69))
+* thread es_process's chain_depth through argv instead of nested string quoting ([#16](https://github.com/0xv1n/macnoise/issues/16)) ([2335090](https://github.com/0xv1n/macnoise/commit/23350904055af92f8a0e921ba6872081e9e5bcaf))
+
 ## [0.2.0](https://github.com/0xv1n/macnoise/compare/v0.1.0...v0.2.0) (2026-07-31)
 
 
