@@ -89,7 +89,7 @@ The runner automatically wraps the `emit` callback with `Logger.WrapEmitter()` w
 func fileActivity(eventType string) (int, string) {
     switch eventType {
     case "my_read_event":
-        return 4, "Read"
+        return 2, "Read"
     // ...
     }
 }
