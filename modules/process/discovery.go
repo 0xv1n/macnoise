@@ -13,6 +13,7 @@ import (
 var defaultDiscoveryCommands = []string{
 	"sw_vers",
 	"system_profiler SPHardwareDataType",
+	"system_profiler SPApplicationsDataType",
 	"sysctl hw.model",
 	"ifconfig",
 	"whoami",

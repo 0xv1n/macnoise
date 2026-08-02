@@ -8,7 +8,7 @@ description: |
   Sequence: dropper execution → dylib injection → service discovery → C2 resolution
              → reverse shell attempt → payload staging → plist persistence → C2 comms
 
-  MITRE ATT&CK techniques: T1059.004, T1574.006, T1057, T1568, T1059.004,
+  MITRE ATT&CK techniques: T1059.004, T1574.006, T1057, T1071.004, T1059.004,
                             T1074.001, T1543.001, T1071.001
 
 steps:
@@ -26,7 +26,7 @@ steps:
   # T1057 — enumerate system XPC services for discovery and lateral movement planning
   - module: xpc_connect
 
-  # T1568 — resolve multi-stage C2 domains (dynamic resolution)
+  # T1071.004 - resolve known C2 domains via DNS
   - module: net_dns
     params:
       domains: "downloads.example.com,assets.example.net,api.example.org"
