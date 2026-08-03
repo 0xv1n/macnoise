@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/user"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -37,6 +38,7 @@ type Logger struct {
 	runID   string
 	version string
 	actor   *OCSFActor
+	device  *OCSFDevice
 }
 
 // NewLogger opens (or creates) path for append and returns a ready Logger.
@@ -50,6 +52,7 @@ func NewLogger(path, version string) (*Logger, error) {
 		runID:   generateRunID(),
 		version: version,
 		actor:   currentActor(),
+		device:  currentDevice(),
 	}, nil
 }
 
@@ -107,6 +110,7 @@ func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, para
 		Status:       status,
 		Metadata:     l.metadata(),
 		Actor:        l.actor,
+		Device:       l.device,
 		Attacks:      mitreToAttacks(info.MITRE),
 		Unmapped: UnmappedData{
 			Module:         info.Name,
@@ -114,6 +118,13 @@ func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, para
 			Params:         map[string]string(params),
 			Privileges:     string(info.Privileges),
 		},
+	}
+
+	switch cl.ClassUID {
+	case 1001:
+		rec.File = extractFile(ev.EventType, ev.Details)
+	case 1007:
+		rec.Process = extractProcess(ev.Details, l.actor.Process)
 	}
 
 	l.write(rec)
@@ -173,6 +184,7 @@ func (l *Logger) LogLifecycle(recordType string, info module.ModuleInfo, params 
 		Duration:     dur,
 		Metadata:     l.metadata(),
 		Actor:        l.actor,
+		Device:       l.device,
 		Attacks:      mitreToAttacks(info.MITRE),
 		Unmapped:     unmapped,
 	}
@@ -231,6 +243,7 @@ func (l *Logger) LogScenario(name, path string, data LifecycleData) {
 		Duration:     dur,
 		Metadata:     l.metadata(),
 		Actor:        l.actor,
+		Device:       l.device,
 		Unmapped: ScenarioUnmappedData{
 			ScenarioName:  name,
 			ScenarioFile:  path,
@@ -284,6 +297,60 @@ func currentActor() *OCSFActor {
 		proc.User = &OCSFUser{Name: u.Username}
 	}
 	return &OCSFActor{Process: proc}
+}
+
+// currentDevice identifies the local host. type_id is Unknown (0) rather
+// than a guess at Desktop/Laptop, since nothing here can reliably tell them
+// apart; hostname alone satisfies OCSF's "at least one identifying field" rule.
+func currentDevice() *OCSFDevice {
+	hostname, _ := os.Hostname()
+	return &OCSFDevice{TypeID: 0, Hostname: hostname}
+}
+
+// extractFile builds the file object a file_activity (1001) record requires
+// from whatever the emitting module put in ev.Details. Modules aren't
+// required to use a consistent key for this (most use "path"; file_archive
+// uses "output_path" for the archive it created), so this is deliberately
+// best-effort: if no known key is present, it still returns a non-nil File
+// (satisfying the required field) generic enough not to claim data that
+// isn't there.
+func extractFile(eventType string, details map[string]any) *OCSFFile {
+	path, _ := details["path"].(string)
+	if path == "" {
+		path, _ = details["output_path"].(string)
+	}
+	typeID := 1 // Regular File
+	if eventType == "dir_create" {
+		typeID = 2 // Folder
+	}
+	if path == "" {
+		return &OCSFFile{Name: eventType, TypeID: typeID}
+	}
+	return &OCSFFile{Name: filepath.Base(path), Path: path, TypeID: typeID}
+}
+
+// extractProcess builds the process object a process_activity (1007) record
+// requires. A handful of modules record the actual target process's pid
+// and/or command in ev.Details (process_fork has both; process_spawn and
+// dylib_inject_attempt have a command/target with no pid, since those exec
+// synchronously rather than tracking a forked pid); everything else falls
+// back to macnoise's own process, since it performed the activity even when
+// it didn't hand off to a distinctly-tracked child.
+func extractProcess(details map[string]any, fallback *OCSFProcess) *OCSFProcess {
+	name, hasName := details["command"].(string)
+	if !hasName {
+		name, hasName = details["target"].(string)
+	}
+	pid, hasPID := details["pid"].(int)
+
+	if !hasName && !hasPID {
+		return fallback
+	}
+	proc := &OCSFProcess{Name: name}
+	if hasPID {
+		proc.PID = pid
+	}
+	return proc
 }
 
 func mitreToAttacks(mitre []module.MITRE) []OCSFAttack {
