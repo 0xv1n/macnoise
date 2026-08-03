@@ -25,8 +25,27 @@ type Record struct {
 	Duration     int64        `json:"duration,omitempty"`
 	Metadata     OCSFMetadata `json:"metadata"`
 	Actor        *OCSFActor   `json:"actor,omitempty"`
+	Device       *OCSFDevice  `json:"device,omitempty"`
+	File         *OCSFFile    `json:"file,omitempty"`
+	Process      *OCSFProcess `json:"process,omitempty"`
 	Attacks      []OCSFAttack `json:"attacks,omitempty"`
 	Unmapped     any          `json:"unmapped,omitempty"`
+}
+
+// OCSFDevice identifies the host macnoise is running on. Required by OCSF for
+// file_activity (1001) and process_activity (1007); populated once per
+// Logger and reused across every record rather than recomputed per event.
+type OCSFDevice struct {
+	TypeID   int    `json:"type_id"`
+	Hostname string `json:"hostname,omitempty"`
+}
+
+// OCSFFile identifies the file targeted by a file_activity (1001) record.
+// Required by OCSF for that class.
+type OCSFFile struct {
+	Name   string `json:"name"`
+	Path   string `json:"path,omitempty"`
+	TypeID int    `json:"type_id"`
 }
 
 // OCSFMetadata carries OCSF product and log metadata embedded in every Record.
