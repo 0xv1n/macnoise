@@ -96,14 +96,7 @@ func (f *fileCreate) DryRun(params module.Params) []string {
 }
 
 func (f *fileCreate) Cleanup() error {
-	var lastErr error
-	for _, p := range f.createdPaths {
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			lastErr = err
-		}
-	}
-	f.createdPaths = nil
-	return lastErr
+	return nil
 }
 
 func init() {

@@ -91,9 +91,6 @@ func (f *fileHide) DryRun(params module.Params) []string {
 }
 
 func (f *fileHide) Cleanup() error {
-	if f.workDir != "" {
-		return os.RemoveAll(f.workDir)
-	}
 	return nil
 }
 
