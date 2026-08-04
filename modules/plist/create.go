@@ -131,6 +131,9 @@ func (p *plistCreate) DryRun(params module.Params) []string {
 }
 
 func (p *plistCreate) Cleanup() error {
+	if p.createdPath != "" {
+		return os.Remove(p.createdPath)
+	}
 	return nil
 }
 

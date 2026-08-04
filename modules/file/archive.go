@@ -114,7 +114,18 @@ func (f *fileArchive) DryRun(params module.Params) []string {
 }
 
 func (f *fileArchive) Cleanup() error {
-	return nil
+	var lastErr error
+	if f.outputPath != "" {
+		if err := os.Remove(f.outputPath); err != nil && !os.IsNotExist(err) {
+			lastErr = err
+		}
+	}
+	if f.sourceDir != "" {
+		if err := os.RemoveAll(f.sourceDir); err != nil && !os.IsNotExist(err) {
+			lastErr = err
+		}
+	}
+	return lastErr
 }
 
 func init() {
