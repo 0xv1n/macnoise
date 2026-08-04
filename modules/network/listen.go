@@ -32,6 +32,7 @@ func (n *netListen) Info() module.ModuleInfo {
 func (n *netListen) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{Name: "port", Description: "Local port to bind", Required: false, DefaultValue: "8080", Example: "9999"},
+		{Name: "bind_addr", Description: "Address to bind", Required: false, DefaultValue: "127.0.0.1", Example: "0.0.0.0"},
 	}
 }
 
@@ -39,7 +40,8 @@ func (n *netListen) CheckPrereqs() error { return nil }
 
 func (n *netListen) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	port := params.Get("port", "8080")
-	address := net.JoinHostPort("0.0.0.0", port)
+	bindAddr := params.Get("bind_addr", "127.0.0.1")
+	address := net.JoinHostPort(bindAddr, port)
 	info := n.Info()
 
 	l, err := net.Listen("tcp", address)
@@ -66,23 +68,38 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 		_ = conn.Close()
 	}()
 
-	conn, err := l.Accept()
-	if err != nil {
+	type acceptResult struct {
+		conn net.Conn
+		err  error
+	}
+	acceptCh := make(chan acceptResult, 1)
+	go func() {
+		conn, err := l.Accept()
+		acceptCh <- acceptResult{conn, err}
+	}()
+
+	select {
+	case <-ctx.Done():
+		_ = l.Close()
+		return ctx.Err()
+	case res := <-acceptCh:
+		if res.err != nil {
+			return nil
+		}
+		defer func() { _ = res.conn.Close() }()
+
+		accepted := output.NewEvent(info, "tcp_accept", true, fmt.Sprintf("accepted connection from %s", res.conn.RemoteAddr()))
+		accepted = output.WithDetails(accepted, map[string]any{"remote_addr": res.conn.RemoteAddr().String()})
+		emit(accepted)
 		return nil
 	}
-	defer func() { _ = conn.Close() }()
-
-	accepted := output.NewEvent(info, "tcp_accept", true, fmt.Sprintf("accepted connection from %s", conn.RemoteAddr()))
-	accepted = output.WithDetails(accepted, map[string]any{"remote_addr": conn.RemoteAddr().String()})
-	emit(accepted)
-
-	return nil
 }
 
 func (n *netListen) DryRun(params module.Params) []string {
 	port := params.Get("port", "8080")
+	bindAddr := params.Get("bind_addr", "127.0.0.1")
 	return []string{
-		fmt.Sprintf("bind TCP 0.0.0.0:%s", port),
+		fmt.Sprintf("bind TCP %s:%s", bindAddr, port),
 		"accept one connection from self (127.0.0.1)",
 	}
 }
