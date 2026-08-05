@@ -120,6 +120,12 @@ func (s *svcLaunchAgent) DryRun(params module.Params) []string {
 }
 
 func (s *svcLaunchAgent) Cleanup() error {
+	if s.label != "" {
+		exec.Command("launchctl", "unload", s.plistPath).Run() //nolint:errcheck
+	}
+	if s.plistPath != "" {
+		return os.Remove(s.plistPath)
+	}
 	return nil
 }
 
