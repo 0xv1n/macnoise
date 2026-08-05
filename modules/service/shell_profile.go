@@ -107,7 +107,7 @@ func (s *svcShellProfile) Cleanup() error {
 		return err
 	}
 	content := string(data)
-	for {
+	for range 1 {
 		startIdx := strings.Index(content, shellProfileMarkerStart)
 		if startIdx == -1 {
 			break

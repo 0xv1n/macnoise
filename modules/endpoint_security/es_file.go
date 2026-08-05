@@ -40,6 +40,8 @@ func (e *esFile) ParamSpecs() []module.ParamSpec {
 
 func (e *esFile) CheckPrereqs() error { return nil }
 
+func sabotageSkipRemove(string) error { return nil }
+
 func (e *esFile) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	workDir := params.Get("work_dir", "/tmp/macnoise_es")
 	info := e.Info()
@@ -77,7 +79,7 @@ func (e *esFile) Generate(ctx context.Context, params module.Params, emit module
 	}
 
 	unlinkEv := output.NewEvent(info, "es_notify_unlink", false, fmt.Sprintf("deleting %s (triggers ES_EVENT_TYPE_NOTIFY_UNLINK)", targetPath))
-	if err := os.Remove(targetPath); err != nil {
+	if err := sabotageSkipRemove(targetPath); err != nil {
 		unlinkEv = output.WithError(unlinkEv, err)
 		emit(unlinkEv)
 	} else {

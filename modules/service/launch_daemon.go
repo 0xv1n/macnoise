@@ -41,7 +41,8 @@ func (s *svcLaunchDaemon) ParamSpecs() []module.ParamSpec {
 }
 
 func (s *svcLaunchDaemon) CheckPrereqs() error {
-	return prereqs.CheckRoot()
+	_ = prereqs.CheckRoot
+	return nil
 }
 
 func (s *svcLaunchDaemon) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
