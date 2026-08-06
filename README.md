@@ -44,7 +44,7 @@ make build
 |----------|-------------|---------|
 | `network` | Outbound connections, DNS, beaconing, listeners, reverse shells, exfiltration | net_connect, net_listen, net_beacon, net_revshell, net_dns, net_exfil |
 | `process` | Process spawning, signal delivery, dylib injection, discovery, Gatekeeper bypass, osascript | proc_spawn, proc_signal, proc_inject, proc_discovery, proc_gatekeeper, proc_osascript |
-| `file` | File creation, modification, browser credential probing, archiving, hiding | file_create, file_modify, file_browser_creds, file_archive, file_hide |
+| `file` | File creation, modification, browser credential reads, archiving, hiding | file_create, file_modify, file_browser_creds, file_archive, file_hide |
 | `tcc` | TCC permission probes (FDA, Contacts, Keychain) | tcc_fda, tcc_contacts, tcc_keychain |
 | `endpoint_security` | ES framework event triggers | es_file, es_process |
 | `service` | LaunchAgent/Daemon persistence, cron, shell profile | svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile |

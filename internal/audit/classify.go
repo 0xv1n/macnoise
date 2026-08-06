@@ -75,7 +75,7 @@ func fileActivity(eventType string) (int, string) {
 	case "file_create", "dir_create", "file_hide_dotfile", "archive_create",
 		"plist_create", "plist_create_launchagent":
 		return 1, "Create"
-	case "plist_read_prior":
+	case "plist_read_prior", "browser_cred_read":
 		return 2, "Read"
 	case "file_modify", "plist_modify":
 		return 3, "Update"
