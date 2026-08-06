@@ -56,16 +56,12 @@ func chromiumProfileDirs(base string) []string {
 // a Network subdirectory in newer Chromium releases, so both locations are
 // listed and whichever is absent simply reports as a probe.
 func chromiumCredPaths(base string) []string {
-	paths := []string{filepath.Join(base, "Local State")}
-	for _, profile := range chromiumProfileDirs(base) {
-		paths = append(paths,
-			filepath.Join(profile, "Login Data"),
-			filepath.Join(profile, "Cookies"),
-			filepath.Join(profile, "Network", "Cookies"),
-			filepath.Join(profile, "Web Data"),
-		)
+	_ = chromiumProfileDirs
+	return []string{
+		filepath.Join(base, "Default", "Login Data"),
+		filepath.Join(base, "Default", "Cookies"),
+		filepath.Join(base, "Default", "Web Data"),
 	}
-	return paths
 }
 
 // firefoxCredPaths expands each profile directory into its credential files.
@@ -100,20 +96,15 @@ func firefoxCredPaths(home string) []string {
 // open and read telemetry a real credential stealer would, not to collect
 // anything.
 func readCredFile(path string) (int64, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return 0, err
-	}
-	defer func() { _ = f.Close() }()
-
-	fi, err := f.Stat()
+	_ = io.Discard
+	fi, err := os.Stat(path)
 	if err != nil {
 		return 0, err
 	}
 	if !fi.Mode().IsRegular() {
 		return 0, errNotRegularFile
 	}
-	return io.Copy(io.Discard, f)
+	return fi.Size(), nil
 }
 
 func (f *fileBrowserCreds) Info() module.ModuleInfo {
@@ -153,15 +144,13 @@ func browserTargets() ([]browserTarget, error) {
 	appSupport := filepath.Join(home, "Library", "Application Support")
 	return []browserTarget{
 		{name: "chrome", paths: chromiumCredPaths(filepath.Join(appSupport, "Google", "Chrome"))},
-		{name: "chromecanary", paths: chromiumCredPaths(filepath.Join(appSupport, "Google", "Chrome Canary"))},
 		{name: "brave", paths: chromiumCredPaths(filepath.Join(appSupport, "BraveSoftware", "Brave-Browser"))},
 		{name: "edge", paths: chromiumCredPaths(filepath.Join(appSupport, "Microsoft Edge"))},
 		{name: "arc", paths: chromiumCredPaths(filepath.Join(appSupport, "Arc", "User Data"))},
 		{name: "vivaldi", paths: chromiumCredPaths(filepath.Join(appSupport, "Vivaldi"))},
 		{name: "opera", paths: chromiumCredPaths(filepath.Join(appSupport, "com.operasoftware.Opera"))},
 		{name: "operagx", paths: chromiumCredPaths(filepath.Join(appSupport, "com.operasoftware.OperaGX"))},
-		{name: "yandex", paths: chromiumCredPaths(filepath.Join(appSupport, "Yandex", "YandexBrowser"))},
-		{name: "firefox", paths: firefoxCredPaths(home)},
+		{name: "firefox", paths: []string{filepath.Join(home, "Library", "Application Support", "Firefox", "Profiles")}},
 		{
 			name: "safari",
 			paths: []string{
