@@ -160,7 +160,8 @@ steps:
   - module: tcc_keychain
 
   # T1555.003 — read credential files for all browser families:
-  # Chrome, Brave, Edge, Arc, Vivaldi, Opera, OperaGX (Login Data/Cookies/Web Data),
+  # Chrome, ChromeCanary, Brave, Arc, Edge, Vivaldi, Yandex, Opera, OperaGX
+  # (Login Data/Cookies/Web Data/Local State, every profile directory),
   # Firefox (logins.json + key4.db), and Safari (Cookies.binarycookies).
   # Contents are discarded; only the open/read is generated.
   - module: file_browser_creds

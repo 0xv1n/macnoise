@@ -131,6 +131,69 @@ func TestBrowserCreds_UnreadableFileIsDeniedRead(t *testing.T) {
 	}
 }
 
+// Chromium keeps secondary profiles in "Profile N" directories, so covering
+// only "Default" would miss every credential store they hold.
+func TestBrowserCreds_EnumeratesChromiumProfiles(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	chrome := filepath.Join(home, "Library", "Application Support", "Google", "Chrome")
+	defaultLogins := filepath.Join(chrome, "Default", "Login Data")
+	secondLogins := filepath.Join(chrome, "Profile 1", "Login Data")
+	guestCookies := filepath.Join(chrome, "Guest Profile", "Network", "Cookies")
+	localState := filepath.Join(chrome, "Local State")
+	writeCredFixture(t, defaultLogins, "default profile logins")
+	writeCredFixture(t, secondLogins, "second profile logins")
+	writeCredFixture(t, guestCookies, "guest cookies")
+	writeCredFixture(t, localState, `{"os_crypt":{"encrypted_key":"fake"}}`)
+
+	f := &fileBrowserCreds{}
+	var events []module.TelemetryEvent
+	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+
+	if err := f.Generate(context.Background(), module.Params{"browsers": "chrome"}, emit); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+
+	byPath := eventsByPath(events)
+	for _, want := range []string{defaultLogins, secondLogins, guestCookies, localState} {
+		ev, ok := byPath[want]
+		if !ok {
+			t.Errorf("no event emitted for %s", want)
+			continue
+		}
+		if ev.EventType != "browser_cred_read" {
+			t.Errorf("%s: EventType = %q, want browser_cred_read", want, ev.EventType)
+		}
+	}
+}
+
+// Every Chromium-family browser the AMOS scenario names must be covered, not
+// just the ones that happen to be installed.
+func TestBrowserCreds_CoversAllChromiumFamilies(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	want := []string{"chrome", "chromecanary", "brave", "arc", "edge", "vivaldi", "yandex", "opera", "operagx"}
+
+	f := &fileBrowserCreds{}
+	seen := map[string]bool{}
+	emit := func(ev module.TelemetryEvent) {
+		if b, ok := ev.Details["browser"].(string); ok {
+			seen[b] = true
+		}
+	}
+
+	if err := f.Generate(context.Background(), module.Params{}, emit); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	for _, b := range want {
+		if !seen[b] {
+			t.Errorf("no events emitted for browser %q", b)
+		}
+	}
+}
+
 // The AMOS scenario claims Firefox coverage of logins.json and key4.db, which
 // requires enumerating the randomly-named profile directories.
 func TestBrowserCreds_EnumeratesFirefoxProfiles(t *testing.T) {

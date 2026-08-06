@@ -24,12 +24,48 @@ type browserTarget struct {
 // so it is reported as a probe rather than a denied read.
 var errNotRegularFile = errors.New("not a regular file")
 
-func chromiumCredPaths(profileBase string) []string {
-	return []string{
-		filepath.Join(profileBase, "Default", "Login Data"),
-		filepath.Join(profileBase, "Default", "Cookies"),
-		filepath.Join(profileBase, "Default", "Web Data"),
+// chromiumProfileDirs enumerates the profile directories under base. Chromium
+// keeps the first profile in "Default" and any additional ones in "Profile 1",
+// "Profile 2", and so on, so assuming a single profile misses every credential
+// store belonging to secondary profiles. When none are found "Default" is
+// returned so an absent browser still produces a probe event.
+func chromiumProfileDirs(base string) []string {
+	entries, err := os.ReadDir(base)
+	if err != nil {
+		return []string{filepath.Join(base, "Default")}
 	}
+
+	var dirs []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		if name := e.Name(); name == "Default" || name == "Guest Profile" || strings.HasPrefix(name, "Profile ") {
+			dirs = append(dirs, filepath.Join(base, name))
+		}
+	}
+	if len(dirs) == 0 {
+		return []string{filepath.Join(base, "Default")}
+	}
+	return dirs
+}
+
+// chromiumCredPaths lists the credential stores across every profile under
+// base. Local State is included because it holds the key that decrypts Login
+// Data, making it part of the set a real stealer collects. Cookies moved into
+// a Network subdirectory in newer Chromium releases, so both locations are
+// listed and whichever is absent simply reports as a probe.
+func chromiumCredPaths(base string) []string {
+	paths := []string{filepath.Join(base, "Local State")}
+	for _, profile := range chromiumProfileDirs(base) {
+		paths = append(paths,
+			filepath.Join(profile, "Login Data"),
+			filepath.Join(profile, "Cookies"),
+			filepath.Join(profile, "Network", "Cookies"),
+			filepath.Join(profile, "Web Data"),
+		)
+	}
+	return paths
 }
 
 // firefoxCredPaths expands each profile directory into its credential files.
@@ -117,12 +153,14 @@ func browserTargets() ([]browserTarget, error) {
 	appSupport := filepath.Join(home, "Library", "Application Support")
 	return []browserTarget{
 		{name: "chrome", paths: chromiumCredPaths(filepath.Join(appSupport, "Google", "Chrome"))},
+		{name: "chromecanary", paths: chromiumCredPaths(filepath.Join(appSupport, "Google", "Chrome Canary"))},
 		{name: "brave", paths: chromiumCredPaths(filepath.Join(appSupport, "BraveSoftware", "Brave-Browser"))},
 		{name: "edge", paths: chromiumCredPaths(filepath.Join(appSupport, "Microsoft Edge"))},
 		{name: "arc", paths: chromiumCredPaths(filepath.Join(appSupport, "Arc", "User Data"))},
 		{name: "vivaldi", paths: chromiumCredPaths(filepath.Join(appSupport, "Vivaldi"))},
 		{name: "opera", paths: chromiumCredPaths(filepath.Join(appSupport, "com.operasoftware.Opera"))},
 		{name: "operagx", paths: chromiumCredPaths(filepath.Join(appSupport, "com.operasoftware.OperaGX"))},
+		{name: "yandex", paths: chromiumCredPaths(filepath.Join(appSupport, "Yandex", "YandexBrowser"))},
 		{name: "firefox", paths: firefoxCredPaths(home)},
 		{
 			name: "safari",
