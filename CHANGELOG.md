@@ -10,6 +10,21 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
 > required format. You no longer need to hand-edit this file.
 
+## [0.3.0](https://github.com/0xv1n/macnoise/compare/v0.2.1...v0.3.0) (2026-08-06)
+
+
+### Features
+
+* read browser credential files instead of stat-only probing ([#27](https://github.com/0xv1n/macnoise/issues/27)) ([377e7e0](https://github.com/0xv1n/macnoise/commit/377e7e0ecf0e23e490591a0ceeddf90c30efcddf))
+
+
+### Bug Fixes
+
+* correct net_dns MITRE mapping and add real T1518 coverage to proc_discovery ([#20](https://github.com/0xv1n/macnoise/issues/20)) ([2f64293](https://github.com/0xv1n/macnoise/commit/2f642932da19924ba80951f35a60117d598801e0))
+* populate required OCSF file/process/device fields on audit records ([#23](https://github.com/0xv1n/macnoise/issues/23)) ([a08672e](https://github.com/0xv1n/macnoise/commit/a08672ea55dbdc40ed858445b6563d70c7740f98))
+* rewrite OCSF classify.go to match real event types and correct activity IDs ([#22](https://github.com/0xv1n/macnoise/issues/22)) ([5c6360d](https://github.com/0xv1n/macnoise/commit/5c6360d8e53180553ba03e15ac778dffa31f6bbe))
+* wire context cancellation into net_listen and net_revshell dials ([#24](https://github.com/0xv1n/macnoise/issues/24)) ([e6ddf4d](https://github.com/0xv1n/macnoise/commit/e6ddf4de91f4d99708e352bc01529977a7af7ff4))
+
 ## [0.2.1](https://github.com/0xv1n/macnoise/compare/v0.2.0...v0.2.1) (2026-08-01)
 
 
