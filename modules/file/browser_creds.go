@@ -2,7 +2,9 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -18,6 +20,10 @@ type browserTarget struct {
 	paths []string
 }
 
+// errNotRegularFile marks a target path that exists but holds nothing to read,
+// so it is reported as a probe rather than a denied read.
+var errNotRegularFile = errors.New("not a regular file")
+
 func chromiumCredPaths(profileBase string) []string {
 	return []string{
 		filepath.Join(profileBase, "Default", "Login Data"),
@@ -26,10 +32,58 @@ func chromiumCredPaths(profileBase string) []string {
 	}
 }
 
+// firefoxCredPaths expands each profile directory into its credential files.
+// Firefox names profile directories with a random prefix, so they have to be
+// enumerated rather than hardcoded. When no profile exists the profiles
+// directory itself is returned, so an absent Firefox still produces a probe
+// event instead of silently emitting nothing.
+func firefoxCredPaths(home string) []string {
+	profilesDir := filepath.Join(home, "Library", "Application Support", "Firefox", "Profiles")
+	entries, err := os.ReadDir(profilesDir)
+	if err != nil {
+		return []string{profilesDir}
+	}
+
+	var paths []string
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		for _, name := range []string{"logins.json", "key4.db", "cookies.sqlite"} {
+			paths = append(paths, filepath.Join(profilesDir, e.Name(), name))
+		}
+	}
+	if len(paths) == 0 {
+		return []string{profilesDir}
+	}
+	return paths
+}
+
+// readCredFile opens path and reads it to completion, returning the bytes read.
+// The contents are discarded rather than retained: the goal is to generate the
+// open and read telemetry a real credential stealer would, not to collect
+// anything.
+func readCredFile(path string) (int64, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return 0, err
+	}
+	defer func() { _ = f.Close() }()
+
+	fi, err := f.Stat()
+	if err != nil {
+		return 0, err
+	}
+	if !fi.Mode().IsRegular() {
+		return 0, errNotRegularFile
+	}
+	return io.Copy(io.Discard, f)
+}
+
 func (f *fileBrowserCreds) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_browser_creds",
-		Description: "Probes known browser credential file paths via stat to generate browser credential access telemetry",
+		Description: "Reads known browser credential files to generate browser credential access telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"browser", "credentials", "chromium", "firefox", "safari"},
 		Privileges:  module.PrivilegeNone,
@@ -69,12 +123,7 @@ func browserTargets() ([]browserTarget, error) {
 		{name: "vivaldi", paths: chromiumCredPaths(filepath.Join(appSupport, "Vivaldi"))},
 		{name: "opera", paths: chromiumCredPaths(filepath.Join(appSupport, "com.operasoftware.Opera"))},
 		{name: "operagx", paths: chromiumCredPaths(filepath.Join(appSupport, "com.operasoftware.OperaGX"))},
-		{
-			name: "firefox",
-			paths: []string{
-				filepath.Join(home, "Library", "Application Support", "Firefox", "Profiles"),
-			},
-		},
+		{name: "firefox", paths: firefoxCredPaths(home)},
 		{
 			name: "safari",
 			paths: []string{
@@ -112,25 +161,44 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 		}
 
 		for _, path := range browser.paths {
-			ev := output.NewEvent(info, "browser_cred_probe", false, fmt.Sprintf("probing %s: %s", browser.name, path))
-			fi, statErr := os.Stat(path)
-			if statErr != nil {
-				ev.Success = true
-				ev.Message = fmt.Sprintf("%s credential path not accessible: %s", browser.name, path)
+			n, readErr := readCredFile(path)
+
+			var ev module.TelemetryEvent
+			switch {
+			case os.IsNotExist(readErr) || errors.Is(readErr, errNotRegularFile):
+				ev = output.NewEvent(info, "browser_cred_probe", true,
+					fmt.Sprintf("%s credential path not present: %s", browser.name, path))
 				ev = output.WithDetails(ev, map[string]any{
 					"browser": browser.name,
 					"path":    path,
 					"exists":  false,
 				})
-			} else {
+
+			case readErr != nil:
+				// The file exists but could not be opened, which on macOS
+				// usually means TCC denied it. That refusal is the signal a
+				// detection is meant to see, so it is reported as a completed
+				// read attempt rather than a module failure.
+				ev = output.NewEvent(info, "browser_cred_read", true,
+					fmt.Sprintf("%s credential file read denied: %s", browser.name, path))
+				ev = output.WithError(ev, readErr)
 				ev.Success = true
-				ev.Message = fmt.Sprintf("%s credential file found: %s (%d bytes)", browser.name, path, fi.Size())
 				ev = output.WithDetails(ev, map[string]any{
-					"browser":  browser.name,
-					"path":     path,
-					"exists":   true,
-					"size":     fi.Size(),
-					"modified": fi.ModTime().UTC().Format("2006-01-02T15:04:05Z"),
+					"browser":    browser.name,
+					"path":       path,
+					"exists":     true,
+					"accessible": false,
+				})
+
+			default:
+				ev = output.NewEvent(info, "browser_cred_read", true,
+					fmt.Sprintf("%s credential file read: %s (%d bytes)", browser.name, path, n))
+				ev = output.WithDetails(ev, map[string]any{
+					"browser":    browser.name,
+					"path":       path,
+					"exists":     true,
+					"accessible": true,
+					"bytes_read": n,
 				})
 			}
 			emit(ev)
@@ -142,7 +210,7 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 func (f *fileBrowserCreds) DryRun(params module.Params) []string {
 	browsersParam := params.Get("browsers", "all")
 	return []string{
-		fmt.Sprintf("stat browser credential paths for: %s", browsersParam),
+		fmt.Sprintf("open and read browser credential files for: %s (contents discarded)", browsersParam),
 	}
 }
 

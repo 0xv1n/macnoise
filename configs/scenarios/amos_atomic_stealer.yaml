@@ -159,9 +159,10 @@ steps:
   # AMOS: security unlock-keychain -p <pass> login.keychain-db, then cp to exfil/Keychain/kc.db
   - module: tcc_keychain
 
-  # T1555.003 — probe credential paths for all browser families:
+  # T1555.003 — read credential files for all browser families:
   # Chrome, Brave, Edge, Arc, Vivaldi, Opera, OperaGX (Login Data/Cookies/Web Data),
-  # Firefox (logins.json + key4.db), and Safari (Cookies.binarycookies)
+  # Firefox (logins.json + key4.db), and Safari (Cookies.binarycookies).
+  # Contents are discarded; only the open/read is generated.
   - module: file_browser_creds
     params:
       browsers: all

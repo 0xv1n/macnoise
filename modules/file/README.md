@@ -11,7 +11,7 @@ Creates files in a directory. Maps to T1074.001. Cleanup removes created files.
 Appends to a file. Maps to T1565.001. Cleanup restores original content.
 
 ### `file_browser_creds`
-Probes known browser credential file paths via `os.Stat` (no read, no copy). Covers Chrome, Brave, Edge, Arc, Vivaldi, Opera, OperaGX, Firefox, and Safari. Emits one `browser_cred_probe` event per path indicating existence, size, and last-modified time. Maps to T1555.003.
+Opens and reads known browser credential files, discarding the contents (no copy, nothing retained). Covers Chrome, Brave, Edge, Arc, Vivaldi, Opera, OperaGX, Firefox (`logins.json`, `key4.db`, `cookies.sqlite` across every profile), and Safari. Emits `browser_cred_read` per file opened, carrying bytes read or the denial reason, and `browser_cred_probe` for paths that are not present. Maps to T1555.003.
 
 ```bash
 macnoise run file_browser_creds
