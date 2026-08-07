@@ -107,7 +107,7 @@ func (s *svcLaunchDaemon) DryRun(params module.Params) []string {
 	program := params.Get("program", "/usr/bin/true")
 	return []string{
 		fmt.Sprintf("create /Library/LaunchDaemons/%s.plist with Program=%s (requires root)", label, program),
-		fmt.Sprintf("launchctl bootstrap %s /Library/LaunchDaemons/%s.plist", systemDomain, label),
+		launchctlCmdLine(bootstrapArgs(systemDomain, fmt.Sprintf("/Library/LaunchDaemons/%s.plist", label))),
 	}
 }
 
