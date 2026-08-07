@@ -58,9 +58,9 @@ func TestSvcLaunchAgent_GenerateAndCleanup(t *testing.T) {
 		t.Error("expected a successful launchagent_create event")
 	}
 
-	// launchctl load is deliberately not asserted: it needs a GUI (Aqua)
+	// launchctl bootstrap is deliberately not asserted: it needs a GUI (Aqua)
 	// session, which a CI runner has no guarantee of, and the module already
-	// treats a load failure as valid telemetry rather than an error.
+	// treats a bootstrap failure as valid telemetry rather than an error.
 
 	if err := s.Cleanup(); err != nil {
 		t.Fatalf("Cleanup: %v", err)
