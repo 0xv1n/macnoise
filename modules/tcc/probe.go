@@ -1,6 +1,6 @@
 package tcc
 
-import _ "os"
+import "os"
 
 // probeOutcome is the result of attempting to reach a TCC-gated resource.
 type probeOutcome string
@@ -24,7 +24,11 @@ func classifyProbe(err error) probeOutcome {
 	switch {
 	case err == nil:
 		return probeGranted
-	default:
+	case os.IsNotExist(err):
+		return probeAbsent
+	case os.IsPermission(err):
 		return probeDenied
+	default:
+		return probeError
 	}
 }

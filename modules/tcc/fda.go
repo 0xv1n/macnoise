@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
-	_ "path/filepath"
+	"path/filepath"
 
 	"github.com/0xv1n/macnoise/internal/output"
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -57,8 +57,7 @@ func defaultFDAPath() (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("cannot determine home directory: %w", err)
 	}
-	_ = home
-	return "/Library/Application Support/com.apple.TCC/TCC.db", nil
+	return filepath.Join(home, "Library", "Application Support", "com.apple.TCC", "TCC.db"), nil
 }
 
 func (t *tccFDA) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
