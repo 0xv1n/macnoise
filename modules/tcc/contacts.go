@@ -52,30 +52,30 @@ func (t *tccContacts) Generate(ctx context.Context, params module.Params, emit m
 	}
 
 	info := t.Info()
-	ev := output.NewEvent(info, "tcc_contacts_probe", false, fmt.Sprintf("enumerating %s", abPath))
+	ev := output.NewEvent(info, "tcc_contacts_probe", true, fmt.Sprintf("enumerating %s", abPath))
+	details := map[string]any{"path": abPath}
 
 	entries, err := os.ReadDir(abPath)
-	if err != nil {
-		ev.Success = true
+	outcome := classifyProbe(err)
+	details["result"] = string(outcome)
+
+	switch outcome {
+	case probeGranted:
+		ev.Message = fmt.Sprintf("Contacts TCC probe: read access granted, found %d entries in %s", len(entries), abPath)
+		details["entry_count"] = len(entries)
+	case probeDenied:
 		ev.Message = fmt.Sprintf("Contacts TCC probe: access denied to %s (expected without permission)", abPath)
-		ev = output.WithDetails(ev, map[string]any{
-			"path":   abPath,
-			"result": "denied",
-		})
-		if !os.IsPermission(err) && !os.IsNotExist(err) {
-			ev = output.WithError(ev, err)
-		}
-		emit(ev)
-		return nil
+	case probeAbsent:
+		ev.Message = fmt.Sprintf("Contacts TCC probe: %s does not exist, no TCC decision was made", abPath)
+		ev = output.WithError(ev, err)
+		ev.Success = true
+	default:
+		ev.Message = fmt.Sprintf("Contacts TCC probe: unexpected failure reading %s", abPath)
+		ev = output.WithError(ev, err)
+		ev.Success = true
 	}
 
-	ev.Success = true
-	ev.Message = fmt.Sprintf("Contacts TCC probe: read access granted, found %d entries in %s", len(entries), abPath)
-	ev = output.WithDetails(ev, map[string]any{
-		"path":        abPath,
-		"result":      "granted",
-		"entry_count": len(entries),
-	})
+	ev = output.WithDetails(ev, details)
 	emit(ev)
 	return nil
 }

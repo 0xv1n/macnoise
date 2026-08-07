@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"github.com/0xv1n/macnoise/internal/output"
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -34,53 +35,77 @@ func (t *tccFDA) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
 			Name:         "tcc_path",
-			Description:  "Path to TCC.db",
+			Description:  "Path to the TCC-gated file to probe (defaults to the per-user TCC.db)",
 			Required:     false,
-			DefaultValue: "/Library/Application Support/com.apple.TCC/TCC.db",
-			Example:      "~/Library/Application Support/com.apple.TCC/TCC.db",
+			DefaultValue: "~/Library/Application Support/com.apple.TCC/TCC.db",
+			Example:      "/Library/Application Support/com.apple.TCC/TCC.db",
 		},
 	}
 }
 
 func (t *tccFDA) CheckPrereqs() error { return nil }
 
+// defaultFDAPath returns the per-user TCC database.
+//
+// The system database under /Library is root-owned, so an unprivileged process
+// is refused by ordinary POSIX permissions before TCC is ever consulted, and
+// the probe cannot tell a privacy denial from a plain mode-bit denial. The
+// per-user database is owned by the user running the probe, so POSIX permits
+// the read and only Full Disk Access decides the outcome.
+func defaultFDAPath() (string, error) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		return "", fmt.Errorf("cannot determine home directory: %w", err)
+	}
+	return filepath.Join(home, "Library", "Application Support", "com.apple.TCC", "TCC.db"), nil
+}
+
 func (t *tccFDA) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	tccPath := params.Get("tcc_path", "/Library/Application Support/com.apple.TCC/TCC.db")
+	tccPath := params.Get("tcc_path", "")
+	if tccPath == "" {
+		var err error
+		if tccPath, err = defaultFDAPath(); err != nil {
+			return err
+		}
+	}
 	info := t.Info()
 
-	ev := output.NewEvent(info, "tcc_fda_probe", false, fmt.Sprintf("attempting to read %s", tccPath))
+	ev := output.NewEvent(info, "tcc_fda_probe", true, fmt.Sprintf("attempting to read %s", tccPath))
+	details := map[string]any{"path": tccPath}
 
 	f, err := os.Open(tccPath)
-	if err != nil {
-		ev.Success = true
-		ev.Message = fmt.Sprintf("TCC FDA probe: access denied to %s (expected without FDA)", tccPath)
-		ev = output.WithDetails(ev, map[string]any{
-			"path":   tccPath,
-			"result": "denied",
-			"note":   "Access denied indicates TCC is working; grant Full Disk Access to test FDA bypass",
-		})
-		if !os.IsPermission(err) {
-			ev = output.WithError(ev, err)
-		}
-		emit(ev)
-		return nil
-	}
-	defer func() { _ = f.Close() }()
+	outcome := classifyProbe(err)
+	details["result"] = string(outcome)
 
-	stat, _ := f.Stat()
-	ev.Success = true
-	ev.Message = fmt.Sprintf("TCC FDA probe: read access granted to %s", tccPath)
-	ev = output.WithDetails(ev, map[string]any{
-		"path":      tccPath,
-		"result":    "granted",
-		"file_size": stat.Size(),
-	})
+	switch outcome {
+	case probeGranted:
+		defer func() { _ = f.Close() }()
+		ev.Message = fmt.Sprintf("TCC FDA probe: read access granted to %s", tccPath)
+		if stat, statErr := f.Stat(); statErr == nil {
+			details["file_size"] = stat.Size()
+		}
+	case probeDenied:
+		ev.Message = fmt.Sprintf("TCC FDA probe: access denied to %s (expected without FDA)", tccPath)
+	case probeAbsent:
+		ev.Message = fmt.Sprintf("TCC FDA probe: %s does not exist, no TCC decision was made", tccPath)
+		ev = output.WithError(ev, err)
+		ev.Success = true
+	default:
+		ev.Message = fmt.Sprintf("TCC FDA probe: unexpected failure reading %s", tccPath)
+		ev = output.WithError(ev, err)
+		ev.Success = true
+	}
+
+	ev = output.WithDetails(ev, details)
 	emit(ev)
 	return nil
 }
 
 func (t *tccFDA) DryRun(params module.Params) []string {
-	path := params.Get("tcc_path", "/Library/Application Support/com.apple.TCC/TCC.db")
+	path := params.Get("tcc_path", "")
+	if path == "" {
+		path, _ = defaultFDAPath()
+	}
 	return []string{fmt.Sprintf("open %s for reading (probes FDA permission)", path)}
 }
 
