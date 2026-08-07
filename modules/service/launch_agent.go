@@ -116,9 +116,10 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 func (s *svcLaunchAgent) DryRun(params module.Params) []string {
 	label := params.Get("label", "com.macnoise.testagent")
 	program := params.Get("program", "/usr/bin/true")
+	plistPath := fmt.Sprintf("~/Library/LaunchAgents/%s.plist", label)
 	return []string{
-		fmt.Sprintf("create ~/Library/LaunchAgents/%s.plist with Program=%s", label, program),
-		fmt.Sprintf("launchctl bootstrap %s ~/Library/LaunchAgents/%s.plist", guiDomain(), label),
+		fmt.Sprintf("create %s with Program=%s", plistPath, program),
+		launchctlCmdLine(bootstrapArgs(guiDomain(), plistPath)),
 	}
 }
 

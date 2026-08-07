@@ -3,6 +3,7 @@ package service
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 // systemDomain is the launchd domain that holds LaunchDaemons.
@@ -30,4 +31,11 @@ func bootstrapArgs(domain, plistPath string) []string {
 // still works once the plist has been deleted.
 func bootoutArgs(domain, label string) []string {
 	return []string{"bootout", domain + "/" + label}
+}
+
+// launchctlCmdLine renders argv as the command line a dry-run advertises.
+// DryRun builds its description from the same argv the module executes, so the
+// two cannot drift into advertising one subcommand while running another.
+func launchctlCmdLine(args []string) string {
+	return "launchctl " + strings.Join(args, " ")
 }
