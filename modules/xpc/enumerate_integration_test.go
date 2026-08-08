@@ -66,12 +66,8 @@ func TestXPCEnumerate_EmitsPerDomain(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	wantEvents := 1
-	if os.Geteuid() == 0 {
-		wantEvents = 2
-	}
-	if len(events) != wantEvents {
-		t.Fatalf("emitted %d events, want %d (one per enumerated domain)", len(events), wantEvents)
+	if len(events) != 2 {
+		t.Fatalf("emitted %d events, want 2 (one each for the gui and system domains)", len(events))
 	}
 
 	for _, ev := range events {

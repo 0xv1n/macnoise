@@ -119,14 +119,13 @@ func (x *xpcEnumerate) Generate(ctx context.Context, params module.Params, emit 
 	max := 10
 	fmt.Sscanf(maxStr, "%d", &max) //nolint:errcheck
 
-	// The GUI domain is always enumerable by its owner, so it runs first and
-	// gives an unprivileged run real data. The system domain is attempted
-	// only as root: whether launchctl refuses it unprivileged is unverified,
-	// and gating on euid keeps the outcome the same either way.
+	// Both domains are attempted unprivileged. `launchctl print system` was
+	// verified to succeed as a non-root user on macOS 26 (412 services read
+	// as uid 501), so gating it behind root would drop most of what this
+	// module can see. A domain that does refuse is reported as inaccessible
+	// rather than skipped.
 	x.enumerateDomain(ctx, guiDomain(), filter, max, emit)
-	if os.Geteuid() == 0 {
-		x.enumerateDomain(ctx, "system", filter, max, emit)
-	}
+	x.enumerateDomain(ctx, "system", filter, max, emit)
 	return nil
 }
 
@@ -137,11 +136,11 @@ func guiDomain() string {
 
 func (x *xpcEnumerate) DryRun(params module.Params) []string {
 	filter := params.Get("filter", "com.apple")
-	actions := []string{fmt.Sprintf("launchctl print %s", guiDomain())}
-	if os.Geteuid() == 0 {
-		actions = append(actions, "launchctl print system")
+	return []string{
+		fmt.Sprintf("launchctl print %s", guiDomain()),
+		"launchctl print system",
+		fmt.Sprintf("filter service labels matching %q", filter),
 	}
-	return append(actions, fmt.Sprintf("filter service labels matching %q", filter))
 }
 
 func (x *xpcEnumerate) Cleanup() error { return nil }

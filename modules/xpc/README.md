@@ -5,7 +5,7 @@ XPC service enumeration.
 ## Modules
 
 ### `xpc_enumerate`
-Enumerates launchd service registrations via `launchctl print`, which is where macOS XPC services are registered. Always enumerates the current user's GUI domain (`gui/<uid>`), and additionally the `system` domain when running as root, emitting one `xpc_enumerate` event per domain with the service labels found. Maps to T1007 and T1057.
+Enumerates launchd service registrations via `launchctl print`, which is where macOS XPC services are registered. Always enumerates the current user's GUI domain (`gui/<uid>`), and the `system` domain (readable unprivileged), emitting one `xpc_enumerate` event per domain with the service labels found. Maps to T1007 and T1057.
 
 ```bash
 macnoise run xpc_enumerate
