@@ -72,9 +72,22 @@ macnoise version                              Print version
 | `--output` | (none) | Write output to file (in addition to stdout) |
 | `--verbose` | false | Verbose output including cleanup errors |
 | `--dry-run` | false | Preview actions without executing |
+| `--no-cleanup` | false | Leave module artifacts in place (see below) |
 | `--timeout` | `30` | Per-module timeout in seconds |
 | `--audit-log` | (none) | Write OCSF 1.7.0 audit records to a JSONL file |
 | `--config` | (none) | Load defaults from a YAML config file |
+
+## Leaving Artifacts In Place
+
+By default every module reverses itself when it finishes. That is usually what you want, but it means a detection only ever sees the *install* event. To validate that your stack detects the persistence itself - a LaunchAgent sitting in `~/Library/LaunchAgents`, a cron entry, a modified shell profile - the artifact has to still be there when the scan runs:
+
+```bash
+./macnoise run svc_launch_agent --no-cleanup
+```
+
+Each module that skips cleanup prints a line naming itself, and the audit log records `cleanup_result: skipped` rather than `ok`, so a run that left persistence behind is never mistaken for one that tidied up. Use `macnoise info <module>` to see what a given module creates.
+
+**You are responsible for removing these yourself.** Re-running the same module without the flag will clean up only what that run created, not what a previous `--no-cleanup` run left behind.
 
 ## Audit Logging
 

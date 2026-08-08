@@ -3,6 +3,7 @@ package network
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"net/http"
 	"time"
 
@@ -33,7 +34,29 @@ func (c *c2Beacon) ParamSpecs() []module.ParamSpec {
 		{Name: "target", Description: "Target URL or host", Required: false, DefaultValue: "http://example.com", Example: "http://10.0.0.1"},
 		{Name: "count", Description: "Number of beacon attempts", Required: false, DefaultValue: "3", Example: "5"},
 		{Name: "interval", Description: "Seconds between beacons", Required: false, DefaultValue: "2", Example: "10"},
+		{Name: "jitter", Description: "Percent to randomise each interval by, 0-100 (0 = fixed)", Required: false, DefaultValue: "0", Example: "30"},
 	}
+}
+
+// jitterInterval randomises base by up to jitterPct percent in either
+// direction. A perfectly fixed beacon interval is one of the easiest C2
+// signals to fingerprint, so real implants jitter and detections look for the
+// absence of it. The result is clamped at zero so a large percentage cannot
+// produce a negative delay.
+func jitterInterval(base time.Duration, jitterPct int, rnd *rand.Rand) time.Duration {
+	if jitterPct <= 0 || base <= 0 {
+		return base
+	}
+	if jitterPct > 100 {
+		jitterPct = 100
+	}
+	span := float64(base) * float64(jitterPct) / 100.0
+	offset := (rnd.Float64()*2 - 1) * span
+	out := time.Duration(float64(base) + offset)
+	if out < 0 {
+		return 0
+	}
+	return out
 }
 
 func (c *c2Beacon) CheckPrereqs() error { return nil }
@@ -42,12 +65,16 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 	target := params.Get("target", "http://example.com")
 	countStr := params.Get("count", "3")
 	intervalStr := params.Get("interval", "2")
+	jitterStr := params.Get("jitter", "0")
 
 	count := 3
 	fmt.Sscanf(countStr, "%d", &count) //nolint:errcheck
 	intervalSecs := 2
 	fmt.Sscanf(intervalStr, "%d", &intervalSecs) //nolint:errcheck
 	interval := time.Duration(intervalSecs) * time.Second
+	jitterPct := 0
+	fmt.Sscanf(jitterStr, "%d", &jitterPct)                //nolint:errcheck
+	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // jitter timing, not security
 
 	info := c.Info()
 	client := &http.Client{Timeout: 5 * time.Second}
@@ -77,7 +104,7 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 			select {
 			case <-ctx.Done():
 				return ctx.Err()
-			case <-time.After(interval):
+			case <-time.After(jitterInterval(interval, jitterPct, rnd)):
 			}
 		}
 	}
@@ -88,8 +115,9 @@ func (c *c2Beacon) DryRun(params module.Params) []string {
 	target := params.Get("target", "http://example.com")
 	countStr := params.Get("count", "3")
 	intervalStr := params.Get("interval", "2")
+	jitterStr := params.Get("jitter", "0")
 	return []string{
-		fmt.Sprintf("send %s HTTP GET requests to %s with %ss interval", countStr, target, intervalStr),
+		fmt.Sprintf("send %s HTTP GET requests to %s with %ss interval (jitter %s%%)", countStr, target, intervalStr, jitterStr),
 	}
 }
 

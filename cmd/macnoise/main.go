@@ -29,13 +29,14 @@ import (
 )
 
 var (
-	globalFormat   string
-	globalOutput   string
-	globalVerbose  bool
-	globalDryRun   bool
-	globalTimeout  int
-	globalAuditLog string
-	globalConfig   string
+	globalFormat    string
+	globalOutput    string
+	globalVerbose   bool
+	globalDryRun    bool
+	globalNoCleanup bool
+	globalTimeout   int
+	globalAuditLog  string
+	globalConfig    string
 )
 
 var loadedConfig config.Config
@@ -65,6 +66,9 @@ EDR validation, and detection engineering.`,
 			if !cmd.Flags().Changed("timeout") && cfg.DefaultTimeout > 0 {
 				globalTimeout = cfg.DefaultTimeout
 			}
+			if !cmd.Flags().Changed("output") && cfg.OutputFile != "" {
+				globalOutput = cfg.OutputFile
+			}
 			return nil
 		},
 	}
@@ -73,6 +77,7 @@ EDR validation, and detection engineering.`,
 	root.PersistentFlags().StringVar(&globalOutput, "output", "", "Write output to file (in addition to stdout)")
 	root.PersistentFlags().BoolVarP(&globalVerbose, "verbose", "v", false, "Verbose output")
 	root.PersistentFlags().BoolVar(&globalDryRun, "dry-run", false, "Preview actions without executing")
+	root.PersistentFlags().BoolVar(&globalNoCleanup, "no-cleanup", false, "Leave module artifacts in place so the persistence itself can be detected")
 	root.PersistentFlags().IntVar(&globalTimeout, "timeout", 30, "Per-module timeout in seconds (0 = no timeout)")
 	root.PersistentFlags().StringVar(&globalAuditLog, "audit-log", "", "Write OCSF 1.7.0 JSONL audit records to file")
 	root.PersistentFlags().StringVar(&globalConfig, "config", "", "Config YAML file (default: none)")
@@ -88,8 +93,23 @@ EDR validation, and detection engineering.`,
 	return root
 }
 
+// parseFormat rejects an unknown --format instead of letting the emitter fall
+// back to human output, which silently produced the wrong format for anyone
+// who mistyped it while piping to a parser.
+func parseFormat(s string) (output.Format, error) {
+	switch f := output.Format(s); f {
+	case output.FormatHuman, output.FormatJSONL:
+		return f, nil
+	default:
+		return "", fmt.Errorf("invalid --format %q: must be %q or %q", s, output.FormatHuman, output.FormatJSONL)
+	}
+}
+
 func buildEmitter() (*output.Emitter, func(), error) {
-	format := output.Format(globalFormat)
+	format, err := parseFormat(globalFormat)
+	if err != nil {
+		return nil, nil, err
+	}
 
 	em := output.NewEmitter(format, os.Stdout)
 	closeFile := func() {}
@@ -161,10 +181,11 @@ func signalContext() (context.Context, context.CancelFunc) {
 func buildRunOpts(auditLogger *audit.Logger) runner.Options {
 	timeout := time.Duration(globalTimeout) * time.Second
 	return runner.Options{
-		DryRun:   globalDryRun,
-		Timeout:  timeout,
-		Verbose:  globalVerbose,
-		AuditLog: auditLogger,
+		DryRun:    globalDryRun,
+		NoCleanup: globalNoCleanup,
+		Timeout:   timeout,
+		Verbose:   globalVerbose,
+		AuditLog:  auditLogger,
 	}
 }
 
@@ -178,6 +199,10 @@ func buildRun() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "run [module]",
 		Short: "Run one or more telemetry modules",
+		// Without this, `macnoise run a b` fell through to the catch-all
+		// "specify a module name" error, which is confusing advice when the
+		// user did specify one.
+		Args: cobra.MaximumNArgs(1),
 		Example: `  macnoise run net_connect --param target=127.0.0.1 --param port=8080
   macnoise run --category network
   macnoise run --all --format jsonl`,
