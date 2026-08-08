@@ -11,7 +11,16 @@ Spawns a shell command chain. Maps to T1059.004.
 Forks a process and sends SIGSTOP/SIGCONT/SIGTERM. Maps to T1106. Requires macOS (darwin).
 
 ### `proc_inject`
-Spawns a process with `DYLD_INSERT_LIBRARIES` set. Maps to T1574.006.
+Spawns a process with `DYLD_INSERT_LIBRARIES` set and reports whether dyld actually acted on it, as `outcome: honored | stripped | indeterminate`. Maps to T1574.006.
+
+The default target is macnoise's own binary rather than a system binary. System binaries under `/usr/bin` and `/bin` are protected, so dyld drops the variable before the process starts and no injection occurs; that holds even for a copy of one with its signature removed or re-signed ad-hoc, so no usable target can be derived from them. macnoise is built locally and only ad-hoc signed, so dyld honours the variable.
+
+The dylib does not need to exist. dyld aborts the process when it cannot load an inserted library, and that refusal is both the evidence the variable survived and a loud, observable event. Pass `--param target=` to point at your own unsigned binary instead.
+
+```bash
+macnoise run proc_inject
+macnoise run proc_inject --param target=/tmp/my_unsigned_binary --param dylib_path=/tmp/evil.dylib
+```
 
 ### `proc_discovery`
 Runs a configurable set of macOS reconnaissance commands (`sw_vers`, `system_profiler`, `sysctl`, `ifconfig`, `whoami`, `dscl`, `csrutil status`, `fdesetup status`). Each command emits a separate `system_discovery` event with structured output. Maps to T1082, T1016, T1033, T1518.
