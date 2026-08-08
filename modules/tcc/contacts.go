@@ -67,14 +67,11 @@ func (t *tccContacts) Generate(ctx context.Context, params module.Params, emit m
 		ev.Message = fmt.Sprintf("Contacts TCC probe: access denied to %s (expected without permission)", abPath)
 	case probeAbsent:
 		ev.Message = fmt.Sprintf("Contacts TCC probe: %s does not exist, no TCC decision was made", abPath)
-		ev = output.WithError(ev, err)
-		ev.Success = true
 	default:
 		ev.Message = fmt.Sprintf("Contacts TCC probe: unexpected failure reading %s", abPath)
-		ev = output.WithError(ev, err)
-		ev.Success = true
 	}
 
+	ev = output.WithOutcome(ev, eventOutcome(outcome), err)
 	ev = output.WithDetails(ev, details)
 	emit(ev)
 	return nil

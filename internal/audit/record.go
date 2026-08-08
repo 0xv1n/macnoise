@@ -6,30 +6,32 @@ package audit
 
 // Record is a single OCSF 1.7.0-aligned audit log entry written to the audit JSONL file.
 type Record struct {
-	ActivityID   int          `json:"activity_id"`
-	ActivityName string       `json:"activity_name,omitempty"`
-	CategoryUID  int          `json:"category_uid"`
-	CategoryName string       `json:"category_name,omitempty"`
-	ClassUID     int          `json:"class_uid"`
-	ClassName    string       `json:"class_name,omitempty"`
-	SeverityID   int          `json:"severity_id"`
-	Severity     string       `json:"severity,omitempty"`
-	Time         int64        `json:"time"`
-	TypeUID      int          `json:"type_uid"`
-	TypeName     string       `json:"type_name,omitempty"`
-	Message      string       `json:"message,omitempty"`
-	StatusID     int          `json:"status_id,omitempty"`
-	Status       string       `json:"status,omitempty"`
-	StartTime    int64        `json:"start_time,omitempty"`
-	EndTime      int64        `json:"end_time,omitempty"`
-	Duration     int64        `json:"duration,omitempty"`
-	Metadata     OCSFMetadata `json:"metadata"`
-	Actor        *OCSFActor   `json:"actor,omitempty"`
-	Device       *OCSFDevice  `json:"device,omitempty"`
-	File         *OCSFFile    `json:"file,omitempty"`
-	Process      *OCSFProcess `json:"process,omitempty"`
-	Attacks      []OCSFAttack `json:"attacks,omitempty"`
-	Unmapped     any          `json:"unmapped,omitempty"`
+	ActivityID   int    `json:"activity_id"`
+	ActivityName string `json:"activity_name,omitempty"`
+	CategoryUID  int    `json:"category_uid"`
+	CategoryName string `json:"category_name,omitempty"`
+	ClassUID     int    `json:"class_uid"`
+	ClassName    string `json:"class_name,omitempty"`
+	SeverityID   int    `json:"severity_id"`
+	Severity     string `json:"severity,omitempty"`
+	Time         int64  `json:"time"`
+	TypeUID      int    `json:"type_uid"`
+	TypeName     string `json:"type_name,omitempty"`
+	Message      string `json:"message,omitempty"`
+	// StatusID carries no omitempty because OCSF status_id 0 is Unknown, a
+	// meaningful value for an indeterminate outcome rather than an absent one.
+	StatusID  int          `json:"status_id"`
+	Status    string       `json:"status,omitempty"`
+	StartTime int64        `json:"start_time,omitempty"`
+	EndTime   int64        `json:"end_time,omitempty"`
+	Duration  int64        `json:"duration,omitempty"`
+	Metadata  OCSFMetadata `json:"metadata"`
+	Actor     *OCSFActor   `json:"actor,omitempty"`
+	Device    *OCSFDevice  `json:"device,omitempty"`
+	File      *OCSFFile    `json:"file,omitempty"`
+	Process   *OCSFProcess `json:"process,omitempty"`
+	Attacks   []OCSFAttack `json:"attacks,omitempty"`
+	Unmapped  any          `json:"unmapped,omitempty"`
 }
 
 // OCSFDevice identifies the host macnoise is running on. Required by OCSF for
@@ -112,14 +114,18 @@ type UnmappedData struct {
 	ModuleCategory string            `json:"module_category"`
 	Params         map[string]string `json:"params,omitempty"`
 	Privileges     string            `json:"privileges"`
-	DryRun         bool              `json:"dry_run"`
-	PrereqResult   string            `json:"prereq_result,omitempty"`
-	PrereqError    string            `json:"prereq_error,omitempty"`
-	EventsEmitted  int               `json:"events_emitted,omitempty"`
-	CleanupResult  string            `json:"cleanup_result,omitempty"`
-	CleanupError   string            `json:"cleanup_error,omitempty"`
-	ScenarioName   string            `json:"scenario_name,omitempty"`
-	ScenarioFile   string            `json:"scenario_file,omitempty"`
+	// Outcome preserves the four-way event outcome that OCSF status collapses:
+	// status cannot tell a refused action apart from a broken tool, since both
+	// are a Failure of the reported activity.
+	Outcome       string `json:"outcome,omitempty"`
+	DryRun        bool   `json:"dry_run"`
+	PrereqResult  string `json:"prereq_result,omitempty"`
+	PrereqError   string `json:"prereq_error,omitempty"`
+	EventsEmitted int    `json:"events_emitted,omitempty"`
+	CleanupResult string `json:"cleanup_result,omitempty"`
+	CleanupError  string `json:"cleanup_error,omitempty"`
+	ScenarioName  string `json:"scenario_name,omitempty"`
+	ScenarioFile  string `json:"scenario_file,omitempty"`
 }
 
 // ScenarioUnmappedData holds scenario-level fields for Records written by LogScenario.

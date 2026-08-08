@@ -54,6 +54,9 @@ func TestTCCFDA_MissingPathIsAbsentNotDenied(t *testing.T) {
 	if !ev.Success {
 		t.Error("Success = false, want true: an absent target is a valid observation")
 	}
+	if ev.Outcome != module.OutcomeIndeterminate {
+		t.Errorf("outcome = %q, want %q", ev.Outcome, module.OutcomeIndeterminate)
+	}
 }
 
 func TestTCCFDA_UnreadableFileIsDenied(t *testing.T) {
@@ -72,6 +75,12 @@ func TestTCCFDA_UnreadableFileIsDenied(t *testing.T) {
 	ev := runProbe(t, &tccFDA{}, module.Params{"tcc_path": path})
 	if ev.Details["result"] != "denied" {
 		t.Errorf("result = %v, want denied", ev.Details["result"])
+	}
+	if ev.Outcome != module.OutcomeDenied {
+		t.Errorf("outcome = %q, want %q", ev.Outcome, module.OutcomeDenied)
+	}
+	if !ev.Success {
+		t.Error("Success = false: a TCC denial is expected telemetry, not a macnoise failure")
 	}
 }
 
@@ -126,6 +135,9 @@ func TestTCCContacts_NoAddressBookIsAbsentNotDenied(t *testing.T) {
 	if !ev.Success {
 		t.Error("Success = false, want true: an absent target is a valid observation")
 	}
+	if ev.Outcome != module.OutcomeIndeterminate {
+		t.Errorf("outcome = %q, want %q", ev.Outcome, module.OutcomeIndeterminate)
+	}
 }
 
 func TestTCCContacts_UnreadableDirIsDenied(t *testing.T) {
@@ -148,5 +160,8 @@ func TestTCCContacts_UnreadableDirIsDenied(t *testing.T) {
 	ev := runProbe(t, &tccContacts{}, module.Params{})
 	if ev.Details["result"] != "denied" {
 		t.Errorf("result = %v, want denied", ev.Details["result"])
+	}
+	if ev.Outcome != module.OutcomeDenied {
+		t.Errorf("outcome = %q, want %q", ev.Outcome, module.OutcomeDenied)
 	}
 }

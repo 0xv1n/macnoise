@@ -42,6 +42,7 @@ func (e *Emitter) Emit(ev module.TelemetryEvent) {
 	if ev.Timestamp.IsZero() {
 		ev.Timestamp = time.Now().UTC()
 	}
+	ev.Outcome = ev.ResolvedOutcome()
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -65,11 +66,24 @@ func (e *Emitter) writeJSONL(w io.Writer, ev module.TelemetryEvent) {
 	_, _ = fmt.Fprintln(w, string(b))
 }
 
-func (e *Emitter) writeHuman(w io.Writer, ev module.TelemetryEvent) {
-	status := "+"
-	if !ev.Success {
-		status = "!"
+// humanMarker distinguishes the four outcomes at a glance. A denial and an
+// indeterminate result both used to print as [+], since neither is a macnoise
+// failure, which made a refused probe read as a clean success.
+func humanMarker(outcome module.Outcome) string {
+	switch outcome {
+	case module.OutcomeDenied:
+		return "-"
+	case module.OutcomeIndeterminate:
+		return "?"
+	case module.OutcomeError:
+		return "!"
+	default:
+		return "+"
 	}
+}
+
+func (e *Emitter) writeHuman(w io.Writer, ev module.TelemetryEvent) {
+	status := humanMarker(ev.ResolvedOutcome())
 	ts := ev.Timestamp.Format("15:04:05")
 	_, _ = fmt.Fprintf(w, "[%s] [%s] [%s/%s] %s\n", status, ts, ev.Category, ev.Module, ev.Message)
 	if ev.Error != "" {

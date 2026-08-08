@@ -97,8 +97,8 @@ func (x *xpcEnumerate) enumerateDomain(ctx context.Context, domain, filter strin
 
 	out, err := exec.CommandContext(ctx, "launchctl", "print", domain).CombinedOutput()
 	if err != nil {
-		ev = output.WithError(ev, fmt.Errorf("launchctl print %s: %v: %s", domain, err, out))
-		ev.Success = true
+		ev = output.WithOutcome(ev, module.OutcomeDenied,
+			fmt.Errorf("launchctl print %s: %v: %s", domain, err, out))
 		ev.Message = fmt.Sprintf("could not enumerate domain %s", domain)
 		details["accessible"] = false
 		emit(output.WithDetails(ev, details))

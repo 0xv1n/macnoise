@@ -14,7 +14,8 @@ import (
 )
 
 // SchemaVersion is the telemetry event schema version embedded in every event.
-const SchemaVersion = "1.0"
+// 1.1 added the outcome field.
+const SchemaVersion = "1.1"
 
 // NewEvent constructs a TelemetryEvent pre-populated with module metadata and process context.
 func NewEvent(mod module.ModuleInfo, eventType string, success bool, message string) module.TelemetryEvent {
@@ -89,10 +90,30 @@ func WithDetails(ev module.TelemetryEvent, details map[string]any) module.Teleme
 	return ev
 }
 
-// WithError returns a copy of ev with Success set to false and Error populated from err.
+// WithError returns a copy of ev marked as a macnoise failure: Success false,
+// Outcome error, Error populated from err.
+//
+// Reach for WithOutcome instead when err describes the environment refusing or
+// not answering the action rather than macnoise breaking. A refused connection
+// or a TCC denial is the telemetry this tool exists to produce, not a fault,
+// and recording it here makes it indistinguishable from one.
 func WithError(ev module.TelemetryEvent, err error) module.TelemetryEvent {
 	ev.Error = err.Error()
 	ev.Success = false
+	ev.Outcome = module.OutcomeError
+	return ev
+}
+
+// WithOutcome returns a copy of ev with outcome set, keeping Success in sync so
+// the two fields can never disagree. Pass a non-nil err to record why the
+// action was refused or left undecided; unlike WithError that error does not
+// mark the event as a tool failure.
+func WithOutcome(ev module.TelemetryEvent, outcome module.Outcome, err error) module.TelemetryEvent {
+	ev.Outcome = outcome
+	ev.Success = outcome != module.OutcomeError
+	if err != nil {
+		ev.Error = err.Error()
+	}
 	return ev
 }
 

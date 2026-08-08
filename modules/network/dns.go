@@ -55,8 +55,7 @@ func (n *netDNS) Generate(ctx context.Context, params module.Params, emit module
 		ev := output.NewEvent(info, "dns_lookup", false, fmt.Sprintf("resolving %s", domain))
 		addrs, err := resolver.LookupHost(ctx, domain)
 		if err != nil {
-			ev = output.WithError(ev, err)
-			ev.Success = true
+			ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 			ev.Message = fmt.Sprintf("DNS lookup %s failed (telemetry generated)", domain)
 		} else {
 			ev.Success = true

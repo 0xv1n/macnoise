@@ -66,19 +66,58 @@ type ProcessContext struct {
 	Username   string `json:"username"`
 }
 
+// Outcome describes what happened to the action a module attempted, which is a
+// different question from whether macnoise itself worked. A TCC probe that is
+// refused is expected, valid telemetry rather than a fault, and recording it
+// the same way as a broken tool leaves a consumer no way to tell the two apart
+// short of parsing the message text.
+type Outcome string
+
+// Outcome values. Everything except OutcomeError describes a working macnoise.
+const (
+	// OutcomeExecuted means the action ran and did what the module claims.
+	OutcomeExecuted Outcome = "executed"
+	// OutcomeDenied means the action ran and the environment refused it.
+	OutcomeDenied Outcome = "denied"
+	// OutcomeIndeterminate means the action ran but no conclusion can be
+	// drawn from it: the target was absent, or the technique leaves no
+	// evidence either way.
+	OutcomeIndeterminate Outcome = "indeterminate"
+	// OutcomeError means macnoise itself failed to carry the action out.
+	OutcomeError Outcome = "error"
+)
+
 // TelemetryEvent is the structured record emitted by a module for each action it performs.
 type TelemetryEvent struct {
-	SchemaVersion  string         `json:"schema_version"`
-	Timestamp      time.Time      `json:"timestamp"`
-	Module         string         `json:"module"`
-	Category       string         `json:"category"`
-	EventType      string         `json:"event_type"`
-	Success        bool           `json:"success"`
+	SchemaVersion string    `json:"schema_version"`
+	Timestamp     time.Time `json:"timestamp"`
+	Module        string    `json:"module"`
+	Category      string    `json:"category"`
+	EventType     string    `json:"event_type"`
+	Success       bool      `json:"success"`
+	// Outcome is left empty by NewEvent and set only by modules that need to
+	// say something Success cannot express. It is resolved to a concrete value
+	// at the output boundary, so emitted records always carry one.
+	Outcome        Outcome        `json:"outcome"`
 	Message        string         `json:"message"`
 	Details        map[string]any `json:"details,omitempty"`
 	Error          string         `json:"error,omitempty"`
 	MITRE          []MITRE        `json:"mitre,omitempty"`
 	ProcessContext ProcessContext `json:"process_context"`
+}
+
+// ResolvedOutcome returns ev.Outcome, falling back to Success for the majority
+// of events that never set one. It is the single definition of how the two
+// fields relate, so an outcome-aware consumer and a Success-only consumer can
+// never read the same event differently.
+func (ev TelemetryEvent) ResolvedOutcome() Outcome {
+	if ev.Outcome != "" {
+		return ev.Outcome
+	}
+	if ev.Success {
+		return OutcomeExecuted
+	}
+	return OutcomeError
 }
 
 // EventEmitter is a callback that receives a telemetry event from a module.
