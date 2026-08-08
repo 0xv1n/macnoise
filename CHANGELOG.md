@@ -10,6 +10,26 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
 > required format. You no longer need to hand-edit this file.
 
+## [0.4.0](https://github.com/0xv1n/macnoise/compare/v0.3.0...v0.4.0) (2026-08-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* correct xpc module scope, parser, and MITRE mapping ([#32](https://github.com/0xv1n/macnoise/issues/32))
+
+### Features
+
+* add --no-cleanup and clear a batch of CLI and telemetry paper cuts ([#34](https://github.com/0xv1n/macnoise/issues/34)) ([939d5c0](https://github.com/0xv1n/macnoise/commit/939d5c093c5ee0001cb85a6c3cd26955e627b8ba))
+
+
+### Bug Fixes
+
+* correct xpc module scope, parser, and MITRE mapping ([#32](https://github.com/0xv1n/macnoise/issues/32)) ([6620f54](https://github.com/0xv1n/macnoise/commit/6620f54a5dd881b1c3f0cb8da3dc411817bee059))
+* derive dry-run command from the executed launchctl argv ([#31](https://github.com/0xv1n/macnoise/issues/31)) ([1dd2a36](https://github.com/0xv1n/macnoise/commit/1dd2a363e8f444e0d5ead51357e902c8eaa06f0f))
+* distinguish absent resources from TCC denials in probe modules ([#28](https://github.com/0xv1n/macnoise/issues/28)) ([b5cf791](https://github.com/0xv1n/macnoise/commit/b5cf7916fcd993dd9123a9a47d6139099a363381))
+* target an injectable binary in proc_inject and report the real dyld outcome ([#33](https://github.com/0xv1n/macnoise/issues/33)) ([14e5697](https://github.com/0xv1n/macnoise/commit/14e5697342c5c46cb0db0fc664c7307e50f9fcd2))
+* use launchctl bootstrap/bootout instead of legacy load/unload ([#30](https://github.com/0xv1n/macnoise/issues/30)) ([45b02cf](https://github.com/0xv1n/macnoise/commit/45b02cfaa546d095d07da2662b7350cffe9b74bc))
+
 ## [0.3.0](https://github.com/0xv1n/macnoise/compare/v0.2.1...v0.3.0) (2026-08-06)
 
 
