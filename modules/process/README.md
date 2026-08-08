@@ -13,7 +13,7 @@ Forks a process and sends SIGSTOP/SIGCONT/SIGTERM. Maps to T1106. Requires macOS
 ### `proc_inject`
 Spawns a process with `DYLD_INSERT_LIBRARIES` set and reports whether dyld actually acted on it, as `outcome: honored | stripped | indeterminate`. Maps to T1574.006.
 
-The default target is macnoise's own binary rather than a system binary. System binaries under `/usr/bin` and `/bin` are protected, so dyld drops the variable before the process starts and no injection occurs; that holds even for a copy of one with its signature removed or re-signed ad-hoc, so no usable target can be derived from them. macnoise is built locally and only ad-hoc signed, so dyld honours the variable.
+The default target is macnoise's own binary rather than a system binary. On a host with SIP enabled, which is any real endpoint, system binaries under `/usr/bin` and `/bin` have the variable dropped before the process starts, so no injection occurs; that holds even for a copy with its signature removed or re-signed ad-hoc, so no usable target can be derived from them. With SIP disabled they are injectable, which is why some CI images behave differently. macnoise is built locally and only ad-hoc signed, so dyld honours the variable either way.
 
 The dylib does not need to exist. dyld aborts the process when it cannot load an inserted library, and that refusal is both the evidence the variable survived and a loud, observable event. Pass `--param target=` to point at your own unsigned binary instead.
 

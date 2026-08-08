@@ -4,7 +4,9 @@ package process
 
 import (
 	"context"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -38,32 +40,40 @@ func TestProcInject_DefaultTargetIsHonouredByDyld(t *testing.T) {
 	}
 }
 
-// The regression this module existed with: /usr/bin/true is protected, so the
-// variable never reaches dyld and no injection occurs, yet the module used to
-// report the spawn as a success without qualification.
-func TestProcInject_ProtectedTargetIsReportedStripped(t *testing.T) {
-	ev := runInject(t, module.Params{
-		"target":     "/usr/bin/true",
-		"dylib_path": filepath.Join(t.TempDir(), "absent.dylib"),
-	})
-
-	if got := ev.Details["outcome"]; got != "stripped" {
-		t.Errorf("outcome = %v, want stripped for the SIP-protected /usr/bin/true", got)
+// sipEnabled reports whether System Integrity Protection is active.
+func sipEnabled(t *testing.T) bool {
+	t.Helper()
+	out, err := exec.Command("csrutil", "status").CombinedOutput()
+	if err != nil {
+		t.Skipf("cannot determine SIP status: %v: %s", err, out)
 	}
-	if ev.Details["target"] != "/usr/bin/true" {
-		t.Errorf("target = %v, want /usr/bin/true", ev.Details["target"])
-	}
+	return strings.Contains(strings.ToLower(string(out)), "status: enabled")
 }
 
-// The protection is a property of system binaries generally, not a quirk of
-// /usr/bin/true, so a second one must classify the same way.
-func TestProcInject_OtherSystemBinaryAlsoStripped(t *testing.T) {
-	ev := runInject(t, module.Params{
-		"target":     "/bin/ls",
-		"dylib_path": filepath.Join(t.TempDir(), "absent.dylib"),
-	})
+// Whether a system binary strips DYLD_INSERT_LIBRARIES depends on SIP, so this
+// asserts against the host's actual state rather than assuming one. A
+// SIP-enabled Mac (any real endpoint) drops the variable, which is why
+// /usr/bin/true was a useless default. Some CI images run with SIP off and
+// honour it, and asserting "stripped" unconditionally fails there for reasons
+// that say nothing about this module.
+func TestProcInject_SystemBinaryOutcomeFollowsSIP(t *testing.T) {
+	for _, target := range []string{"/usr/bin/true", "/bin/ls"} {
+		t.Run(target, func(t *testing.T) {
+			ev := runInject(t, module.Params{
+				"target":     target,
+				"dylib_path": filepath.Join(t.TempDir(), "absent.dylib"),
+			})
 
-	if got := ev.Details["outcome"]; got != "stripped" {
-		t.Errorf("outcome = %v, want stripped for /bin/ls", got)
+			want := "honored"
+			if sipEnabled(t) {
+				want = "stripped"
+			}
+			if got := ev.Details["outcome"]; got != want {
+				t.Errorf("outcome = %v, want %s (SIP enabled: %v)", got, want, sipEnabled(t))
+			}
+			if ev.Details["target"] != target {
+				t.Errorf("target = %v, want %s", ev.Details["target"], target)
+			}
+		})
 	}
 }
