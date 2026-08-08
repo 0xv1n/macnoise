@@ -289,9 +289,12 @@ func epochMS(t time.Time) int64 {
 }
 
 func currentActor() *OCSFActor {
+	// cmd_line is declared by OCSF and was never populated. It is what an
+	// analyst needs to tell one macnoise run from another in a shared log.
 	proc := &OCSFProcess{
-		PID:  os.Getpid(),
-		Name: "MacNoise",
+		PID:     os.Getpid(),
+		Name:    "MacNoise",
+		CmdLine: strings.Join(os.Args, " "),
 	}
 	if u, err := user.Current(); err == nil {
 		proc.User = &OCSFUser{Name: u.Username}

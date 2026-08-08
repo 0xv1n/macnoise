@@ -2,9 +2,13 @@ package output
 
 import (
 	"os"
+	"os/exec"
 	"os/user"
+	"path/filepath"
 	"runtime"
 	"strconv"
+	"strings"
+	"sync"
 
 	"github.com/0xv1n/macnoise/pkg/module"
 )
@@ -31,10 +35,35 @@ func CurrentProcessContext() module.ProcessContext {
 	return currentProcessContext()
 }
 
+// parentProcessName resolves the parent's executable name, which is what EDR
+// correlation keys on: a pid alone says nothing about whether macnoise was
+// launched from a shell, a scheduler, or another process.
+//
+// Resolved once per run rather than per event. currentProcessContext runs for
+// every emitted event, so spawning ps each time would be slow and would inject
+// spurious process telemetry into the very stream this tool exists to produce.
+// An empty result is left empty rather than guessed at.
+func parentProcessName() string {
+	parentNameOnce.Do(func() {
+		out, err := exec.Command("ps", "-p", strconv.Itoa(os.Getppid()), "-o", "comm=").Output()
+		if err != nil {
+			return
+		}
+		parentName = filepath.Base(strings.TrimSpace(string(out)))
+	})
+	return parentName
+}
+
+var (
+	parentNameOnce sync.Once
+	parentName     string
+)
+
 func currentProcessContext() module.ProcessContext {
 	pc := module.ProcessContext{
 		PID:        os.Getpid(),
 		PPID:       os.Getppid(),
+		ParentName: parentProcessName(),
 		Executable: executablePath(),
 	}
 	if u, err := user.Current(); err == nil {

@@ -61,6 +61,7 @@ func (p Params) Get(key, defaultVal string) string {
 type ProcessContext struct {
 	PID        int    `json:"pid"`
 	PPID       int    `json:"ppid"`
+	ParentName string `json:"parent_name,omitempty"`
 	Executable string `json:"executable"`
 	Username   string `json:"username"`
 }
