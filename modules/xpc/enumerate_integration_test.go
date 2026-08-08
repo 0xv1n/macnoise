@@ -17,10 +17,14 @@ import (
 // services block. This runs it against the real thing, so a format that does
 // not match what parseServices expects fails here rather than silently
 // producing empty telemetry on a user's machine.
+// Uses the system domain rather than gui/<uid>: the GUI domain only exists
+// inside an Aqua session, so it is unavailable over SSH and this test would
+// fail for reasons that have nothing to do with the parser. The system domain
+// is readable unprivileged in both environments.
 func TestParseServices_AgainstRealLaunchctlOutput(t *testing.T) {
-	out, err := exec.Command("launchctl", "print", guiDomain()).CombinedOutput()
+	out, err := exec.Command("launchctl", "print", "system").CombinedOutput()
 	if err != nil {
-		t.Fatalf("launchctl print %s failed as uid %d: %v\n%s", guiDomain(), os.Getuid(), err, out)
+		t.Fatalf("launchctl print system failed as uid %d: %v\n%s", os.Getuid(), err, out)
 	}
 
 	services := parseServices(string(out), "", 500)
@@ -28,7 +32,16 @@ func TestParseServices_AgainstRealLaunchctlOutput(t *testing.T) {
 		t.Fatalf("parsed no services from real launchctl output; the services block format does not match what parseServices expects.\nFirst 1500 bytes:\n%s", head(string(out), 1500))
 	}
 
-	t.Logf("parsed %d services from %s", len(services), guiDomain())
+	t.Logf("parsed %d services from the system domain", len(services))
+
+	// Diagnostic only. The GUI domain is absent outside an Aqua session, which
+	// the module reports as inaccessible rather than treating as an error.
+	if _, guiErr := exec.Command("launchctl", "print", guiDomain()).CombinedOutput(); guiErr != nil {
+		t.Logf("gui domain %s unavailable (expected without an Aqua session): %v", guiDomain(), guiErr)
+	} else {
+		t.Logf("gui domain %s is available", guiDomain())
+	}
+
 	for i, svc := range services {
 		if i >= 5 {
 			break
