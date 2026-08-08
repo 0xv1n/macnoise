@@ -16,10 +16,14 @@ import (
 
 // Options controls module execution behaviour in RunSingle, RunMany, and RunScenario.
 type Options struct {
-	DryRun   bool
-	Timeout  time.Duration
-	Verbose  bool
-	AuditLog *audit.Logger
+	DryRun bool
+	// NoCleanup leaves module artifacts in place after Generate. Validation
+	// workflows need the installed artifact to persist so the persistence
+	// itself can be detected, not just the install event.
+	NoCleanup bool
+	Timeout   time.Duration
+	Verbose   bool
+	AuditLog  *audit.Logger
 }
 
 // RunSingle executes one module through its full lifecycle (prereqs → generate → cleanup).
@@ -71,11 +75,20 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 	defer func() {
 		cleanupResult := "ok"
 		cleanupErrStr := ""
-		if err := gen.Cleanup(); err != nil {
-			cleanupResult = "error"
-			cleanupErrStr = err.Error()
-			if opts.Verbose {
-				fmt.Printf("[%s] cleanup error: %v\n", info.Name, err)
+		switch {
+		case opts.NoCleanup:
+			// Always announced, not gated behind --verbose: leaving real
+			// persistence installed is the kind of thing an operator must not
+			// discover later by accident.
+			cleanupResult = "skipped"
+			fmt.Printf("[%s] cleanup skipped (--no-cleanup); artifacts left in place, see 'macnoise info %s'\n", info.Name, info.Name)
+		default:
+			if err := gen.Cleanup(); err != nil {
+				cleanupResult = "error"
+				cleanupErrStr = err.Error()
+				if opts.Verbose {
+					fmt.Printf("[%s] cleanup error: %v\n", info.Name, err)
+				}
 			}
 		}
 		if opts.AuditLog != nil {

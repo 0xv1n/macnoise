@@ -29,13 +29,14 @@ import (
 )
 
 var (
-	globalFormat   string
-	globalOutput   string
-	globalVerbose  bool
-	globalDryRun   bool
-	globalTimeout  int
-	globalAuditLog string
-	globalConfig   string
+	globalFormat    string
+	globalOutput    string
+	globalVerbose   bool
+	globalDryRun    bool
+	globalNoCleanup bool
+	globalTimeout   int
+	globalAuditLog  string
+	globalConfig    string
 )
 
 var loadedConfig config.Config
@@ -73,6 +74,7 @@ EDR validation, and detection engineering.`,
 	root.PersistentFlags().StringVar(&globalOutput, "output", "", "Write output to file (in addition to stdout)")
 	root.PersistentFlags().BoolVarP(&globalVerbose, "verbose", "v", false, "Verbose output")
 	root.PersistentFlags().BoolVar(&globalDryRun, "dry-run", false, "Preview actions without executing")
+	root.PersistentFlags().BoolVar(&globalNoCleanup, "no-cleanup", false, "Leave module artifacts in place so the persistence itself can be detected")
 	root.PersistentFlags().IntVar(&globalTimeout, "timeout", 30, "Per-module timeout in seconds (0 = no timeout)")
 	root.PersistentFlags().StringVar(&globalAuditLog, "audit-log", "", "Write OCSF 1.7.0 JSONL audit records to file")
 	root.PersistentFlags().StringVar(&globalConfig, "config", "", "Config YAML file (default: none)")
@@ -161,10 +163,11 @@ func signalContext() (context.Context, context.CancelFunc) {
 func buildRunOpts(auditLogger *audit.Logger) runner.Options {
 	timeout := time.Duration(globalTimeout) * time.Second
 	return runner.Options{
-		DryRun:   globalDryRun,
-		Timeout:  timeout,
-		Verbose:  globalVerbose,
-		AuditLog: auditLogger,
+		DryRun:    globalDryRun,
+		NoCleanup: globalNoCleanup,
+		Timeout:   timeout,
+		Verbose:   globalVerbose,
+		AuditLog:  auditLogger,
 	}
 }
 
