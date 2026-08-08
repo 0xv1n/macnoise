@@ -34,7 +34,7 @@ macnoise/
 │   ├── endpoint_security/ # 2 modules: es_file, es_process
 │   ├── service/           # 2 modules: svc_launch_agent, svc_launch_daemon
 │   ├── plist/             # 2 modules: plist_create, plist_modify
-│   └── xpc/               # 1 module:  xpc_connect
+│   └── xpc/               # 1 module:  xpc_enumerate
 └── configs/
     ├── defaults.yaml
     └── scenarios/         # pre-built YAML scenarios

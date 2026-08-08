@@ -49,7 +49,7 @@ make build
 | `endpoint_security` | ES framework event triggers | es_file, es_process |
 | `service` | LaunchAgent/Daemon persistence, cron, shell profile | svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile |
 | `plist` | Plist creation and modification | plist_create, plist_modify |
-| `xpc` | XPC service enumeration | xpc_connect |
+| `xpc` | XPC service enumeration | xpc_enumerate |
 
 ## Commands
 

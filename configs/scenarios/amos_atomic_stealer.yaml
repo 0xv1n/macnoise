@@ -138,7 +138,7 @@ steps:
 
   # T1057 — enumerate running XPC services and installed applications
   # Identifies: security software, crypto apps, enterprise tooling, MDM agents
-  - module: xpc_connect
+  - module: xpc_enumerate
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 5 — CREDENTIAL ACCESS
