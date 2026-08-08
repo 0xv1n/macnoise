@@ -76,7 +76,7 @@ func (t *tccKeychain) Generate(ctx context.Context, params module.Params, emit m
 	unlockEv := output.NewEvent(info, "keychain_unlock_attempt", false, fmt.Sprintf("attempting keychain unlock: %s", keychainPath))
 	unlockOut, unlockErr := exec.CommandContext(ctx, "security", "unlock-keychain", "-p", password, keychainPath).CombinedOutput()
 	if unlockErr != nil {
-		unlockEv.Success = true
+		unlockEv = output.WithOutcome(unlockEv, module.OutcomeDenied, nil)
 		unlockEv.Message = fmt.Sprintf("keychain unlock denied for %s (expected without valid password)", keychainPath)
 		unlockEv = output.WithDetails(unlockEv, map[string]any{
 			"path":   keychainPath,
@@ -93,7 +93,7 @@ func (t *tccKeychain) Generate(ctx context.Context, params module.Params, emit m
 	dumpEv := output.NewEvent(info, "keychain_dump_attempt", false, fmt.Sprintf("probing keychain dump: %s", keychainPath))
 	dumpOut, dumpErr := exec.CommandContext(ctx, "security", "dump-keychain", keychainPath).CombinedOutput()
 	if dumpErr != nil {
-		dumpEv.Success = true
+		dumpEv = output.WithOutcome(dumpEv, module.OutcomeDenied, nil)
 		dumpEv.Message = fmt.Sprintf("keychain dump denied for %s (telemetry generated)", keychainPath)
 		dumpEv = output.WithDetails(dumpEv, map[string]any{
 			"path":   keychainPath,

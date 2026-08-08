@@ -89,8 +89,7 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 		ev := output.NewEvent(info, "http_beacon", false, fmt.Sprintf("beacon %d/%d to %s", i, count, target))
 		resp, err := client.Get(target)
 		if err != nil {
-			ev = output.WithError(ev, err)
-			ev.Success = true
+			ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 			ev.Message = fmt.Sprintf("beacon %d/%d to %s (no response — telemetry generated)", i, count, target)
 		} else {
 			_ = resp.Body.Close()

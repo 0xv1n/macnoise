@@ -50,7 +50,10 @@ func (n *netConnect) Generate(ctx context.Context, params module.Params, emit mo
 	ev := output.NewEvent(info, "tcp_connect", false, fmt.Sprintf("dialing TCP %s", address))
 	conn, err := net.DialTimeout("tcp", address, 3*time.Second)
 	if err != nil {
-		ev = output.WithError(ev, err)
+		// A refused dial is the environment declining, not macnoise breaking,
+		// and the SYN that went out is the telemetry this module exists for.
+		// net_revshell already treats the identical case this way.
+		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		emit(ev)
 	} else {
 		_ = conn.Close()
@@ -65,8 +68,7 @@ func (n *netConnect) Generate(ctx context.Context, params module.Params, emit mo
 	client := http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
-		httpEv = output.WithError(httpEv, err)
-		httpEv.Success = true
+		httpEv = output.WithOutcome(httpEv, module.OutcomeDenied, err)
 		httpEv.Message = fmt.Sprintf("HTTP GET %s generated telemetry (connection refused expected)", url)
 	} else {
 		_ = resp.Body.Close()

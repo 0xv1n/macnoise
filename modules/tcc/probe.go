@@ -1,6 +1,10 @@
 package tcc
 
-import "os"
+import (
+	"os"
+
+	"github.com/0xv1n/macnoise/pkg/module"
+)
 
 // probeOutcome is the result of attempting to reach a TCC-gated resource.
 type probeOutcome string
@@ -30,5 +34,25 @@ func classifyProbe(err error) probeOutcome {
 		return probeDenied
 	default:
 		return probeError
+	}
+}
+
+// eventOutcome lifts a probe result onto the telemetry event outcome, so the
+// distinction these probes work to establish survives into the schema instead
+// of living only in details["result"] where a generic consumer cannot see it.
+//
+// probeAbsent maps to indeterminate rather than denied for the same reason
+// classifyProbe separates them: no TCC decision was made, and calling it a
+// denial fabricates a privacy event.
+func eventOutcome(o probeOutcome) module.Outcome {
+	switch o {
+	case probeGranted:
+		return module.OutcomeExecuted
+	case probeDenied:
+		return module.OutcomeDenied
+	case probeAbsent:
+		return module.OutcomeIndeterminate
+	default:
+		return module.OutcomeError
 	}
 }

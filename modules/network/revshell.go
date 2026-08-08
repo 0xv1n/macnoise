@@ -48,8 +48,7 @@ func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit m
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
-		ev = output.WithError(ev, err)
-		ev.Success = true
+		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		ev.Message = fmt.Sprintf("reverse shell attempt to %s (connection refused — no listener)", address)
 		emit(ev)
 		return nil

@@ -82,16 +82,8 @@ func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, para
 	cl := Classify(ev.Category, ev.EventType)
 	now := epochMS(time.Now())
 
-	severityID := 1
-	severity := "Informational"
-	statusID := 1
-	status := "Success"
-	if !ev.Success {
-		severityID = 3
-		severity = "Medium"
-		statusID = 2
-		status = "Failure"
-	}
+	outcome := ev.ResolvedOutcome()
+	st := statusForOutcome(outcome)
 
 	rec := Record{
 		ActivityID:   cl.ActivityID,
@@ -100,14 +92,14 @@ func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, para
 		CategoryName: cl.CategoryName,
 		ClassUID:     cl.ClassUID,
 		ClassName:    cl.ClassName,
-		SeverityID:   severityID,
-		Severity:     severity,
+		SeverityID:   st.SeverityID,
+		Severity:     st.Severity,
 		Time:         now,
 		TypeUID:      cl.ClassUID*100 + cl.ActivityID,
 		TypeName:     fmt.Sprintf("%s: %s", cl.ClassName, cl.ActivityName),
 		Message:      ev.Message,
-		StatusID:     statusID,
-		Status:       status,
+		StatusID:     st.StatusID,
+		Status:       st.Status,
 		Metadata:     l.metadata(),
 		Actor:        l.actor,
 		Device:       l.device,
@@ -117,6 +109,7 @@ func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, para
 			ModuleCategory: string(info.Category),
 			Params:         map[string]string(params),
 			Privileges:     string(info.Privileges),
+			Outcome:        string(outcome),
 		},
 	}
 

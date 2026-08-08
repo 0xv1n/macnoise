@@ -88,14 +88,11 @@ func (t *tccFDA) Generate(ctx context.Context, params module.Params, emit module
 		ev.Message = fmt.Sprintf("TCC FDA probe: access denied to %s (expected without FDA)", tccPath)
 	case probeAbsent:
 		ev.Message = fmt.Sprintf("TCC FDA probe: %s does not exist, no TCC decision was made", tccPath)
-		ev = output.WithError(ev, err)
-		ev.Success = true
 	default:
 		ev.Message = fmt.Sprintf("TCC FDA probe: unexpected failure reading %s", tccPath)
-		ev = output.WithError(ev, err)
-		ev.Success = true
 	}
 
+	ev = output.WithOutcome(ev, eventOutcome(outcome), err)
 	ev = output.WithDetails(ev, details)
 	emit(ev)
 	return nil

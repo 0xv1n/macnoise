@@ -97,6 +97,17 @@ MacNoise writes two separate streams. Telemetry events - what your EDR/SIEM actu
 ./macnoise scenario configs/scenarios/amos_atomic_stealer.yaml --audit-log /tmp/audit.jsonl
 ```
 
+Every telemetry event carries an `outcome` alongside `success` (schema 1.1). `success` says whether MacNoise worked; `outcome` says what happened to the action it attempted:
+
+| `outcome` | Meaning | Human marker |
+|---|---|---|
+| `executed` | The action ran and did what the module claims | `[+]` |
+| `denied` | The action ran and the environment refused it | `[-]` |
+| `indeterminate` | The action ran, but nothing can be concluded | `[?]` |
+| `error` | MacNoise itself failed to carry the action out | `[!]` |
+
+A denied TCC probe or a beacon to a dead C2 is the telemetry this tool exists to generate, so those stay `success: true` and are told apart by `outcome`. Only `error` sets `success: false`. In the audit log the same value appears at `unmapped.outcome`, since OCSF `status` records a refused action and a broken tool identically.
+
 The audit log opens in append mode, so records from multiple runs pile up in one file for batch analysis. If you're adding a module and want to know how a new event type gets classified into OCSF, see [CONTRIBUTING.md](CONTRIBUTING.md#audit-logging-ocsf).
 
 ## Module Reference

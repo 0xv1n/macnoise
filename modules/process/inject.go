@@ -118,8 +118,10 @@ func (p *procInject) Generate(ctx context.Context, params module.Params, emit mo
 		ev.Message = fmt.Sprintf("dyld honoured DYLD_INSERT_LIBRARIES for %s", targetBin)
 	case injectStripped:
 		ev.Message = fmt.Sprintf("%s stripped DYLD_INSERT_LIBRARIES before dyld ran; the target is protected", targetBin)
+		ev = output.WithOutcome(ev, module.OutcomeDenied, nil)
 	default:
 		ev.Message = fmt.Sprintf("spawned %s with DYLD_INSERT_LIBRARIES=%s, dyld raised no diagnostic", targetBin, dylibPath)
+		ev = output.WithOutcome(ev, module.OutcomeIndeterminate, nil)
 	}
 	if runErr != nil {
 		details["exit_error"] = runErr.Error()

@@ -1,5 +1,39 @@
 package audit
 
+import "github.com/0xv1n/macnoise/pkg/module"
+
+// OutcomeStatus holds the OCSF severity and status identifiers implied by an
+// event outcome.
+type OutcomeStatus struct {
+	SeverityID int
+	Severity   string
+	StatusID   int
+	Status     string
+}
+
+// statusForOutcome maps an event outcome to OCSF severity and status.
+//
+// OCSF status describes the activity being reported rather than macnoise's own
+// health, so a denied read is a failed read: denied and error both map to
+// Failure. Their distinction is preserved in unmapped.outcome, where a consumer
+// that needs it can read it without OCSF semantics having to bend.
+//
+// Severity is where the two do diverge. Only a genuine macnoise fault is
+// elevated; a refused probe is the expected result this tool exists to produce,
+// and raising its severity would bury real faults under routine denials.
+func statusForOutcome(o module.Outcome) OutcomeStatus {
+	switch o {
+	case module.OutcomeDenied:
+		return OutcomeStatus{1, "Informational", 2, "Failure"}
+	case module.OutcomeIndeterminate:
+		return OutcomeStatus{1, "Informational", 0, "Unknown"}
+	case module.OutcomeError:
+		return OutcomeStatus{3, "Medium", 2, "Failure"}
+	default:
+		return OutcomeStatus{1, "Informational", 1, "Success"}
+	}
+}
+
 // Classification holds the OCSF class, category, and activity identifiers for an event.
 type Classification struct {
 	ClassUID     int

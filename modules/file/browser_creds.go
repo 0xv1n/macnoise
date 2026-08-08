@@ -206,6 +206,9 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 			case os.IsNotExist(readErr) || errors.Is(readErr, errNotRegularFile):
 				ev = output.NewEvent(info, "browser_cred_probe", true,
 					fmt.Sprintf("%s credential path not present: %s", browser.name, path))
+				// An absent path means no read was attempted and no access
+				// decision was made, the same distinction the TCC probes draw.
+				ev = output.WithOutcome(ev, module.OutcomeIndeterminate, nil)
 				ev = output.WithDetails(ev, map[string]any{
 					"browser": browser.name,
 					"path":    path,
@@ -219,8 +222,7 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 				// read attempt rather than a module failure.
 				ev = output.NewEvent(info, "browser_cred_read", true,
 					fmt.Sprintf("%s credential file read denied: %s", browser.name, path))
-				ev = output.WithError(ev, readErr)
-				ev.Success = true
+				ev = output.WithOutcome(ev, module.OutcomeDenied, readErr)
 				ev = output.WithDetails(ev, map[string]any{
 					"browser":    browser.name,
 					"path":       path,

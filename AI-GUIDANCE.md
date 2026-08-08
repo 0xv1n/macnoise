@@ -80,7 +80,7 @@ MacNoise is structured in five distinct layers. When reasoning about where a cha
 | File | Purpose |
 |------|---------|
 | `internal/output/emitter.go` | `Emitter` — wraps one or more `io.Writer` targets; `Format` type (`human` / `jsonl`); `NewEmitter`, `Emit`, `EmitFunc` |
-| `internal/output/event.go` | `NewEvent` — constructs a `TelemetryEvent` pre-populated with module metadata and `ProcessContext`; `WithDetails`, `WithError`, `DetailStr`, `DetailInt` helpers; `SchemaVersion = "1.0"`; `CurrentProcessContext` |
+| `internal/output/event.go` | `NewEvent` — constructs a `TelemetryEvent` pre-populated with module metadata and `ProcessContext`; `WithDetails`, `WithError`, `WithOutcome`, `DetailStr`, `DetailInt` helpers; `SchemaVersion = "1.1"`; `CurrentProcessContext` |
 
 ### Runner
 
@@ -182,14 +182,21 @@ ev.Success = true
 ev.Message = "final message"
 ev = output.WithDetails(ev, map[string]any{"key": "value"})
 
-// Decorate — error path
+// Decorate — macnoise itself failed
 ev = output.WithError(ev, err)
+
+// Decorate — the action ran but the environment refused or did not answer it
+ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 
 // Emit
 emit(ev)
 ```
 
-`output.NewEvent` populates `SchemaVersion`, `Module`, `Category`, `EventType`, `MITRE`, and `ProcessContext` automatically. Modules only set `Success`, `Message`, `Details`, and `Error`.
+`output.NewEvent` populates `SchemaVersion`, `Module`, `Category`, `EventType`, `MITRE`, and `ProcessContext` automatically. Modules only set `Success`, `Message`, `Details`, `Error`, and where it matters `Outcome`.
+
+**Picking between `WithError` and `WithOutcome`.** `Success` answers "did macnoise work"; `Outcome` answers "what happened to the action". A refused TCC probe, a connection to a closed port, and a missing target are all telemetry this tool exists to produce, not faults, and `WithError` would file them alongside a broken module. Reach for `WithOutcome` with `OutcomeDenied` when the environment refused, `OutcomeIndeterminate` when nothing can be concluded, and keep `WithError` for macnoise itself failing.
+
+Most events set no outcome at all. The field is resolved from `Success` at the output boundary the same way `Timestamp` is, so emitted records always carry one and the two fields can never disagree - see `TelemetryEvent.ResolvedOutcome`.
 
 ---
 
