@@ -152,7 +152,13 @@ func endpointSecurityActivity(eventType string) Classification {
 		return Classification{1001, "File System Activity", 1, "System Activity", 3, "Update"}
 	case "es_notify_unlink":
 		return Classification{1001, "File System Activity", 1, "System Activity", 4, "Delete"}
-	case "es_exec_chain":
+	case "es_dmg_create":
+		return Classification{1001, "File System Activity", 1, "System Activity", 1, "Create"}
+	case "es_notify_mount":
+		return Classification{1001, "File System Activity", 1, "System Activity", 12, "Mount"}
+	case "es_notify_unmount":
+		return Classification{1001, "File System Activity", 1, "System Activity", 13, "Unmount"}
+	case "es_exec_chain", "es_volume_exec":
 		return Classification{1007, "Process Activity", 1, "System Activity", 1, "Launch"}
 	}
 	return Classification{6003, "API Activity", 6, "Application Activity", 99, "Other"}
