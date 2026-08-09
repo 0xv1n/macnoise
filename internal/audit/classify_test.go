@@ -73,6 +73,10 @@ func TestClassify(t *testing.T) {
 		{"endpoint_security", "es_notify_create", 1001, 1},
 		{"endpoint_security", "es_notify_write", 1001, 3},
 		{"endpoint_security", "es_notify_unlink", 1001, 4},
+		{"endpoint_security", "es_dmg_create", 1001, 1},
+		{"endpoint_security", "es_notify_mount", 1001, 12},
+		{"endpoint_security", "es_notify_unmount", 1001, 13},
+		{"endpoint_security", "es_volume_exec", 1007, 1},
 
 		// unmapped category/event falls back to API Activity/Other
 		{"unknown_category", "unknown_event", 6003, 99},
