@@ -58,6 +58,7 @@ func TestClassify(t *testing.T) {
 		{"service", "launchagent_load", 1006, 6},
 		{"service", "launchdaemon_create", 1006, 1},
 		{"service", "launchdaemon_load", 1006, 6},
+		{"service", "login_item_add", 1006, 1},
 		{"service", "shell_profile_modify", 1006, 2},
 
 		// tcc / xpc
