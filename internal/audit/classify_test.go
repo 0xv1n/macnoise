@@ -34,6 +34,10 @@ func TestClassify(t *testing.T) {
 		{"file", "file_hide_chflags", 1001, 6},
 		{"file", "file_hide_dotfile", 1001, 1},
 		{"file", "file_modify", 1001, 3},
+		// A copy has no single OCSF activity, so it lands as the read of the
+		// source and the create of the staged destination.
+		{"file", "keychain_read", 1001, 2},
+		{"file", "keychain_copy", 1001, 1},
 
 		// plist (routed through the file/plist case)
 		{"plist", "plist_modify", 1001, 3},

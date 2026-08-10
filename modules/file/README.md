@@ -1,6 +1,6 @@
 # file
 
-File creation, modification, browser credential probing, archiving, and hiding.
+File creation, modification, credential and keychain reads, archiving, and hiding.
 
 ## Modules
 
@@ -24,6 +24,16 @@ Opens and reads well-known non-browser credential files, discarding the contents
 ```bash
 macnoise run file_cred_files
 macnoise run file_cred_files --param paths=/Users/dev/project/.env
+```
+
+### `file_keychain_copy`
+Copies the macOS keychain databases wholesale into a staging directory, the step AMOS performs before archiving and exfiltrating them. Targets the legacy `~/Library/Keychains/login.keychain-db`, the data-protection keychain under the per-user UUID directory (`~/Library/Keychains/<uuid>/keychain-2.db`, globbed since the UUID varies), `/Library/Keychains/System.keychain`, and the root-owned `/Library/Keychains/system-keychain-2.db`. Emits `keychain_read` and `keychain_copy` per store: a copy is a read of the source plus a create of the destination, and OCSF has no single activity covering both. A store that is absent is `indeterminate` (a GUI login creates `login.keychain-db`, so an ssh-only account has none), one that cannot be opened is `denied` (expected for the system data-protection keychain without root), and a failure to write the copy is `error` rather than either.
+
+Copies are written 0600 into a 0700 directory, deliberately tighter than the 0644/0755 the other file modules use: the staged file is a real credential store, and the conventional mode would leave it more exposed in `/tmp` than the original. Cleanup removes the staging directory; `--no-cleanup` keeps it and says so. Maps to T1555.001 and T1074.001.
+
+```bash
+macnoise run file_keychain_copy
+macnoise run file_keychain_copy --param stage_dir=/var/tmp/macnoise_kc
 ```
 
 ### `file_archive`
