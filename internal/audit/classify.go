@@ -123,7 +123,7 @@ func fileActivity(eventType string) (int, string) {
 
 func serviceActivity(eventType string) (int, string) {
 	switch eventType {
-	case "cron_job_create", "launchagent_create", "launchdaemon_create":
+	case "cron_job_create", "launchagent_create", "launchdaemon_create", "login_item_add":
 		return 1, "Create"
 	case "shell_profile_modify":
 		return 2, "Update"
