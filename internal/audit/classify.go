@@ -136,7 +136,7 @@ func serviceActivity(eventType string) (int, string) {
 func apiActivity(eventType string) (int, string) {
 	switch eventType {
 	case "keychain_list", "keychain_dump_attempt", "tcc_contacts_probe",
-		"tcc_fda_probe", "xpc_enumerate":
+		"tcc_fda_probe", "tcc_accessibility_probe", "screen_capture_attempt", "xpc_enumerate":
 		return 2, "Read"
 	case "keychain_unlock_attempt":
 		return 3, "Update"

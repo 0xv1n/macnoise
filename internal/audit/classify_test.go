@@ -65,8 +65,10 @@ func TestClassify(t *testing.T) {
 		{"tcc", "keychain_dump_attempt", 6003, 2},
 		{"tcc", "keychain_list", 6003, 2},
 		{"tcc", "keychain_unlock_attempt", 6003, 3},
+		{"tcc", "tcc_accessibility_probe", 6003, 2},
 		{"tcc", "tcc_contacts_probe", 6003, 2},
 		{"tcc", "tcc_fda_probe", 6003, 2},
+		{"tcc", "screen_capture_attempt", 6003, 2},
 		{"xpc", "xpc_enumerate", 6003, 2},
 
 		// endpoint_security
