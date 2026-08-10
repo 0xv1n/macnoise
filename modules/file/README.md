@@ -18,6 +18,14 @@ macnoise run file_browser_creds
 macnoise run file_browser_creds --param browsers=chrome,firefox
 ```
 
+### `file_cred_files`
+Opens and reads well-known non-browser credential files, discarding the contents. Covers SSH private keys (`~/.ssh/id_*`, public `.pub` keys skipped since they are not secrets), `~/.aws/credentials`, `~/.kube/config`, `~/.docker/config.json`, and `~/.env`. The `paths` param adds extra targets, e.g. a project `.env`. Emits `cred_file_read` per file opened, carrying bytes read (executed) or the denial reason (denied), and `cred_file_probe` for paths that are not present (indeterminate). Maps to T1552.001. The read, not a stat, is deliberate: an unreadable file that `stat` would report as present is a real access denial, and the module records it as one.
+
+```bash
+macnoise run file_cred_files
+macnoise run file_cred_files --param paths=/Users/dev/project/.env
+```
+
 ### `file_archive`
 Creates a staging directory with three test files, then archives them using `zip` (default), `ditto`, or `tar`. Emits an `archive_create` event with path and size. Maps to T1560.001. Cleanup removes both the archive and staging directory. Requires the chosen tool in `PATH`.
 

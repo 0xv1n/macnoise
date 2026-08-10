@@ -27,6 +27,8 @@ func TestClassify(t *testing.T) {
 		{"file", "archive_create", 1001, 1},
 		{"file", "browser_cred_probe", 1001, 8},
 		{"file", "browser_cred_read", 1001, 2},
+		{"file", "cred_file_probe", 1001, 8},
+		{"file", "cred_file_read", 1001, 2},
 		{"file", "dir_create", 1001, 1},
 		{"file", "file_create", 1001, 1},
 		{"file", "file_hide_chflags", 1001, 6},
