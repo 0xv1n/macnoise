@@ -45,9 +45,9 @@ make build
 | `network` | Outbound connections, DNS, beaconing, listeners, reverse shells, exfiltration | net_connect, net_listen, net_beacon, net_revshell, net_dns, net_exfil |
 | `process` | Process spawning, signal delivery, dylib injection, discovery, Gatekeeper bypass, osascript | proc_spawn, proc_signal, proc_inject, proc_discovery, proc_gatekeeper, proc_osascript |
 | `file` | File creation, modification, credential file and keychain reads, archiving, hiding | file_create, file_modify, file_browser_creds, file_cred_files, file_keychain_copy, file_archive, file_hide |
-| `tcc` | TCC permission probes (FDA, Contacts, Keychain) | tcc_fda, tcc_contacts, tcc_keychain |
-| `endpoint_security` | ES framework event triggers | es_file, es_process |
-| `service` | LaunchAgent/Daemon persistence, cron, shell profile | svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile |
+| `tcc` | TCC permission probes (FDA, Contacts, Keychain, Accessibility, Screen Recording) | tcc_fda, tcc_contacts, tcc_keychain, tcc_accessibility, tcc_screen_recording |
+| `endpoint_security` | ES framework event triggers, including .dmg mount and payload execution | es_file, es_process, es_mount |
+| `service` | LaunchAgent/Daemon persistence, cron, shell profile, Login Items | svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile, svc_login_item |
 | `plist` | Plist creation and modification | plist_create, plist_modify |
 | `xpc` | XPC service enumeration | xpc_enumerate |
 

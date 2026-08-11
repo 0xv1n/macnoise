@@ -6,7 +6,7 @@ description: |
   macOS infostealer tracked by SentinelOne, Kandji, Picus, and Microsoft Defender.
 
   This scenario covers the complete 2025 variant infection chain across 10 phases,
-  exercising 22 of MacNoise's 29 modules. It is designed to validate EDR and SIEM
+  exercising 22 modules across every category. It is designed to validate EDR and SIEM
   coverage across every major tactic: execution, defense evasion, credential access,
   discovery, collection, exfiltration, and persistence.
 
