@@ -155,9 +155,17 @@ steps:
   # T1555.001 — request Full Disk Access to reach ~/Library/Keychains/login.keychain-db
   - module: tcc_fda
 
-  # T1555.001 — unlock keychain with captured password and copy database
-  # AMOS: security unlock-keychain -p <pass> login.keychain-db, then cp to exfil/Keychain/kc.db
+  # T1555.001 — unlock and dump the keychain with the captured password
+  # AMOS: security unlock-keychain -p <pass> login.keychain-db
   - module: tcc_keychain
+
+  # T1555.001/T1074.001 — copy the keychain databases wholesale into a staging dir
+  # AMOS: cp login.keychain-db to exfil/Keychain/kc.db before archiving
+  # Staged separately from macnoise_amos_staging because each module cleans up its
+  # own directory as soon as it finishes, which would delete the archive source.
+  - module: file_keychain_copy
+    params:
+      stage_dir: /tmp/macnoise_amos_keychain
 
   # T1555.003 — read credential files for all browser families:
   # Chrome, ChromeCanary, Brave, Arc, Edge, Vivaldi, Yandex, Opera, OperaGX
