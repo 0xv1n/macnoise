@@ -14,7 +14,7 @@ description: |
     - Malvertising / Google Ads redirecting to spoofed domains (Arc, Tor, Photoshop)
     - SEO-poisoned fake software installers (.dmg)
     - Cracked application bundles via pay-per-install (PPI) networks
-    - ClickFix-style Terminal command prompts (from late 2024)
+    - ClickFix-style Terminal command prompts (from late 2024) - see clickfix.yaml
     - Fake AI app lures: ChatGPT, Grok, Arc Browser (from late 2025)
     - Fake GitHub repos + fake startup companies targeting crypto testers (2025–2026)
 
