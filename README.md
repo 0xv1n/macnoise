@@ -136,6 +136,7 @@ Scenarios chain modules into ordered sequences - a single YAML file that replays
 | `full_sweep.yaml` | All categories |
 | `lazarus_group.yaml` | Lazarus Group: dylib injection, service discovery, reverse shell, plist persistence |
 | `amos_atomic_stealer.yaml` | AMOS / Atomic Stealer: MaaS infostealer, Gatekeeper bypass, keychain dump, ZIP exfil, backdoor persistence |
+| `clickfix.yaml` | ClickFix: obfuscated one-liner pasted into Terminal, base64 decode, second-stage fetch, LaunchAgent persistence |
 
 The two APT scenarios follow real documented intrusion sequences, technique by technique - each YAML file cites the actual threat intel it's built from and annotates every step with the MITRE technique it exercises, so start there for the full breakdown rather than a retelling here.
 
