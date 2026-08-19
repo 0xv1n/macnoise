@@ -10,6 +10,16 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
 > required format. You no longer need to hand-edit this file.
 
+## [0.5.0](https://github.com/0xv1n/macnoise/compare/v0.4.0...v0.5.0) (2026-08-19)
+
+
+### Features
+
+* add clickfix scenario for malicious copy-paste delivery ([#42](https://github.com/0xv1n/macnoise/issues/42)) ([5c169cd](https://github.com/0xv1n/macnoise/commit/5c169cd24ec74bdee404235137673fdd92e3e53f))
+* add net_dns_exfil for DNS subdomain exfiltration telemetry ([#46](https://github.com/0xv1n/macnoise/issues/46)) ([ecd65a4](https://github.com/0xv1n/macnoise/commit/ecd65a476e0151d13a4782b318a48bb70e0db76f))
+* add security software discovery to proc_discovery ([#45](https://github.com/0xv1n/macnoise/issues/45)) ([cfd2cf9](https://github.com/0xv1n/macnoise/commit/cfd2cf90b72af9e29958e87218e846553ba62815))
+* extend es_file to cover ES open, setmode, and rename events ([#44](https://github.com/0xv1n/macnoise/issues/44)) ([d989926](https://github.com/0xv1n/macnoise/commit/d9899267647a5a4467cdf5ba067320d07c18e327))
+
 ## [0.4.0](https://github.com/0xv1n/macnoise/compare/v0.3.0...v0.4.0) (2026-08-11)
 
 
