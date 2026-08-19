@@ -5,7 +5,14 @@ Endpoint Security framework event triggers.
 ## Modules
 
 ### `es_file`
-Creates, writes, and deletes a file (triggers ES_EVENT_TYPE_NOTIFY_CREATE/WRITE/UNLINK). Maps to T1074.001.
+Walks a file through its full lifecycle - create, open and read, write, chmod, rename, delete - triggering ES_EVENT_TYPE_NOTIFY_CREATE/OPEN/WRITE/SETMODE/RENAME/UNLINK in that order. Maps to T1074.001.
+
+The order is load-bearing: chmod and rename have to happen while the file exists, and the rename has to precede the unlink that removes it under its new name. `NOTIFY_OPEN` also fires incidentally from the credential modules, but this is the module an operator runs to exercise ES file coverage, so it names the event rather than leaving it implicit.
+
+```bash
+macnoise run es_file
+macnoise run es_file --param work_dir=/var/tmp/es_test
+```
 
 ### `es_process`
 Executes nested process chain (triggers ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT). Maps to T1059.004.

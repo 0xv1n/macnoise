@@ -6,7 +6,9 @@ package endpointsecurity
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
+	"path"
 	"path/filepath"
 
 	"github.com/0xv1n/macnoise/internal/output"
@@ -20,9 +22,9 @@ type esFile struct {
 func (e *esFile) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "es_file",
-		Description: "Performs file operations that trigger ES_EVENT_TYPE_NOTIFY_CREATE/WRITE/UNLINK",
+		Description: "Performs file operations that trigger ES_EVENT_TYPE_NOTIFY_CREATE/OPEN/WRITE/SETMODE/RENAME/UNLINK",
 		Category:    module.CategoryEndpointSecurity,
-		Tags:        []string{"endpoint-security", "file", "create", "write", "delete"},
+		Tags:        []string{"endpoint-security", "file", "create", "open", "write", "setmode", "rename", "delete"},
 		Privileges:  module.PrivilegeNone,
 		MITRE: []module.MITRE{
 			{Technique: "T1074", SubTech: ".001", Name: "Data Staged: Local Data Staging"},
@@ -62,6 +64,23 @@ func (e *esFile) Generate(ctx context.Context, params module.Params, emit module
 	createEv = output.WithDetails(createEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_CREATE"})
 	emit(createEv)
 
+	// Opening for read is a distinct ES event from the write below, which opens
+	// for append. NOTIFY_OPEN already fires incidentally from the credential
+	// modules, but this is the module an operator runs to exercise ES file
+	// coverage, so it names the event rather than leaving it implicit.
+	openEv := output.NewEvent(info, "es_notify_open", false, fmt.Sprintf("opening %s (triggers ES_EVENT_TYPE_NOTIFY_OPEN)", targetPath))
+	if rf, err := os.Open(targetPath); err != nil {
+		openEv = output.WithError(openEv, err)
+		emit(openEv)
+	} else {
+		n, _ := io.Copy(io.Discard, rf)
+		_ = rf.Close()
+		openEv.Success = true
+		openEv.Message = fmt.Sprintf("opened %s (ES_EVENT_TYPE_NOTIFY_OPEN)", targetPath)
+		openEv = output.WithDetails(openEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_OPEN", "bytes_read": n})
+		emit(openEv)
+	}
+
 	writeEv := output.NewEvent(info, "es_notify_write", false, fmt.Sprintf("writing %s (triggers ES_EVENT_TYPE_NOTIFY_WRITE)", targetPath))
 	f, err := os.OpenFile(targetPath, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
@@ -74,6 +93,35 @@ func (e *esFile) Generate(ctx context.Context, params module.Params, emit module
 		writeEv.Message = fmt.Sprintf("wrote to %s (ES_EVENT_TYPE_NOTIFY_WRITE)", targetPath)
 		writeEv = output.WithDetails(writeEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_WRITE"})
 		emit(writeEv)
+	}
+
+	setmodeEv := output.NewEvent(info, "es_notify_setmode", false, fmt.Sprintf("chmod %s (triggers ES_EVENT_TYPE_NOTIFY_SETMODE)", targetPath))
+	if err := os.Chmod(targetPath, 0o600); err != nil {
+		setmodeEv = output.WithError(setmodeEv, err)
+		emit(setmodeEv)
+	} else {
+		setmodeEv.Success = true
+		setmodeEv.Message = fmt.Sprintf("chmod 0600 on %s (ES_EVENT_TYPE_NOTIFY_SETMODE)", targetPath)
+		setmodeEv = output.WithDetails(setmodeEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_SETMODE", "mode": "0600"})
+		emit(setmodeEv)
+	}
+
+	// Rename moves the target, so the tracked path has to follow it or an
+	// interrupted run would leave the renamed file behind while Cleanup looked
+	// for the original name.
+	renamedPath := filepath.Join(workDir, "es_notify_rename.txt")
+	previousPath := targetPath
+	renameEv := output.NewEvent(info, "es_notify_rename", false, fmt.Sprintf("renaming %s (triggers ES_EVENT_TYPE_NOTIFY_RENAME)", targetPath))
+	if err := os.Rename(targetPath, renamedPath); err != nil {
+		renameEv = output.WithError(renameEv, err)
+		emit(renameEv)
+	} else {
+		targetPath = renamedPath
+		e.createdPath = renamedPath
+		renameEv.Success = true
+		renameEv.Message = fmt.Sprintf("renamed to %s (ES_EVENT_TYPE_NOTIFY_RENAME)", renamedPath)
+		renameEv = output.WithDetails(renameEv, map[string]any{"path": renamedPath, "es_event": "ES_EVENT_TYPE_NOTIFY_RENAME", "previous_path": previousPath})
+		emit(renameEv)
 	}
 
 	unlinkEv := output.NewEvent(info, "es_notify_unlink", false, fmt.Sprintf("deleting %s (triggers ES_EVENT_TYPE_NOTIFY_UNLINK)", targetPath))
@@ -93,11 +141,18 @@ func (e *esFile) Generate(ctx context.Context, params module.Params, emit module
 
 func (e *esFile) DryRun(params module.Params) []string {
 	workDir := params.Get("work_dir", "/tmp/macnoise_es")
-	path := filepath.Join(workDir, "es_notify_create.txt")
+	// path.Join, not filepath.Join: these are always macOS paths, and a
+	// Windows-compiled binary would otherwise advertise backslashes in a dry run
+	// it can never perform. Same trap es_mount hit.
+	target := path.Join(workDir, "es_notify_create.txt")
+	renamed := path.Join(workDir, "es_notify_rename.txt")
 	return []string{
-		fmt.Sprintf("create %s → ES_EVENT_TYPE_NOTIFY_CREATE", path),
-		fmt.Sprintf("write to %s → ES_EVENT_TYPE_NOTIFY_WRITE", path),
-		fmt.Sprintf("delete %s → ES_EVENT_TYPE_NOTIFY_UNLINK", path),
+		fmt.Sprintf("create %s → ES_EVENT_TYPE_NOTIFY_CREATE", target),
+		fmt.Sprintf("open and read %s → ES_EVENT_TYPE_NOTIFY_OPEN", target),
+		fmt.Sprintf("write to %s → ES_EVENT_TYPE_NOTIFY_WRITE", target),
+		fmt.Sprintf("chmod 0600 %s → ES_EVENT_TYPE_NOTIFY_SETMODE", target),
+		fmt.Sprintf("rename %s to %s → ES_EVENT_TYPE_NOTIFY_RENAME", target, renamed),
+		fmt.Sprintf("delete %s → ES_EVENT_TYPE_NOTIFY_UNLINK", renamed),
 	}
 }
 
