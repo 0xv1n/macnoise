@@ -15,6 +15,7 @@ func TestClassify(t *testing.T) {
 	}{
 		// network
 		{"network", "dns_lookup", 4003, 1},
+		{"network", "dns_exfil_query", 4003, 1},
 		{"network", "http_get", 4002, 3},
 		{"network", "http_beacon", 4002, 3},
 		{"network", "http_post_exfil", 4002, 6},
