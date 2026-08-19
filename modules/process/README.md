@@ -23,7 +23,16 @@ macnoise run proc_inject --param target=/tmp/my_unsigned_binary --param dylib_pa
 ```
 
 ### `proc_discovery`
-Runs a configurable set of macOS reconnaissance commands (`sw_vers`, `system_profiler`, `sysctl`, `ifconfig`, `whoami`, `dscl`, `csrutil status`, `fdesetup status`). Each command emits a separate `system_discovery` event with structured output. Maps to T1082, T1016, T1033, T1518.
+Runs a configurable set of macOS reconnaissance commands (`sw_vers`, `system_profiler`, `sysctl`, `ifconfig`, `whoami`, `dscl`, `csrutil status`, `fdesetup status`), plus security software enumeration via `systemextensionsctl list`, the application firewall state, and a process scan for known endpoint agents. Each command emits a separate `system_discovery` event with structured output. Maps to T1082, T1016, T1033, T1518, T1518.001.
+
+`systemextensionsctl list` carries most of the security-software signal on modern macOS, since every current EDR registers an Endpoint Security system extension and it needs no vendor list to stay current. The agent process scan names specific vendors and is illustrative rather than exhaustive - a miss costs one match, while the exec that a detection actually sees still happens.
+
+The security commands are part of the defaults on purpose. A technique claimed in `Info()` but only reachable by overriding `commands` would be unbacked on a default run, which is the defect the original T1518 claim had, and `discovery_test.go` fails if a claim loses its backing command.
+
+```bash
+macnoise run proc_discovery
+macnoise run proc_discovery --param commands="sw_vers,whoami,csrutil status"
+```
 
 ```bash
 macnoise run proc_discovery
