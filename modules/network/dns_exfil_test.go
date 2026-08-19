@@ -11,7 +11,7 @@ import (
 func TestEncodeExfilPayload_DNSSafe(t *testing.T) {
 	encoded := encodeExfilPayload("macnoise-exfil-test")
 	for _, c := range encoded {
-		if !((c >= 'a' && c <= 'z') || (c >= '2' && c <= '7')) {
+		if (c < 'a' || c > 'z') && (c < '2' || c > '7') {
 			t.Fatalf("encoded payload contains non-DNS-safe char %q: %s", c, encoded)
 		}
 	}
