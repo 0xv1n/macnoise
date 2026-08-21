@@ -53,6 +53,12 @@ func Classify(category, eventType string) Classification {
 		return Classification{4002, "HTTP Activity", 4, "Network Activity", 6, "Post"}
 	case "dns_lookup", "dns_exfil_query":
 		return Classification{4003, "DNS Activity", 4, "Network Activity", 1, "Query"}
+	case "file_timestomp":
+		return Classification{1001, "File System Activity", 1, "System Activity", 6, "Set Attributes"}
+	case "log_erase_attempt":
+		return Classification{1007, "Process Activity", 1, "System Activity", 1, "Launch"}
+	case "history_clear":
+		return Classification{1001, "File System Activity", 1, "System Activity", 4, "Delete"}
 	}
 
 	switch category {
