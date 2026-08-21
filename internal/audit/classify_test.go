@@ -91,6 +91,11 @@ func TestClassify(t *testing.T) {
 		{"endpoint_security", "es_notify_unmount", 1001, 13},
 		{"endpoint_security", "es_volume_exec", 1007, 1},
 
+		// evasion (routed by event type, not category)
+		{"evasion", "file_timestomp", 1001, 6},
+		{"evasion", "log_erase_attempt", 1007, 1},
+		{"evasion", "history_clear", 1001, 4},
+
 		// unmapped category/event falls back to API Activity/Other
 		{"unknown_category", "unknown_event", 6003, 99},
 	}
