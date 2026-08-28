@@ -50,6 +50,7 @@ make build
 | `service` | LaunchAgent/Daemon persistence, cron, shell profile, Login Items | svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile, svc_login_item |
 | `plist` | Plist creation and modification | plist_create, plist_modify |
 | `xpc` | XPC service enumeration | xpc_enumerate |
+| `evasion` | Defense evasion: log clearing, timestomping, history removal | evade_log_clear |
 
 ## Commands
 
@@ -124,6 +125,7 @@ Module documentation lives alongside each category:
 | `service` | [modules/service/README.md](modules/service/README.md) |
 | `plist` | [modules/plist/README.md](modules/plist/README.md) |
 | `xpc` | [modules/xpc/README.md](modules/xpc/README.md) |
+| `evasion` | [modules/evasion/README.md](modules/evasion/README.md) |
 
 ## Scenarios
 
