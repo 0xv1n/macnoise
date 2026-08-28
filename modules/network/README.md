@@ -27,6 +27,14 @@ DNS resolution of configurable domains. Maps to T1071.004.
 ### `net_revshell`
 Connects a shell to a remote listener (connection refused is expected without one). Maps to T1059.004.
 
+### `net_tls`
+Performs TLS handshakes to configurable endpoints and reports the negotiated version, cipher suite, and server certificate subject. Fills the encrypted-traffic gap that all other network modules leave open - no SNI/JA3/certificate-based detection fires without a TLS handshake. Pass `insecure=true` to skip certificate verification, matching what real C2 does with self-signed certs. Maps to T1573.002.
+
+```bash
+macnoise run net_tls
+macnoise run net_tls --param targets="10.0.0.1:8443" --param insecure=true
+```
+
 ### `net_dns_exfil`
 Encodes a payload into base32 DNS subdomain labels and resolves each query. The `.invalid` TLD (RFC 6761) means queries never leave the resolver unless the base domain is overridden. Maps to T1048.003.
 
