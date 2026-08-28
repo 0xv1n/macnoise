@@ -93,7 +93,7 @@ func networkActivity(eventType string) (int, string) {
 	switch eventType {
 	case "tcp_listen":
 		return 7, "Listen"
-	case "tcp_connect", "tcp_accept", "reverse_shell_attempt":
+	case "tcp_connect", "tcp_accept", "reverse_shell_attempt", "tls_connect":
 		return 1, "Open"
 	}
 	return 99, "Other"

@@ -23,6 +23,7 @@ func TestClassify(t *testing.T) {
 		{"network", "tcp_accept", 4001, 1},
 		{"network", "tcp_listen", 4001, 7},
 		{"network", "reverse_shell_attempt", 4001, 1},
+		{"network", "tls_connect", 4001, 1},
 
 		// file
 		{"file", "archive_create", 1001, 1},
