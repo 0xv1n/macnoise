@@ -131,9 +131,14 @@ func (p *plistCreate) DryRun(params module.Params) []string {
 }
 
 func (p *plistCreate) Cleanup() error {
-	if p.createdPath != "" {
-		return os.Remove(p.createdPath)
+	if p.createdPath == "" {
+		return nil
 	}
+	if err := os.Remove(p.createdPath); err != nil {
+		return err
+	}
+	dir := filepath.Dir(p.createdPath)
+	_ = os.Remove(dir)
 	return nil
 }
 
