@@ -19,6 +19,7 @@ import (
 	"github.com/0xv1n/macnoise/pkg/module"
 
 	_ "github.com/0xv1n/macnoise/modules/endpoint_security"
+	_ "github.com/0xv1n/macnoise/modules/evasion"
 	_ "github.com/0xv1n/macnoise/modules/file"
 	_ "github.com/0xv1n/macnoise/modules/network"
 	_ "github.com/0xv1n/macnoise/modules/plist"
