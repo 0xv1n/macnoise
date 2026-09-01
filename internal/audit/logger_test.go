@@ -15,7 +15,7 @@ func newTestLogger(t *testing.T) (*Logger, string) {
 	t.Helper()
 	dir := t.TempDir()
 	path := filepath.Join(dir, "audit.jsonl")
-	l, err := NewLogger(path, "test-version")
+	l, err := NewLogger(path, "test-version", "")
 	if err != nil {
 		t.Fatalf("NewLogger: %v", err)
 	}
@@ -317,6 +317,38 @@ func TestCorrelationUID_SameAcrossRecords(t *testing.T) {
 	}
 	if records[0].Metadata.CorrelationUID == "" {
 		t.Error("correlation_uid must not be empty")
+	}
+}
+
+func TestNewLogger_ExternalRunID(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "audit.jsonl")
+	l, err := NewLogger(path, "v1", "deadbeef01234567")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer l.Close()
+
+	info := module.ModuleInfo{Name: "test", Category: "network", Privileges: module.PrivilegeNone}
+	ev := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Success: true}
+	l.LogEvent(ev, info, module.Params{})
+	l.Close()
+
+	records := readRecords(t, path)
+	if records[0].Metadata.CorrelationUID != "deadbeef01234567" {
+		t.Errorf("correlation_uid = %q, want deadbeef01234567", records[0].Metadata.CorrelationUID)
+	}
+}
+
+func TestGenerateRunID_Format(t *testing.T) {
+	id := GenerateRunID()
+	if len(id) != 16 {
+		t.Errorf("RunID length = %d, want 16", len(id))
+	}
+	for _, c := range id {
+		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
+			t.Fatalf("RunID contains non-hex char %q: %s", c, id)
+		}
 	}
 }
 
