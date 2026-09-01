@@ -220,7 +220,7 @@ func TestRunScenarioAuditsInterrupt(t *testing.T) {
 	module.Register(gen)
 
 	auditPath := filepath.Join(t.TempDir(), "audit.jsonl")
-	logger, err := audit.NewLogger(auditPath, "test")
+	logger, err := audit.NewLogger(auditPath, "test", "")
 	if err != nil {
 		t.Fatalf("new audit logger: %v", err)
 	}
@@ -268,5 +268,33 @@ func TestRunScenarioAuditsInterrupt(t *testing.T) {
 	}
 	if got := scenarioRec["status_id"]; got != float64(2) {
 		t.Errorf("status_id = %v, want 2 (Failure) for an interrupted scenario", got)
+	}
+}
+
+type ctxCapturingGen struct {
+	mockGen
+	capturedRunID string
+}
+
+func (c *ctxCapturingGen) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
+	c.capturedRunID = module.RunIDFromContext(ctx)
+	return c.mockGen.Generate(ctx, params, emit)
+}
+
+func TestRunSingle_RunIDInContext(t *testing.T) {
+	gen := &ctxCapturingGen{
+		mockGen: mockGen{
+			name:   "ctx_test",
+			events: []module.TelemetryEvent{{Success: true, Category: "test", EventType: "test"}},
+		},
+	}
+
+	emit := func(module.TelemetryEvent) {}
+	opts := runner.Options{RunID: "test_run_id_1234"}
+	if err := runner.RunSingle(context.Background(), gen, module.Params{}, emit, opts); err != nil {
+		t.Fatal(err)
+	}
+	if gen.capturedRunID != "test_run_id_1234" {
+		t.Errorf("RunIDFromContext = %q, want test_run_id_1234", gen.capturedRunID)
 	}
 }

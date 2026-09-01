@@ -42,14 +42,19 @@ type Logger struct {
 }
 
 // NewLogger opens (or creates) path for append and returns a ready Logger.
-func NewLogger(path, version string) (*Logger, error) {
+// runID is the correlation identifier for this invocation; pass an empty
+// string to have one generated automatically.
+func NewLogger(path, version, runID string) (*Logger, error) {
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
 	if err != nil {
 		return nil, fmt.Errorf("audit: open %s: %w", path, err)
 	}
+	if runID == "" {
+		runID = GenerateRunID()
+	}
 	return &Logger{
 		f:       f,
-		runID:   generateRunID(),
+		runID:   runID,
 		version: version,
 		actor:   currentActor(),
 		device:  currentDevice(),

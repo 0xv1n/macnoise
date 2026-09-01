@@ -24,6 +24,10 @@ type Options struct {
 	Timeout   time.Duration
 	Verbose   bool
 	AuditLog  *audit.Logger
+	// RunID is the correlation identifier for this invocation. Modules
+	// retrieve it via module.RunIDFromContext so they can fold it into
+	// artifact names, DNS labels, and command arguments.
+	RunID string
 }
 
 // RunSingle executes one module through its full lifecycle (prereqs → generate → cleanup).
@@ -64,10 +68,10 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 		auditEmit = opts.AuditLog.WrapEmitter(emit, info, params, &eventsEmitted)
 	}
 
-	runCtx := ctx
+	runCtx := module.ContextWithRunID(ctx, opts.RunID)
 	var cancel context.CancelFunc
 	if opts.Timeout > 0 {
-		runCtx, cancel = context.WithTimeout(ctx, opts.Timeout)
+		runCtx, cancel = context.WithTimeout(runCtx, opts.Timeout)
 		defer cancel()
 	}
 

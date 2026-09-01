@@ -38,6 +38,7 @@ var (
 	globalTimeout   int
 	globalAuditLog  string
 	globalConfig    string
+	globalRunID     string
 )
 
 var loadedConfig config.Config
@@ -82,6 +83,7 @@ EDR validation, and detection engineering.`,
 	root.PersistentFlags().IntVar(&globalTimeout, "timeout", 30, "Per-module timeout in seconds (0 = no timeout)")
 	root.PersistentFlags().StringVar(&globalAuditLog, "audit-log", "", "Write OCSF 1.7.0 JSONL audit records to file")
 	root.PersistentFlags().StringVar(&globalConfig, "config", "", "Config YAML file (default: none)")
+	root.PersistentFlags().StringVar(&globalRunID, "run-id", "", "Correlation ID for this run (auto-generated if omitted)")
 
 	root.AddCommand(
 		buildRun(),
@@ -137,11 +139,11 @@ func resolveAuditLogPath(scenarioAuditLog string) string {
 	return loadedConfig.AuditLog
 }
 
-func buildAuditLogger(path string) (*audit.Logger, func(), error) {
+func buildAuditLogger(path, runID string) (*audit.Logger, func(), error) {
 	if path == "" {
 		return nil, func() {}, nil
 	}
-	l, err := audit.NewLogger(path, version)
+	l, err := audit.NewLogger(path, version, runID)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -179,7 +181,14 @@ func signalContext() (context.Context, context.CancelFunc) {
 	}
 }
 
-func buildRunOpts(auditLogger *audit.Logger) runner.Options {
+func resolveRunID() string {
+	if globalRunID != "" {
+		return globalRunID
+	}
+	return audit.GenerateRunID()
+}
+
+func buildRunOpts(auditLogger *audit.Logger, runID string) runner.Options {
 	timeout := time.Duration(globalTimeout) * time.Second
 	return runner.Options{
 		DryRun:    globalDryRun,
@@ -187,6 +196,7 @@ func buildRunOpts(auditLogger *audit.Logger) runner.Options {
 		Timeout:   timeout,
 		Verbose:   globalVerbose,
 		AuditLog:  auditLogger,
+		RunID:     runID,
 	}
 }
 
@@ -214,14 +224,17 @@ func buildRun() *cobra.Command {
 			}
 			defer closeEM()
 
-			auditLogger, closeAL, err := buildAuditLogger(resolveAuditLogPath(""))
+			runID := resolveRunID()
+			auditLogger, closeAL, err := buildAuditLogger(resolveAuditLogPath(""), runID)
 			if err != nil {
 				return err
 			}
 			defer closeAL()
 
+			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
+
 			params := parseParams(paramFlags)
-			opts := buildRunOpts(auditLogger)
+			opts := buildRunOpts(auditLogger, runID)
 			ctx, stop := signalContext()
 			defer stop()
 
@@ -355,13 +368,16 @@ func buildScenario() *cobra.Command {
 				scenarioAuditLog = sc.AuditLog
 			}
 
-			auditLogger, closeAL, err := buildAuditLogger(resolveAuditLogPath(scenarioAuditLog))
+			runID := resolveRunID()
+			auditLogger, closeAL, err := buildAuditLogger(resolveAuditLogPath(scenarioAuditLog), runID)
 			if err != nil {
 				return err
 			}
 			defer closeAL()
 
-			opts := buildRunOpts(auditLogger)
+			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
+
+			opts := buildRunOpts(auditLogger, runID)
 			ctx, stop := signalContext()
 			defer stop()
 

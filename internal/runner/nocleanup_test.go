@@ -54,7 +54,7 @@ func TestRunSingle_NoCleanupIsRecordedAsSkipped(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			auditPath := filepath.Join(t.TempDir(), "audit.jsonl")
-			logger, err := audit.NewLogger(auditPath, "test")
+			logger, err := audit.NewLogger(auditPath, "test", "")
 			if err != nil {
 				t.Fatalf("new audit logger: %v", err)
 			}
