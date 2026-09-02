@@ -45,7 +45,6 @@ func (s *svcShellProfile) ParamSpecs() []module.ParamSpec {
 func (s *svcShellProfile) CheckPrereqs() error { return nil }
 
 func (s *svcShellProfile) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	_ = ctx
 	target := params.Get("target", "~/.zshrc")
 	payload := params.Get("payload", "export MACNOISE_PERSIST=1")
 	info := s.Info()
@@ -59,7 +58,13 @@ func (s *svcShellProfile) Generate(ctx context.Context, params module.Params, em
 	}
 	s.targetFile = target
 
-	block := fmt.Sprintf("\n%s\n%s\n%s\n", shellProfileMarkerStart, payload, shellProfileMarkerEnd)
+	// The run ID rides on the start marker line (Cleanup still matches on the
+	// constant prefix) so a consumer can correlate the profile change.
+	startMarker := shellProfileMarkerStart
+	if runID := module.RunIDFromContext(ctx); runID != "" {
+		startMarker += " mn:" + runID
+	}
+	block := fmt.Sprintf("\n%s\n%s\n%s\n", startMarker, payload, shellProfileMarkerEnd)
 
 	ev := output.NewEvent(info, "shell_profile_modify", false, fmt.Sprintf("appending persistence marker to %s", target))
 	f, err := os.OpenFile(target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)

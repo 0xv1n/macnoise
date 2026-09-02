@@ -37,9 +37,14 @@ func (e *esProcess) CheckPrereqs() error { return nil }
 // buildExecChainArgs nests depth-1 levels of `sh -c '"$@"' sh <rest>` around
 // a final `echo es_exit`. The '"$@"' script just re-execs its own
 // positional params, so nesting threads through argv with no shell-quote
-// escaping needed.
-func buildExecChainArgs(depth int) []string {
-	args := []string{"echo", "es_exit"}
+// escaping needed. The run ID rides on the leaf echo argument so it lands in
+// the ES_EVENT_TYPE_NOTIFY_EXEC argv a consumer captures.
+func buildExecChainArgs(depth int, runID string) []string {
+	leaf := "es_exit"
+	if runID != "" {
+		leaf = "es_exit_" + runID
+	}
+	args := []string{"echo", leaf}
 	for i := 0; i < depth-1; i++ {
 		wrapped := make([]string, 0, len(args)+4)
 		wrapped = append(wrapped, "sh", "-c", `"$@"`, "sh")
@@ -62,7 +67,7 @@ func (e *esProcess) Generate(ctx context.Context, params module.Params, emit mod
 	ev := output.NewEvent(info, "es_exec_chain", false,
 		fmt.Sprintf("executing %d-deep process fork/exec chain", depth))
 
-	chainArgs := buildExecChainArgs(depth)
+	chainArgs := buildExecChainArgs(depth, module.RunIDFromContext(ctx))
 	cmd := exec.CommandContext(ctx, chainArgs[0], chainArgs[1:]...)
 	out, err := cmd.CombinedOutput()
 	if err != nil {

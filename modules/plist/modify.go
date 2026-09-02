@@ -95,6 +95,9 @@ func (p *plistModify) CheckPrereqs() error {
 
 func (p *plistModify) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	domain := params.Get("domain", "com.macnoise.test")
+	if runID := module.RunIDFromContext(ctx); runID != "" {
+		domain += "." + runID
+	}
 	key := params.Get("key", "MacnoiseTest")
 	value := params.Get("value", "true")
 	info := p.Info()

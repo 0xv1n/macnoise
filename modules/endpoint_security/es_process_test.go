@@ -18,7 +18,7 @@ func TestBuildExecChainArgs_Shape(t *testing.T) {
 	}
 
 	for _, tt := range tests {
-		args := buildExecChainArgs(tt.depth)
+		args := buildExecChainArgs(tt.depth, "")
 		if len(args) != tt.wantLen {
 			t.Errorf("depth=%d: len(args) = %d, want %d (%v)", tt.depth, len(args), tt.wantLen, args)
 		}
@@ -42,7 +42,7 @@ func TestBuildExecChainArgs_Shape(t *testing.T) {
 func TestBuildExecChainArgs_LinearGrowth(t *testing.T) {
 	prevLen := -1
 	for depth := 1; depth <= 10; depth++ {
-		args := buildExecChainArgs(depth)
+		args := buildExecChainArgs(depth, "")
 		if prevLen >= 0 {
 			grew := len(args) - prevLen
 			if grew != 4 {
@@ -54,9 +54,20 @@ func TestBuildExecChainArgs_LinearGrowth(t *testing.T) {
 }
 
 func TestBuildExecChainArgs_NoUserInputInScript(t *testing.T) {
-	for _, a := range buildExecChainArgs(5) {
+	for _, a := range buildExecChainArgs(5, "") {
 		if strings.Contains(a, "'") {
 			t.Errorf("argv element %q contains a raw single quote", a)
 		}
+	}
+}
+
+func TestBuildExecChainArgs_RunIDInLeaf(t *testing.T) {
+	args := buildExecChainArgs(3, "deadbeef01234567")
+	leaf := args[len(args)-1]
+	if !strings.Contains(leaf, "deadbeef01234567") {
+		t.Errorf("leaf echo arg %q missing run ID", leaf)
+	}
+	if args[len(args)-2] != "echo" {
+		t.Errorf("chain must still end in echo, got %v", args[len(args)-2:])
 	}
 }

@@ -45,7 +45,7 @@ func (f *fileHide) ParamSpecs() []module.ParamSpec {
 func (f *fileHide) CheckPrereqs() error { return nil }
 
 func (f *fileHide) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	workDir := params.Get("work_dir", "/tmp/macnoise_hide")
+	workDir := module.TagPath(params.Get("work_dir", "/tmp/macnoise_hide"), module.RunIDFromContext(ctx))
 	f.workDir = workDir
 	info := f.Info()
 

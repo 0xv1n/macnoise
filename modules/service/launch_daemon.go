@@ -46,7 +46,7 @@ func (s *svcLaunchDaemon) CheckPrereqs() error {
 }
 
 func (s *svcLaunchDaemon) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	label := params.Get("label", "com.macnoise.testdaemon")
+	label := stampLabel(params.Get("label", "com.macnoise.testdaemon"), module.RunIDFromContext(ctx))
 	program := params.Get("program", "/usr/bin/true")
 	info := s.Info()
 

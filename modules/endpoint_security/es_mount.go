@@ -107,7 +107,8 @@ func detachArgs(target string) []string {
 }
 
 func (e *esMount) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	workDir := params.Get("work_dir", "/tmp/macnoise_es")
+	runID := module.RunIDFromContext(ctx)
+	workDir := module.TagPath(params.Get("work_dir", "/tmp/macnoise_es"), runID)
 	info := e.Info()
 
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -155,7 +156,7 @@ func (e *esMount) Generate(ctx context.Context, params module.Params, emit modul
 	mountEv.Message = fmt.Sprintf("mounted %s at %s (ES_EVENT_TYPE_NOTIFY_MOUNT)", dmgPath, res.MountPoint)
 	emit(output.WithDetails(mountEv, mountDetails))
 
-	e.emitVolumeExec(ctx, info, emit)
+	e.emitVolumeExec(ctx, info, emit, runID)
 
 	unmountEv := output.NewEvent(info, "es_notify_unmount", false, fmt.Sprintf("unmounting %s (triggers ES_EVENT_TYPE_NOTIFY_UNMOUNT)", res.MountPoint))
 	if out, err := exec.CommandContext(ctx, "hdiutil", detachArgs(res.MountPoint)...).CombinedOutput(); err != nil {
@@ -178,12 +179,16 @@ func (e *esMount) Generate(ctx context.Context, params module.Params, emit modul
 // the half that makes T1204.002 accurate: a bare mount is weak signal, while a
 // process launched from a /Volumes path is what AMOS-style delivery actually
 // looks like on an endpoint.
-func (e *esMount) emitVolumeExec(ctx context.Context, info module.ModuleInfo, emit module.EventEmitter) {
+func (e *esMount) emitVolumeExec(ctx context.Context, info module.ModuleInfo, emit module.EventEmitter, runID string) {
 	payload := path.Join(e.mountPoint, payloadName)
 	ev := output.NewEvent(info, "es_volume_exec", false, fmt.Sprintf("executing %s (triggers ES_EVENT_TYPE_NOTIFY_EXEC)", payload))
 	details := map[string]any{"payload": payload, "mount_point": e.mountPoint, "es_event": "ES_EVENT_TYPE_NOTIFY_EXEC"}
 
-	script := "#!/bin/sh\necho macnoise_dmg_payload\n"
+	echoArg := "macnoise_dmg_payload"
+	if runID != "" {
+		echoArg += "_" + runID
+	}
+	script := "#!/bin/sh\necho " + echoArg + "\n"
 	if err := os.WriteFile(payload, []byte(script), 0o755); err != nil {
 		ev = output.WithError(ev, err)
 		emit(output.WithDetails(ev, details))

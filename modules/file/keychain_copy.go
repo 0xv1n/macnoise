@@ -231,7 +231,7 @@ func (f *fileKeychainCopy) Generate(ctx context.Context, params module.Params, e
 		return fmt.Errorf("cannot determine home directory: %w", err)
 	}
 
-	stageDir := params.Get("stage_dir", defaultKeychainStageDir)
+	stageDir := module.TagPath(params.Get("stage_dir", defaultKeychainStageDir), module.RunIDFromContext(ctx))
 	if err := os.MkdirAll(stageDir, 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", stageDir, err)
 	}

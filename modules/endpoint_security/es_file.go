@@ -43,7 +43,7 @@ func (e *esFile) ParamSpecs() []module.ParamSpec {
 func (e *esFile) CheckPrereqs() error { return nil }
 
 func (e *esFile) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	workDir := params.Get("work_dir", "/tmp/macnoise_es")
+	workDir := module.TagPath(params.Get("work_dir", "/tmp/macnoise_es"), module.RunIDFromContext(ctx))
 	info := e.Info()
 
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
