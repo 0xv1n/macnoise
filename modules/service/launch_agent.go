@@ -47,8 +47,18 @@ func (s *svcLaunchAgent) CheckPrereqs() error {
 	return nil
 }
 
+// stampLabel appends the run ID as a trailing reverse-DNS component so the
+// plist filename, Label key, and launchctl service target all carry it,
+// letting a consumer correlate the persistence back to the run.
+func stampLabel(label, runID string) string {
+	if runID == "" {
+		return label
+	}
+	return label + "." + runID
+}
+
 func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	label := params.Get("label", "com.macnoise.testagent")
+	label := stampLabel(params.Get("label", "com.macnoise.testagent"), module.RunIDFromContext(ctx))
 	program := params.Get("program", "/usr/bin/true")
 	info := s.Info()
 

@@ -46,7 +46,7 @@ func TestChunkExfilLabels_ShortInput(t *testing.T) {
 }
 
 func TestExfilQueries_DefaultPayload(t *testing.T) {
-	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain)
+	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain, "")
 	if len(queries) == 0 {
 		t.Fatal("expected at least one query")
 	}
@@ -65,7 +65,7 @@ func TestExfilQueries_DefaultPayload(t *testing.T) {
 }
 
 func TestExfilQueries_ContainsSequenceNumber(t *testing.T) {
-	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain)
+	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain, "")
 	for i, q := range queries {
 		seq := strings.SplitN(q, ".", 3)[1]
 		want := fmt.Sprintf("%d", i)
@@ -77,7 +77,7 @@ func TestExfilQueries_ContainsSequenceNumber(t *testing.T) {
 
 func TestExfilQueries_NameTooLong(t *testing.T) {
 	longDomain := strings.Repeat("x", 200) + ".invalid"
-	queries := exfilQueries("test", longDomain)
+	queries := exfilQueries("test", longDomain, "")
 	for _, q := range queries {
 		if len(q) > dnsNameMax {
 			t.Errorf("query exceeds DNS name max: %s", q)
@@ -85,10 +85,26 @@ func TestExfilQueries_NameTooLong(t *testing.T) {
 	}
 }
 
+func TestExfilQueries_RunIDLabel(t *testing.T) {
+	runID := "deadbeef01234567"
+	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain, runID)
+	if len(queries) == 0 {
+		t.Fatal("expected at least one query")
+	}
+	for i, q := range queries {
+		if !strings.Contains(q, "."+runID+".") {
+			t.Errorf("query %d missing cleartext run ID label: %s", i, q)
+		}
+		if !strings.HasSuffix(q, "."+runID+"."+defaultExfilDomain) {
+			t.Errorf("query %d: run ID label not positioned before base domain: %s", i, q)
+		}
+	}
+}
+
 func TestDNSExfilDryRunMatchesQueries(t *testing.T) {
 	mod := &netDNSExfil{}
 	steps := mod.DryRun(module.Params{})
-	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain)
+	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain, "")
 	if len(steps) != len(queries) {
 		t.Errorf("dry run listed %d steps, want %d", len(steps), len(queries))
 	}
