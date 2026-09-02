@@ -43,8 +43,9 @@ func (f *fileArchive) ParamSpecs() []module.ParamSpec {
 func (f *fileArchive) CheckPrereqs() error { return nil }
 
 func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	sourceDir := params.Get("source_dir", "/tmp/macnoise_archive_src")
-	outputPath := params.Get("output_path", "/tmp/macnoise_archive.zip")
+	runID := module.RunIDFromContext(ctx)
+	sourceDir := module.TagPath(params.Get("source_dir", "/tmp/macnoise_archive_src"), runID)
+	outputPath := module.TagPath(params.Get("output_path", "/tmp/macnoise_archive.zip"), runID)
 	tool := params.Get("tool", "zip")
 	f.sourceDir = sourceDir
 	f.outputPath = outputPath

@@ -57,6 +57,11 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 	ev = output.WithDetails(ev, map[string]any{"address": address})
 	emit(ev)
 
+	payload := "TELEMETRY_PING"
+	if runID := module.RunIDFromContext(ctx); runID != "" {
+		payload += " mn:" + runID
+	}
+
 	go func() {
 		time.Sleep(200 * time.Millisecond)
 		target := net.JoinHostPort("127.0.0.1", port)
@@ -64,7 +69,7 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 		if err != nil {
 			return
 		}
-		conn.Write([]byte("TELEMETRY_PING")) //nolint:errcheck
+		conn.Write([]byte(payload)) //nolint:errcheck
 		_ = conn.Close()
 	}()
 

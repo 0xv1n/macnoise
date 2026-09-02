@@ -40,7 +40,7 @@ func (n *netExfil) ParamSpecs() []module.ParamSpec {
 func (n *netExfil) CheckPrereqs() error { return nil }
 
 func (n *netExfil) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	target := params.Get("target", "http://127.0.0.1:8080/upload")
+	target := tagURL(params.Get("target", "http://127.0.0.1:8080/upload"), module.RunIDFromContext(ctx))
 	payloadSizeStr := params.Get("payload_size", "4096")
 	contentType := params.Get("content_type", "application/octet-stream")
 	info := n.Info()

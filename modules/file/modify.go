@@ -42,8 +42,12 @@ func (f *fileModify) ParamSpecs() []module.ParamSpec {
 func (f *fileModify) CheckPrereqs() error { return nil }
 
 func (f *fileModify) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	targetPath := params.Get("target_path", "/tmp/macnoise_modify_target.txt")
+	runID := module.RunIDFromContext(ctx)
+	targetPath := module.TagPath(params.Get("target_path", "/tmp/macnoise_modify_target.txt"), runID)
 	content := params.Get("content", "macnoise modification")
+	if runID != "" {
+		content += " mn:" + runID
+	}
 	info := f.Info()
 
 	f.targetPath = targetPath

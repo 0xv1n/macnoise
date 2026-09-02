@@ -45,7 +45,8 @@ func (p *procGatekeeper) ParamSpecs() []module.ParamSpec {
 func (p *procGatekeeper) CheckPrereqs() error { return nil }
 
 func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	targetPath := params.Get("target_path", "/tmp/macnoise_gatekeeper_test")
+	runID := module.RunIDFromContext(ctx)
+	targetPath := module.TagPath(params.Get("target_path", "/tmp/macnoise_gatekeeper_test"), runID)
 	p.targetPath = targetPath
 	info := p.Info()
 
@@ -56,8 +57,14 @@ func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emi
 		return err
 	}
 
+	// The quarantine value's agent field carries the run ID so a consumer can
+	// correlate the xattr back to the run.
+	quarantineVal := "0081;00000000;macnoise;"
+	if runID != "" {
+		quarantineVal = "0081;00000000;macnoise-" + runID + ";"
+	}
 	setEv := output.NewEvent(info, "xattr_quarantine_set", false, fmt.Sprintf("setting quarantine xattr on %s", targetPath))
-	setOut, setErr := exec.CommandContext(ctx, "xattr", "-w", "com.apple.quarantine", "0081;00000000;macnoise;", targetPath).CombinedOutput()
+	setOut, setErr := exec.CommandContext(ctx, "xattr", "-w", "com.apple.quarantine", quarantineVal, targetPath).CombinedOutput()
 	if setErr != nil {
 		setEv = output.WithError(setEv, fmt.Errorf("%v: %s", setErr, setOut))
 		emit(setEv)

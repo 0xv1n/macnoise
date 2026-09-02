@@ -63,7 +63,7 @@ func (n *netConnect) Generate(ctx context.Context, params module.Params, emit mo
 		emit(ev)
 	}
 
-	url := fmt.Sprintf("http://%s", address)
+	url := tagURL(fmt.Sprintf("http://%s", address), module.RunIDFromContext(ctx))
 	httpEv := output.NewEvent(info, "http_get", false, fmt.Sprintf("HTTP GET %s", url))
 	client := http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(url)

@@ -62,7 +62,7 @@ func jitterInterval(base time.Duration, jitterPct int, rnd *rand.Rand) time.Dura
 func (c *c2Beacon) CheckPrereqs() error { return nil }
 
 func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	target := params.Get("target", "http://example.com")
+	target := tagURL(params.Get("target", "http://example.com"), module.RunIDFromContext(ctx))
 	countStr := params.Get("count", "3")
 	intervalStr := params.Get("interval", "2")
 	jitterStr := params.Get("jitter", "0")

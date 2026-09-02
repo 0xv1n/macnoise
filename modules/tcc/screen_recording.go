@@ -61,7 +61,11 @@ func (t *tccScreenRecording) Generate(ctx context.Context, params module.Params,
 	// deleted immediately. Contents are never read or emitted: the goal is to
 	// generate the screen-capture telemetry a real stealer would, not to
 	// collect the screen, the same discard posture as the credential modules.
-	f, err := os.CreateTemp("", "mn_screencap_*.png")
+	prefix := "mn_screencap_"
+	if runID := module.RunIDFromContext(ctx); runID != "" {
+		prefix += runID + "_"
+	}
+	f, err := os.CreateTemp("", prefix+"*.png")
 	if err != nil {
 		return fmt.Errorf("create temp file: %w", err)
 	}

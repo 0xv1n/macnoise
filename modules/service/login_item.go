@@ -117,6 +117,9 @@ func parseLoginItemNames(out string) []string {
 
 func (s *svcLoginItem) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	name := params.Get("name", "MacNoiseLoginItem")
+	if runID := module.RunIDFromContext(ctx); runID != "" {
+		name += "_" + runID
+	}
 	targetPath := params.Get("path", "/usr/bin/true")
 	info := s.Info()
 	s.name = name

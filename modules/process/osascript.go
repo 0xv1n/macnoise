@@ -74,9 +74,22 @@ func (p *procOsascript) ParamSpecs() []module.ParamSpec {
 
 func (p *procOsascript) CheckPrereqs() error { return nil }
 
+// stampScript appends the run ID as a language-appropriate comment so it lands
+// in the osascript argv (what detection keys on) without altering execution.
+func stampScript(script, language, runID string) string {
+	if runID == "" {
+		return script
+	}
+	comment := "-- mn:" + runID
+	if strings.EqualFold(language, "JavaScript") {
+		comment = "// mn:" + runID
+	}
+	return script + "\n" + comment
+}
+
 func (p *procOsascript) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	script := params.Get("script", `display notification "macnoise telemetry" with title "MacNoise"`)
 	language := params.Get("language", "AppleScript")
+	script := stampScript(params.Get("script", `display notification "macnoise telemetry" with title "MacNoise"`), language, module.RunIDFromContext(ctx))
 	info := p.Info()
 
 	ev := output.NewEvent(info, "osascript_exec", false, fmt.Sprintf("executing %s via osascript", language))

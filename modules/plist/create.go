@@ -46,8 +46,12 @@ func (p *plistCreate) ParamSpecs() []module.ParamSpec {
 func (p *plistCreate) CheckPrereqs() error { return nil }
 
 func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	outPath := params.Get("output_path", "/tmp/macnoise_test.plist")
+	runID := module.RunIDFromContext(ctx)
+	outPath := module.TagPath(params.Get("output_path", "/tmp/macnoise_test.plist"), runID)
 	bundleID := params.Get("bundle_id", "com.macnoise.test")
+	if runID != "" {
+		bundleID += "." + runID
+	}
 	mode := params.Get("mode", "bundle")
 	info := p.Info()
 

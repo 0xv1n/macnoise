@@ -82,7 +82,7 @@ func classifyInjection(dylibExists bool, stderr string) injectOutcome {
 }
 
 func (p *procInject) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	dylibPath := params.Get("dylib_path", "/tmp/macnoise_inject.dylib")
+	dylibPath := module.TagPath(params.Get("dylib_path", "/tmp/macnoise_inject.dylib"), module.RunIDFromContext(ctx))
 	targetBin := params.Get("target", "")
 	if targetBin == "" {
 		var err error

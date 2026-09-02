@@ -137,7 +137,7 @@ func clearHistory(info module.ModuleInfo, stageDir string) module.TelemetryEvent
 
 func (e *evadeLogClear) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	info := e.Info()
-	stageDir := params.Get("stage_dir", defaultEvasionStageDir)
+	stageDir := module.TagPath(params.Get("stage_dir", defaultEvasionStageDir), module.RunIDFromContext(ctx))
 	if err := os.MkdirAll(stageDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", stageDir, err)
 	}
