@@ -37,8 +37,18 @@ func (p *procSpawn) ParamSpecs() []module.ParamSpec {
 
 func (p *procSpawn) CheckPrereqs() error { return nil }
 
+// stampCommand appends the run ID as a shell comment. It is inert to execution
+// but lands in the process argv, where a consumer's EDR captures it and can
+// correlate the exec back to the run.
+func stampCommand(command, runID string) string {
+	if runID == "" {
+		return command
+	}
+	return command + " # mn:" + runID
+}
+
 func (p *procSpawn) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	command := params.Get("command", "echo 'Telemetry Payload Executed'")
+	command := stampCommand(params.Get("command", "echo 'Telemetry Payload Executed'"), module.RunIDFromContext(ctx))
 	info := p.Info()
 
 	ev := output.NewEvent(info, "process_spawn", false, fmt.Sprintf("spawning: sh -c %q", command))

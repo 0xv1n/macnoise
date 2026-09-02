@@ -65,12 +65,22 @@ func classifyCrontabList(out []byte, err error) (existing string, safe bool) {
 	return "", false
 }
 
+// cronMarker returns the trailing comment tagging the entry as macnoise's,
+// folding the run ID in when set so a consumer can correlate the crontab
+// change back to the run.
+func cronMarker(runID string) string {
+	if runID == "" {
+		return "# macnoise"
+	}
+	return "# macnoise " + runID
+}
+
 func (s *svcCron) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	schedule := params.Get("schedule", "*/5 * * * *")
 	command := params.Get("command", "/usr/bin/true")
 	info := s.Info()
 
-	marker := "# macnoise"
+	marker := cronMarker(module.RunIDFromContext(ctx))
 	entry := fmt.Sprintf("%s %s %s", schedule, command, marker)
 
 	listEv := output.NewEvent(info, "cron_job_list", false, "listing current crontab entries")

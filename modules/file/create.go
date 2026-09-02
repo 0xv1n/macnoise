@@ -42,10 +42,20 @@ func (f *fileCreate) ParamSpecs() []module.ParamSpec {
 
 func (f *fileCreate) CheckPrereqs() error { return nil }
 
+// stampedFileName builds the file name, folding the run ID in after the prefix
+// when one is set so a consumer can correlate the file back to the run.
+func stampedFileName(prefix, runID, ts string, i int) string {
+	if runID != "" {
+		return fmt.Sprintf("%s%s_%s%d.txt", prefix, runID, ts, i)
+	}
+	return fmt.Sprintf("%s%s%d.txt", prefix, ts, i)
+}
+
 func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	baseDir := params.Get("base_dir", "/tmp/macnoise_test")
 	countStr := params.Get("count", "3")
 	prefix := params.Get("prefix", "mnfile_")
+	runID := module.RunIDFromContext(ctx)
 
 	count := 3
 	fmt.Sscanf(countStr, "%d", &count) //nolint:errcheck
@@ -66,7 +76,7 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 		default:
 		}
 
-		fname := fmt.Sprintf("%s%s%d.txt", prefix, time.Now().Format("20060102_150405"), i)
+		fname := stampedFileName(prefix, runID, time.Now().Format("20060102_150405"), i)
 		fpath := filepath.Join(baseDir, fname)
 		content := fmt.Sprintf("MacNoise telemetry file %d created at %s\n", i, time.Now().UTC())
 
