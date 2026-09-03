@@ -3,6 +3,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/signal"
@@ -275,12 +276,28 @@ func buildList() *cobra.Command {
 		Use:   "list",
 		Short: "List available telemetry modules",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			format, err := parseFormat(globalFormat)
+			if err != nil {
+				return err
+			}
+
 			var gens []module.Generator
 			if catFilter != "" {
 				gens = module.ByCategory(module.Category(catFilter))
 			} else {
 				gens = module.All()
 			}
+
+			if format == output.FormatJSONL {
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				for _, g := range gens {
+					if err := enc.Encode(module.NewCatalogEntry(g)); err != nil {
+						return err
+					}
+				}
+				return nil
+			}
+
 			if len(gens) == 0 {
 				fmt.Println("No modules found.")
 				return nil
