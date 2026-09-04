@@ -69,6 +69,7 @@ func isRestorableScalar(text string) bool {
 func (p *plistModify) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "plist_modify",
+		EventTypes:  []string{"plist_read_prior", "plist_modify"},
 		Description: "Modifies a user defaults plist key via 'defaults write' to generate plist write telemetry",
 		Category:    module.CategoryPlist,
 		Tags:        []string{"plist", "modify", "defaults"},

@@ -22,6 +22,7 @@ type esFile struct {
 func (e *esFile) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "es_file",
+		EventTypes:  []string{"es_notify_create", "es_notify_open", "es_notify_write", "es_notify_setmode", "es_notify_rename", "es_notify_unlink"},
 		Description: "Performs file operations that trigger ES_EVENT_TYPE_NOTIFY_CREATE/OPEN/WRITE/SETMODE/RENAME/UNLINK",
 		Category:    module.CategoryEndpointSecurity,
 		Tags:        []string{"endpoint-security", "file", "create", "open", "write", "setmode", "rename", "delete"},

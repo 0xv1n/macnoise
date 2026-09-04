@@ -19,6 +19,7 @@ type xpcEnumerate struct{}
 func (x *xpcEnumerate) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "xpc_enumerate",
+		EventTypes:  []string{"xpc_enumerate"},
 		Description: "Enumerates launchd service registrations via launchctl print, where XPC services are registered",
 		Category:    module.CategoryXPC,
 		Tags:        []string{"xpc", "launchctl", "ipc", "enumeration"},

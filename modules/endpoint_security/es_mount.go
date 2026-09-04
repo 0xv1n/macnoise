@@ -34,6 +34,7 @@ type esMount struct {
 func (e *esMount) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "es_mount",
+		EventTypes:  []string{"es_dmg_create", "es_notify_mount", "es_volume_exec", "es_notify_unmount"},
 		Description: "Mounts a disk image and executes a payload from it, triggering ES_EVENT_TYPE_NOTIFY_MOUNT/EXEC/UNMOUNT",
 		Category:    module.CategoryEndpointSecurity,
 		Tags:        []string{"endpoint-security", "mount", "dmg", "disk-image", "delivery"},

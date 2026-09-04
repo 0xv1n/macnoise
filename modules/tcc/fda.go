@@ -18,6 +18,7 @@ type tccFDA struct{}
 func (t *tccFDA) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "tcc_fda",
+		EventTypes:  []string{"tcc_fda_probe"},
 		Description: "Attempts to read TCC.db to probe Full Disk Access permission",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "fda", "full-disk-access", "privacy"},

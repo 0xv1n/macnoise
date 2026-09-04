@@ -23,6 +23,7 @@ type svcShellProfile struct {
 func (s *svcShellProfile) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "svc_shell_profile",
+		EventTypes:  []string{"shell_profile_modify"},
 		Description: "Appends a marked payload block to a shell profile file to simulate shell persistence",
 		Category:    module.CategoryService,
 		Tags:        []string{"shell-profile", "persistence", "zshrc", "bashrc"},

@@ -16,6 +16,7 @@ type c2Beacon struct{}
 func (c *c2Beacon) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "net_beacon",
+		EventTypes:  []string{"http_beacon"},
 		Description: "Simulates periodic HTTP C2 beaconing traffic",
 		Category:    module.CategoryNetwork,
 		Tags:        []string{"http", "c2", "beaconing", "periodic"},

@@ -15,6 +15,7 @@ type tccAccessibility struct{}
 func (t *tccAccessibility) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "tcc_accessibility",
+		EventTypes:  []string{"tcc_accessibility_probe"},
 		Description: "Probes Accessibility permission by reading UI elements via System Events",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "accessibility", "keylogging", "privacy"},

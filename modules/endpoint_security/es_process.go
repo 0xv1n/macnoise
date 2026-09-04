@@ -14,6 +14,7 @@ type esProcess struct{}
 func (e *esProcess) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "es_process",
+		EventTypes:  []string{"es_exec_chain"},
 		Description: "Executes process chains that trigger ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT",
 		Category:    module.CategoryEndpointSecurity,
 		Tags:        []string{"endpoint-security", "process", "exec", "fork"},

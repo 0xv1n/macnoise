@@ -33,8 +33,14 @@ type ModuleInfo struct { //nolint:revive // stutter is intentional: ModuleInfo i
 	Tags        []string
 	Privileges  Privilege
 	MITRE       []MITRE
-	Author      string
-	MinMacOS    string
+	// EventTypes lists every event_type the module can emit. It is declared
+	// here (rather than derived) so the catalog can advertise what a consumer
+	// should expect to observe; TestModuleEventTypesMatchEmitted guards it
+	// against drift by requiring every NewEvent literal in a module's source
+	// to appear in this list.
+	EventTypes []string
+	Author     string
+	MinMacOS   string
 }
 
 // ParamSpec describes a single named parameter accepted by a module.

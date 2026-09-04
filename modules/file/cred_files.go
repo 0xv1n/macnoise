@@ -24,6 +24,7 @@ type credTarget struct {
 func (f *fileCredFiles) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_cred_files",
+		EventTypes:  []string{"cred_file_probe", "cred_file_read"},
 		Description: "Reads well-known credential files (SSH keys, cloud and container configs, .env) to generate credential-in-files access telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"credentials", "ssh", "aws", "kubernetes", "docker", "dotenv"},

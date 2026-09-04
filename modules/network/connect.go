@@ -19,6 +19,7 @@ type netConnect struct{}
 func (n *netConnect) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "net_connect",
+		EventTypes:  []string{"tcp_connect", "http_get"},
 		Description: "Initiates a TCP connection and HTTP GET to a target host",
 		Category:    module.CategoryNetwork,
 		Tags:        []string{"tcp", "http", "outbound"},

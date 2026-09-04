@@ -17,6 +17,7 @@ type netExfil struct{}
 func (n *netExfil) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "net_exfil",
+		EventTypes:  []string{"http_post_exfil"},
 		Description: "Sends an HTTP POST with a dummy payload to simulate data exfiltration traffic",
 		Category:    module.CategoryNetwork,
 		Tags:        []string{"exfil", "http", "post", "data-exfiltration"},

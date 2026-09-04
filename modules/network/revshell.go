@@ -15,6 +15,7 @@ type netRevShell struct{}
 func (n *netRevShell) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "net_revshell",
+		EventTypes:  []string{"reverse_shell_attempt"},
 		Description: "Spawns /bin/sh and pipes stdio to a remote TCP connection (telemetry simulation)",
 		Category:    module.CategoryNetwork,
 		Tags:        []string{"tcp", "reverse-shell", "execution"},

@@ -40,6 +40,7 @@ func sanitizeOsascriptOutput(script, out string) string {
 func (p *procOsascript) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "proc_osascript",
+		EventTypes:  []string{"osascript_exec"},
 		Description: "Executes AppleScript or JXA via osascript to generate scripting interpreter telemetry",
 		Category:    module.CategoryProcess,
 		Tags:        []string{"osascript", "applescript", "jxa", "execution"},

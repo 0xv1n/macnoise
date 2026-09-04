@@ -18,6 +18,7 @@ type fileHide struct {
 func (f *fileHide) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_hide",
+		EventTypes:  []string{"file_hide_chflags", "file_hide_dotfile"},
 		Description: "Creates hidden files using chflags and dotfile naming to generate file hiding telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"hide", "chflags", "dotfile", "stealth"},

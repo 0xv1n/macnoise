@@ -20,6 +20,7 @@ type plistCreate struct {
 func (p *plistCreate) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "plist_create",
+		EventTypes:  []string{"plist_create", "plist_create_launchagent"},
 		Description: "Creates a plist file using howett.net/plist to generate plist write telemetry",
 		Category:    module.CategoryPlist,
 		Tags:        []string{"plist", "create", "file"},

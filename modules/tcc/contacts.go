@@ -15,6 +15,7 @@ type tccContacts struct{}
 func (t *tccContacts) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "tcc_contacts",
+		EventTypes:  []string{"tcc_contacts_probe"},
 		Description: "Attempts to enumerate the AddressBook directory to probe Contacts TCC permission",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "contacts", "addressbook", "privacy"},

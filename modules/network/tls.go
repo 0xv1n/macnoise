@@ -17,6 +17,7 @@ type netTLS struct{}
 func (n *netTLS) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "net_tls",
+		EventTypes:  []string{"tls_connect"},
 		Description: "Performs TLS handshakes to configurable endpoints and reports negotiated version, cipher suite, and certificate subject",
 		Category:    module.CategoryNetwork,
 		Tags:        []string{"tls", "encrypted", "handshake", "sni", "ja3"},

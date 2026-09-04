@@ -17,6 +17,7 @@ type procSpawn struct{}
 func (p *procSpawn) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "proc_spawn",
+		EventTypes:  []string{"process_spawn"},
 		Description: "Spawns a suspicious shell command chain to generate process execution telemetry",
 		Category:    module.CategoryProcess,
 		Tags:        []string{"execution", "shell", "spawn"},

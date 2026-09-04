@@ -119,6 +119,7 @@ func readCredFile(path string) (int64, error) {
 func (f *fileBrowserCreds) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_browser_creds",
+		EventTypes:  []string{"browser_cred_probe", "browser_cred_read"},
 		Description: "Reads known browser credential files to generate browser credential access telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"browser", "credentials", "chromium", "firefox", "safari"},

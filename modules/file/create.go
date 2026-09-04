@@ -20,6 +20,7 @@ type fileCreate struct {
 func (f *fileCreate) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_create",
+		EventTypes:  []string{"dir_create", "file_create"},
 		Description: "Creates files in a target directory to generate file creation telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"file", "create", "write"},

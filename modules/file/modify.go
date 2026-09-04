@@ -20,6 +20,7 @@ type fileModify struct {
 func (f *fileModify) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_modify",
+		EventTypes:  []string{"file_modify"},
 		Description: "Modifies an existing file's content to generate file write/modify telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"file", "modify", "write"},
