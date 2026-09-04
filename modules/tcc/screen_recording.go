@@ -16,6 +16,7 @@ type tccScreenRecording struct{}
 func (t *tccScreenRecording) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "tcc_screen_recording",
+		EventTypes:  []string{"screen_capture_attempt"},
 		Description: "Attempts a screen capture via screencapture to generate screen-capture telemetry",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "screen-recording", "screencapture", "privacy"},

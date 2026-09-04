@@ -24,6 +24,7 @@ type svcLaunchAgent struct {
 func (s *svcLaunchAgent) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "svc_launch_agent",
+		EventTypes:  []string{"launchagent_create", "launchagent_load"},
 		Description: "Creates and loads a LaunchAgent plist in ~/Library/LaunchAgents/ for persistence telemetry",
 		Category:    module.CategoryService,
 		Tags:        []string{"launchagent", "persistence", "plist", "launchctl"},

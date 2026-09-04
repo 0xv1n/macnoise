@@ -19,6 +19,7 @@ type procSignal struct{}
 func (p *procSignal) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "proc_signal",
+		EventTypes:  []string{"process_fork", "signal_send"},
 		Description: "Forks a process then sends signals (SIGTERM, SIGSTOP, SIGCONT) to generate signal telemetry",
 		Category:    module.CategoryProcess,
 		Tags:        []string{"signal", "process", "fork"},

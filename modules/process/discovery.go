@@ -47,6 +47,7 @@ type procDiscovery struct{}
 func (p *procDiscovery) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "proc_discovery",
+		EventTypes:  []string{"system_discovery"},
 		Description: "Runs macOS system reconnaissance commands, including security software enumeration, to generate discovery telemetry",
 		Category:    module.CategoryProcess,
 		Tags:        []string{"discovery", "recon", "sysinfo", "security-software"},

@@ -19,6 +19,7 @@ type svcLoginItem struct {
 func (s *svcLoginItem) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "svc_login_item",
+		EventTypes:  []string{"login_item_add"},
 		Description: "Adds a Login Item via System Events, triggering ES_EVENT_TYPE_NOTIFY_BTM_LAUNCH_ITEM_ADD",
 		Category:    module.CategoryService,
 		Tags:        []string{"login-item", "persistence", "btm", "osascript", "backgroundtaskmanagement"},

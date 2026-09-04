@@ -16,6 +16,7 @@ type tccKeychain struct{}
 func (t *tccKeychain) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "tcc_keychain",
+		EventTypes:  []string{"keychain_list", "keychain_unlock_attempt", "keychain_dump_attempt"},
 		Description: "Probes keychain access by listing, unlocking, and dumping keychain entries to generate Keychain TCC telemetry",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "keychain", "credentials", "security"},

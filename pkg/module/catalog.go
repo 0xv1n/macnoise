@@ -14,6 +14,7 @@ type CatalogEntry struct {
 	Privileges  Privilege      `json:"privileges"`
 	MinMacOS    string         `json:"min_macos,omitempty"`
 	Tags        []string       `json:"tags,omitempty"`
+	EventTypes  []string       `json:"event_types,omitempty"`
 	MITRE       []CatalogMITRE `json:"mitre,omitempty"`
 	Params      []CatalogParam `json:"params,omitempty"`
 }
@@ -69,6 +70,7 @@ func NewCatalogEntry(g Generator) CatalogEntry {
 		Privileges:  info.Privileges,
 		MinMacOS:    info.MinMacOS,
 		Tags:        info.Tags,
+		EventTypes:  info.EventTypes,
 		MITRE:       mitre,
 		Params:      params,
 	}

@@ -25,6 +25,7 @@ const (
 func (p *procInject) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "proc_inject",
+		EventTypes:  []string{"dylib_inject_attempt"},
 		Description: "Spawns a process with DYLD_INSERT_LIBRARIES to generate dylib injection telemetry",
 		Category:    module.CategoryProcess,
 		Tags:        []string{"dylib", "injection", "execution", "dyld"},

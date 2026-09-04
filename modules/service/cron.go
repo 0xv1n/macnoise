@@ -17,6 +17,7 @@ type svcCron struct {
 func (s *svcCron) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "svc_cron",
+		EventTypes:  []string{"cron_job_list", "cron_job_create"},
 		Description: "Lists and appends a cron job entry to simulate cron-based persistence",
 		Category:    module.CategoryService,
 		Tags:        []string{"cron", "persistence", "scheduled-task"},

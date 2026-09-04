@@ -22,6 +22,7 @@ type netDNSExfil struct{}
 func (n *netDNSExfil) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "net_dns_exfil",
+		EventTypes:  []string{"dns_exfil_query"},
 		Description: "Encodes a payload into DNS subdomain labels and resolves each query to generate DNS exfiltration telemetry",
 		Category:    module.CategoryNetwork,
 		Tags:        []string{"dns", "exfiltration", "subdomain", "encoding"},

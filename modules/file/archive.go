@@ -20,6 +20,7 @@ type fileArchive struct {
 func (f *fileArchive) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_archive",
+		EventTypes:  []string{"archive_create"},
 		Description: "Creates an archive of staged files to generate archive creation telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"archive", "zip", "staging", "collection"},

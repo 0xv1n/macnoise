@@ -18,6 +18,7 @@ type procGatekeeper struct {
 func (p *procGatekeeper) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "proc_gatekeeper",
+		EventTypes:  []string{"test_file_create_fail", "xattr_quarantine_set", "xattr_quarantine_remove", "spctl_status_check"},
 		Description: "Sets and removes com.apple.quarantine xattr to simulate Gatekeeper bypass telemetry",
 		Category:    module.CategoryProcess,
 		Tags:        []string{"gatekeeper", "quarantine", "xattr", "bypass"},

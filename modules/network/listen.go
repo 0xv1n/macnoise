@@ -17,6 +17,7 @@ type netListen struct {
 func (n *netListen) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "net_listen",
+		EventTypes:  []string{"tcp_listen", "tcp_accept"},
 		Description: "Opens a local TCP listener and simulates an inbound connection",
 		Category:    module.CategoryNetwork,
 		Tags:        []string{"tcp", "listen", "inbound"},

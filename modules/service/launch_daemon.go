@@ -22,6 +22,7 @@ type svcLaunchDaemon struct {
 func (s *svcLaunchDaemon) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "svc_launch_daemon",
+		EventTypes:  []string{"launchdaemon_create", "launchdaemon_load"},
 		Description: "Creates and loads a LaunchDaemon plist in /Library/LaunchDaemons/ (requires root)",
 		Category:    module.CategoryService,
 		Tags:        []string{"launchdaemon", "persistence", "plist", "launchctl", "root"},

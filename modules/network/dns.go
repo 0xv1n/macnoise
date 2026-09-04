@@ -15,6 +15,7 @@ type netDNS struct{}
 func (n *netDNS) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "net_dns",
+		EventTypes:  []string{"dns_lookup"},
 		Description: "Performs DNS resolution of configurable domains to generate DNS telemetry",
 		Category:    module.CategoryNetwork,
 		Tags:        []string{"dns", "lookup", "outbound"},

@@ -21,6 +21,7 @@ type evadeLogClear struct {
 func (e *evadeLogClear) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "evade_log_clear",
+		EventTypes:  []string{"file_timestomp", "log_erase_attempt", "history_clear"},
 		Description: "Timestomps a file, attempts unified log erasure, and clears a mock history file to generate defense evasion telemetry",
 		Category:    module.CategoryEvasion,
 		Tags:        []string{"evasion", "anti-forensics", "timestomp", "log-clear", "history"},

@@ -41,6 +41,7 @@ type keychainTarget struct {
 func (f *fileKeychainCopy) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_keychain_copy",
+		EventTypes:  []string{"keychain_read", "keychain_copy"},
 		Description: "Copies macOS keychain databases wholesale into a staging directory to generate keychain collection telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"credentials", "keychain", "collection", "staging"},
