@@ -11,9 +11,10 @@ import (
 )
 
 // Drives the real `security` tool. Pointed at a keychain path that does not
-// exist, the unlock and dump attempts are refused - which is the expected,
-// valid telemetry this module exists to generate - while list-keychains still
-// enumerates the session keychains.
+// exist, unlocking with no password is refused - the expected, valid telemetry
+// this module exists to generate. (dump-keychain ignores a bad path and dumps a
+// default store, so its verdict is environment-dependent and only checked to be
+// a non-error observation.)
 func TestKeychainGenerate_EmitsThreeProbes(t *testing.T) {
 	bogus := filepath.Join(t.TempDir(), "nope.keychain-db")
 
@@ -33,14 +34,19 @@ func TestKeychainGenerate_EmitsThreeProbes(t *testing.T) {
 		}
 	}
 
-	// Unlock and dump against a nonexistent keychain with no password must be
-	// refused, not error out macnoise.
-	for _, ev := range events[1:] {
-		if ev.ResolvedOutcome() != module.OutcomeDenied {
-			t.Errorf("%s outcome = %q, want denied", ev.EventType, ev.ResolvedOutcome())
-		}
-		if ev.Details["result"] != "denied" {
-			t.Errorf("%s result detail = %v, want denied", ev.EventType, ev.Details["result"])
-		}
+	// Unlock of a nonexistent keychain with no password is reliably refused.
+	unlock := events[1]
+	if unlock.ResolvedOutcome() != module.OutcomeDenied {
+		t.Errorf("unlock outcome = %q, want denied", unlock.ResolvedOutcome())
+	}
+	if unlock.Details["result"] != "denied" {
+		t.Errorf("unlock result detail = %v, want denied", unlock.Details["result"])
+	}
+
+	// The dump attempt must at least run and be recorded as a real observation,
+	// never a macnoise error.
+	dump := events[2]
+	if o := dump.ResolvedOutcome(); o != module.OutcomeExecuted && o != module.OutcomeDenied {
+		t.Errorf("dump outcome = %q, want executed or denied", o)
 	}
 }
