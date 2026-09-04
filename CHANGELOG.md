@@ -10,6 +10,22 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
 > required format. You no longer need to hand-edit this file.
 
+## [0.6.0](https://github.com/0xv1n/macnoise/compare/v0.5.0...v0.6.0) (2026-09-04)
+
+
+### Features
+
+* add emitted event types to module catalog ([#55](https://github.com/0xv1n/macnoise/issues/55)) ([b10085a](https://github.com/0xv1n/macnoise/commit/b10085a4451c7f1e8347e70b24093bfbec70538e))
+* emit machine-readable module catalog via list --format jsonl ([#54](https://github.com/0xv1n/macnoise/issues/54)) ([4e43bbd](https://github.com/0xv1n/macnoise/commit/4e43bbd6af80fdffb660787c2247c45a8330f222))
+* extend run ID stamping to all artifact-producing modules ([#53](https://github.com/0xv1n/macnoise/issues/53)) ([b69944e](https://github.com/0xv1n/macnoise/commit/b69944eb4477727a89b642639def381cf65a4973))
+* fold run ID into module artifacts for host telemetry correlation ([#52](https://github.com/0xv1n/macnoise/issues/52)) ([ef76f21](https://github.com/0xv1n/macnoise/commit/ef76f21b4ee487e6eba4183d59eb029bef3ca033))
+* lift run ID to runner and expose via module context ([#51](https://github.com/0xv1n/macnoise/issues/51)) ([ebcab38](https://github.com/0xv1n/macnoise/commit/ebcab389e86df90f1ea6d4dc7035e7826949bdad))
+
+
+### Bug Fixes
+
+* register evasion module and clean up plist parent directory ([#49](https://github.com/0xv1n/macnoise/issues/49)) ([26fa322](https://github.com/0xv1n/macnoise/commit/26fa322ce9ec80006d618c1343371aa2d1bbf885))
+
 ## [0.5.0](https://github.com/0xv1n/macnoise/compare/v0.4.0...v0.5.0) (2026-08-28)
 
 
