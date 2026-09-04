@@ -3,6 +3,8 @@ package process
 import (
 	"strings"
 	"testing"
+
+	"github.com/0xv1n/macnoise/pkg/module"
 )
 
 func TestStampCommand_WithRunID(t *testing.T) {
@@ -22,5 +24,15 @@ func TestStampCommand_WithoutRunID(t *testing.T) {
 	cmd := stampCommand("echo hi", "")
 	if cmd != "echo hi" {
 		t.Errorf("unstamped command = %q, want %q", cmd, "echo hi")
+	}
+}
+
+func TestSpawnDryRun(t *testing.T) {
+	steps := (&procSpawn{}).DryRun(module.Params{"command": "id && whoami"})
+	if len(steps) != 1 {
+		t.Fatalf("dry run = %v, want 1 line", steps)
+	}
+	if !strings.Contains(steps[0], "id && whoami") {
+		t.Errorf("dry-run line %q should name the command", steps[0])
 	}
 }
