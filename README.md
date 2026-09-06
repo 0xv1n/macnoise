@@ -50,7 +50,7 @@ make build
 | `service` | LaunchAgent/Daemon persistence, cron, shell profile, Login Items | svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile, svc_login_item |
 | `plist` | Plist creation and modification | plist_create, plist_modify |
 | `xpc` | XPC service enumeration | xpc_enumerate |
-| `evasion` | Defense evasion: log clearing, timestomping, history removal | evade_log_clear |
+| `evasion` | Defense evasion: log clearing, timestomping, history removal, masquerading | evade_log_clear, evade_masquerade |
 
 ## Commands
 

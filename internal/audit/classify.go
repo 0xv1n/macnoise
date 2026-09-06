@@ -59,6 +59,10 @@ func Classify(category, eventType string) Classification {
 		return Classification{1007, "Process Activity", 1, "System Activity", 1, "Launch"}
 	case "history_clear":
 		return Classification{1001, "File System Activity", 1, "System Activity", 4, "Delete"}
+	case "masquerade_copy":
+		return Classification{1001, "File System Activity", 1, "System Activity", 1, "Create"}
+	case "masquerade_exec":
+		return Classification{1007, "Process Activity", 1, "System Activity", 1, "Launch"}
 	}
 
 	switch category {

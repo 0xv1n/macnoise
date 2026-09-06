@@ -13,3 +13,13 @@ All artifacts live in a staging directory (default `/tmp/macnoise_evasion`) and 
 macnoise run evade_log_clear
 macnoise run evade_log_clear --param stage_dir=/var/tmp/macnoise_evasion
 ```
+
+### `evade_masquerade`
+Copies a benign system utility (default `/usr/bin/true`) into a staging directory under a name that impersonates a legitimate macOS process (default `com.apple.WindowServer`), then executes it. The exec fires for a process whose name and location masquerade as a trusted system component while its real provenance differs. Maps to T1036.003, T1036.005.
+
+The staged binary lives in the staging directory (default `/tmp/macnoise_masquerade`) and is removed on cleanup.
+
+```bash
+macnoise run evade_masquerade
+macnoise run evade_masquerade --param masquerade_name=mdworker_shared --param source_binary=/bin/cp
+```

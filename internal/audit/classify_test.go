@@ -96,6 +96,8 @@ func TestClassify(t *testing.T) {
 		{"evasion", "file_timestomp", 1001, 6},
 		{"evasion", "log_erase_attempt", 1007, 1},
 		{"evasion", "history_clear", 1001, 4},
+		{"evasion", "masquerade_copy", 1001, 1},
+		{"evasion", "masquerade_exec", 1007, 1},
 
 		// unmapped category/event falls back to API Activity/Other
 		{"unknown_category", "unknown_event", 6003, 99},
