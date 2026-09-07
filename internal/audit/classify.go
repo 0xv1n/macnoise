@@ -121,7 +121,7 @@ func fileActivity(eventType string) (int, string) {
 		return 1, "Create"
 	case "plist_read_prior", "browser_cred_read", "cred_file_read", "keychain_read":
 		return 2, "Read"
-	case "file_modify", "plist_modify":
+	case "file_modify", "plist_modify", "file_encrypt":
 		return 3, "Update"
 	case "file_hide_chflags":
 		return 6, "Set Attributes"

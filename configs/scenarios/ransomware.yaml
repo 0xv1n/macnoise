@@ -1,0 +1,25 @@
+name: Ransomware Impact Simulation
+description: |
+  Stages plaintext decoy files with randomized common extensions, encrypts them
+  for T1486 telemetry, then drops a named ransom note. The encryption module
+  touches only the decoys it stages; the note is a separate scenario step so
+  the two actions remain independently composable.
+
+steps:
+  # T1486 — stage decoy documents first, then encrypt those exact files.
+  - module: file_encrypt
+    params:
+      stage_dir: "/tmp/macnoise_ransomware_files"
+      file_count: "25"
+      extension: ".locked"
+
+  # File creation after encryption — intentionally composed here instead of
+  # being emitted by file_encrypt.
+  - module: file_create
+    params:
+      base_dir: "/tmp/macnoise_ransomware_note"
+      filename: "RECOVER_YOUR_FILES.txt"
+      content: |
+        Your files have been encrypted.
+
+        This is an authorized MacNoise simulation. No user files were touched.
