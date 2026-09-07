@@ -5,7 +5,7 @@ File creation, modification, credential and keychain reads, archiving, and hidin
 ## Modules
 
 ### `file_create`
-Creates files in a directory. Maps to T1074.001. Cleanup removes created files.
+Creates files in a directory. `filename` and `content` create one exact, named file; scenarios use this for artifacts such as ransom notes without adding purpose-specific modules. Maps to T1074.001. Cleanup removes created files.
 
 ### `file_modify`
 Appends to a file. Maps to T1565.001. Cleanup restores original content.
@@ -45,7 +45,7 @@ macnoise run file_archive --param tool=ditto --param output_path=/tmp/staged.zip
 ```
 
 ### `file_encrypt`
-Stages decoy `.dat` files, encrypts each in place with AES-256-GCM (nonce prepended, so the operation is reversible with the recovery key), and drops a ransom note recording the recovery key hex. No real files are touched. Maps to T1486. Cleanup removes the staging directory.
+Stages the requested number of plaintext decoys with randomized common file extensions, then encrypts each in place with AES-256-GCM (nonce prepended). No real files are touched. Maps to T1486. Cleanup removes the staging directory. The ransomware scenario composes this with a named `file_create` step to drop its ransom note.
 
 ```bash
 macnoise run file_encrypt

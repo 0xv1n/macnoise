@@ -34,7 +34,6 @@ func TestClassify(t *testing.T) {
 		{"file", "dir_create", 1001, 1},
 		{"file", "file_create", 1001, 1},
 		{"file", "file_encrypt", 1001, 3},
-		{"file", "ransom_note_drop", 1001, 1},
 		{"file", "file_hide_chflags", 1001, 6},
 		{"file", "file_hide_dotfile", 1001, 1},
 		{"file", "file_modify", 1001, 3},

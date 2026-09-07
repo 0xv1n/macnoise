@@ -76,7 +76,32 @@ func TestEncryptFile_RoundTrip(t *testing.T) {
 	}
 }
 
-func TestGenerate_EncryptsAllAndDropsNote(t *testing.T) {
+func TestStageDecoyFiles_CreatesPlaintextFilesWithRandomExtensions(t *testing.T) {
+	dir := t.TempDir()
+	paths, err := stageDecoyFiles(dir, 8)
+	if err != nil {
+		t.Fatalf("stageDecoyFiles: %v", err)
+	}
+	if len(paths) != 8 {
+		t.Fatalf("staged %d paths, want 8", len(paths))
+	}
+
+	for _, path := range paths {
+		if !containsDecoyExtension(filepath.Ext(path)) {
+			t.Errorf("staged file %q has an unexpected extension", path)
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			t.Errorf("read staged file %q: %v", path, err)
+			continue
+		}
+		if !strings.Contains(string(content), "simulated victim data") {
+			t.Errorf("staged file %q is not plaintext decoy content", path)
+		}
+	}
+}
+
+func TestGenerate_StagesThenEncryptsAll(t *testing.T) {
 	stage := filepath.Join(t.TempDir(), "enc")
 
 	var events []module.TelemetryEvent
@@ -86,7 +111,7 @@ func TestGenerate_EncryptsAllAndDropsNote(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	var encEvents, noteEvents int
+	var encEvents int
 	for _, ev := range events {
 		switch ev.EventType {
 		case "file_encrypt":
@@ -94,46 +119,50 @@ func TestGenerate_EncryptsAllAndDropsNote(t *testing.T) {
 			if !ev.Success {
 				t.Errorf("file_encrypt failed: %s", ev.Message)
 			}
-		case "ransom_note_drop":
-			noteEvents++
-			if ev.Details["files_encrypted"] != 4 {
-				t.Errorf("files_encrypted = %v, want 4", ev.Details["files_encrypted"])
+			original, _ := ev.Details["original"].(string)
+			if !containsDecoyExtension(filepath.Ext(original)) {
+				t.Errorf("encrypted unexpected source file %q", original)
 			}
 		}
 	}
 	if encEvents != 4 {
 		t.Errorf("emitted %d file_encrypt events, want 4", encEvents)
 	}
-	if noteEvents != 1 {
-		t.Errorf("emitted %d ransom_note_drop events, want 1", noteEvents)
-	}
-
-	// No plaintext decoys should remain; only .locked files and the note.
+	// No plaintext decoys should remain; each staged file has been encrypted.
 	entries, err := os.ReadDir(stage)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".dat") {
-			t.Errorf("plaintext decoy %s was left behind", e.Name())
-		}
+	if len(entries) != 4 {
+		t.Fatalf("found %d entries, want 4 encrypted files", len(entries))
 	}
-	if _, err := os.Stat(filepath.Join(stage, ransomNoteName)); err != nil {
-		t.Errorf("ransom note not written: %v", err)
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".locked") {
+			t.Errorf("unencrypted file %s was left behind", e.Name())
+		}
 	}
 }
 
 func TestEncryptDryRun(t *testing.T) {
 	steps := (&fileEncrypt{}).DryRun(module.Params{"file_count": "9", "extension": ".crypted"})
-	if len(steps) != 3 {
-		t.Fatalf("dry run = %v, want 3 steps", steps)
+	if len(steps) != 2 {
+		t.Fatalf("dry run = %v, want 2 steps", steps)
 	}
 	joined := strings.Join(steps, "\n")
-	for _, want := range []string{"9 decoy files", ".crypted", "T1486", ransomNoteName} {
+	for _, want := range []string{"9 plaintext decoy files", "randomized extensions", ".crypted", "T1486"} {
 		if !strings.Contains(joined, want) {
 			t.Errorf("dry run missing %q:\n%s", want, joined)
 		}
 	}
+}
+
+func containsDecoyExtension(extension string) bool {
+	for _, candidate := range decoyExtensions {
+		if extension == candidate {
+			return true
+		}
+	}
+	return false
 }
 
 func TestEncryptCleanup_RemovesStageDir(t *testing.T) {

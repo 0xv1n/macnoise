@@ -5,8 +5,8 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
-	"encoding/hex"
 	"fmt"
+	"math/big"
 	"os"
 	"path/filepath"
 
@@ -18,8 +18,11 @@ const (
 	defaultEncryptStageDir  = "/tmp/macnoise_encrypt"
 	defaultEncryptExtension = ".locked"
 	defaultEncryptCount     = 5
-	ransomNoteName          = "RECOVER_YOUR_FILES.txt"
 )
+
+var decoyExtensions = []string{
+	".docx", ".xlsx", ".pdf", ".jpg", ".png", ".txt", ".zip",
+}
 
 type fileEncrypt struct {
 	stageDir string
@@ -28,8 +31,8 @@ type fileEncrypt struct {
 func (f *fileEncrypt) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "file_encrypt",
-		EventTypes:  []string{"file_encrypt", "ransom_note_drop"},
-		Description: "Encrypts staged decoy files in place with AES-GCM and drops a ransom note to generate ransomware impact telemetry",
+		EventTypes:  []string{"file_encrypt"},
+		Description: "Stages plaintext decoy files and encrypts them in place with AES-GCM to generate ransomware impact telemetry",
 		Category:    module.CategoryFile,
 		Tags:        []string{"ransomware", "encryption", "impact", "aes"},
 		Privileges:  module.PrivilegeNone,
@@ -43,21 +46,25 @@ func (f *fileEncrypt) Info() module.ModuleInfo {
 
 func (f *fileEncrypt) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "stage_dir", Description: "Directory of decoy files to encrypt (only files here are touched)", Required: false, DefaultValue: defaultEncryptStageDir, Example: "/var/tmp/macnoise_encrypt"},
-		{Name: "file_count", Description: "Number of decoy files to create and encrypt", Required: false, DefaultValue: "5", Example: "20"},
+		{Name: "stage_dir", Description: "Directory used to stage and encrypt decoy files (only files here are touched)", Required: false, DefaultValue: defaultEncryptStageDir, Example: "/var/tmp/macnoise_encrypt"},
+		{Name: "file_count", Description: "Number of plaintext decoy files to stage before encrypting", Required: false, DefaultValue: "5", Example: "20"},
 		{Name: "extension", Description: "Extension appended to encrypted files", Required: false, DefaultValue: defaultEncryptExtension, Example: ".crypted"},
 	}
 }
 
 func (f *fileEncrypt) CheckPrereqs() error { return nil }
 
-// stageDecoyFiles writes count throwaway files into dir and returns their paths.
+// stageDecoyFiles writes all plaintext decoys into dir before encryption begins.
 // Only these macnoise-created decoys are ever encrypted; the module never reads
 // or touches anything the user owns.
 func stageDecoyFiles(dir string, count int) ([]string, error) {
 	paths := make([]string, 0, count)
 	for i := range count {
-		p := filepath.Join(dir, fmt.Sprintf("decoy_%d.dat", i))
+		extension, err := randomDecoyExtension()
+		if err != nil {
+			return nil, err
+		}
+		p := filepath.Join(dir, fmt.Sprintf("document_%d%s", i, extension))
 		content := fmt.Sprintf("macnoise decoy document %d - simulated victim data\n", i)
 		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
 			return nil, err
@@ -65,6 +72,14 @@ func stageDecoyFiles(dir string, count int) ([]string, error) {
 		paths = append(paths, p)
 	}
 	return paths, nil
+}
+
+func randomDecoyExtension() (string, error) {
+	index, err := rand.Int(rand.Reader, big.NewInt(int64(len(decoyExtensions))))
+	if err != nil {
+		return "", err
+	}
+	return decoyExtensions[index.Int64()], nil
 }
 
 // encryptFile AES-GCM encrypts the file at path, writes the ciphertext to
@@ -122,14 +137,13 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 		return fmt.Errorf("stage decoy files: %w", err)
 	}
 
-	// One key per run, generated fresh. It is recorded in the ransom-note event
-	// details so the encryption is transparently reversible, not destructive.
+	// One key per run is generated fresh. The nonce is stored with each
+	// ciphertext, matching the AES-GCM file layout used by the round-trip test.
 	key := make([]byte, 32)
 	if _, err := rand.Read(key); err != nil {
 		return fmt.Errorf("generate key: %w", err)
 	}
 
-	encrypted := 0
 	for _, p := range paths {
 		select {
 		case <-ctx.Done():
@@ -143,7 +157,6 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 			emit(ev)
 			continue
 		}
-		encrypted++
 		ev.Success = true
 		ev.Message = fmt.Sprintf("encrypted %s -> %s", p, encPath)
 		ev = output.WithDetails(ev, map[string]any{
@@ -153,23 +166,6 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 		})
 		emit(ev)
 	}
-
-	notePath := filepath.Join(stageDir, ransomNoteName)
-	note := fmt.Sprintf("Your files have been encrypted.\nThis is a MacNoise simulation. Recovery key (hex): %s\n", hex.EncodeToString(key))
-	noteEv := output.NewEvent(info, "ransom_note_drop", false, fmt.Sprintf("dropping ransom note at %s", notePath))
-	if err := os.WriteFile(notePath, []byte(note), 0o644); err != nil {
-		noteEv = output.WithError(noteEv, err)
-		emit(noteEv)
-		return nil
-	}
-	noteEv.Success = true
-	noteEv.Message = fmt.Sprintf("ransom note written to %s", notePath)
-	noteEv = output.WithDetails(noteEv, map[string]any{
-		"path":             notePath,
-		"files_encrypted":  encrypted,
-		"recovery_key_hex": hex.EncodeToString(key),
-	})
-	emit(noteEv)
 	return nil
 }
 
@@ -178,9 +174,8 @@ func (f *fileEncrypt) DryRun(params module.Params) []string {
 	extension := params.Get("extension", defaultEncryptExtension)
 	count := params.Get("file_count", "5")
 	return []string{
-		fmt.Sprintf("create %s decoy files in %s", count, stageDir),
+		fmt.Sprintf("stage %s plaintext decoy files with randomized extensions in %s", count, stageDir),
 		fmt.Sprintf("AES-256-GCM encrypt each in place, appending %q and removing the original (T1486)", extension),
-		fmt.Sprintf("drop ransom note %s in %s", ransomNoteName, stageDir),
 	}
 }
 
