@@ -44,6 +44,14 @@ macnoise run file_archive
 macnoise run file_archive --param tool=ditto --param output_path=/tmp/staged.zip
 ```
 
+### `file_encrypt`
+Stages decoy `.dat` files, encrypts each in place with AES-256-GCM (nonce prepended, so the operation is reversible with the recovery key), and drops a ransom note recording the recovery key hex. No real files are touched. Maps to T1486. Cleanup removes the staging directory.
+
+```bash
+macnoise run file_encrypt
+macnoise run file_encrypt --param file_count=20 --param extension=.crypted
+```
+
 ### `file_hide`
 Creates a test file and hides it via `chflags hidden` (Finder-invisible), then creates a dotfile. Emits `file_hide_chflags` and `file_hide_dotfile` events. Maps to T1564.001. Cleanup removes the working directory.
 
