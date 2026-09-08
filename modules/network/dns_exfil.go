@@ -116,6 +116,9 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 		ev := output.NewEvent(info, "dns_exfil_query", false,
 			fmt.Sprintf("exfil query %d/%d: %s", i+1, len(queries), qname))
 		_, err := resolver.LookupHost(ctx, qname)
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if err != nil {
 			ev.Success = true
 			ev.Message = fmt.Sprintf("exfil query %d/%d failed (telemetry generated): %s", i+1, len(queries), qname)
