@@ -88,8 +88,15 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 		}
 
 		ev := output.NewEvent(info, "http_beacon", false, fmt.Sprintf("beacon %d/%d to %s", i, count, target))
-		resp, err := client.Get(target)
+		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
+		var resp *http.Response
+		if err == nil {
+			resp, err = client.Do(req)
+		}
 		if err != nil {
+			if ctx.Err() != nil {
+				return ctx.Err()
+			}
 			ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 			ev.Message = fmt.Sprintf("beacon %d/%d to %s (no response — telemetry generated)", i, count, target)
 		} else {
