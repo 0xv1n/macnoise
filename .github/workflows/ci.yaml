@@ -25,7 +25,7 @@ jobs:
         with:
           version: v2.12.2
       - name: govulncheck
-        run: go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
+        run: GOTOOLCHAIN=auto go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 
   test-unit:
     name: Unit Tests
