@@ -68,7 +68,8 @@ func tlsConnect(ctx context.Context, info module.ModuleInfo, target string, inse
 	ev := output.NewEvent(info, "tls_connect", false,
 		fmt.Sprintf("TLS handshake %s (SNI: %s)", target, host))
 
-	conn, err := tls.DialWithDialer(dialer, "tcp", target, conf)
+	tlsDialer := &tls.Dialer{NetDialer: dialer, Config: conf}
+	conn, err := tlsDialer.DialContext(ctx, "tcp", target)
 	if err != nil {
 		ev.Success = true
 		ev.Message = fmt.Sprintf("TLS handshake %s failed (telemetry generated)", target)
@@ -81,7 +82,7 @@ func tlsConnect(ctx context.Context, info module.ModuleInfo, target string, inse
 	}
 	defer func() { _ = conn.Close() }()
 
-	state := conn.ConnectionState()
+	state := conn.(*tls.Conn).ConnectionState()
 	details := map[string]any{
 		"target":       target,
 		"sni":          host,
@@ -116,7 +117,11 @@ func (n *netTLS) Generate(ctx context.Context, params module.Params, emit module
 			return ctx.Err()
 		default:
 		}
-		emit(tlsConnect(ctx, info, target, insecure))
+		ev := tlsConnect(ctx, info, target, insecure)
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		emit(ev)
 	}
 	return nil
 }
