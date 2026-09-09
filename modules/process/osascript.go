@@ -89,12 +89,18 @@ func stampScript(script, language, runID string) string {
 }
 
 func (p *procOsascript) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	language := params.Get("language", "AppleScript")
 	script := stampScript(params.Get("script", `display notification "macnoise telemetry" with title "MacNoise"`), language, module.RunIDFromContext(ctx))
 	info := p.Info()
 
 	ev := output.NewEvent(info, "osascript_exec", false, fmt.Sprintf("executing %s via osascript", language))
 	out, err := exec.CommandContext(ctx, "osascript", "-l", language, "-e", script).CombinedOutput()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
 	safeOutput := sanitizeOsascriptOutput(script, string(out))
 	if err != nil {
 		ev.Success = true
