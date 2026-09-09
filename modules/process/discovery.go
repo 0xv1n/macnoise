@@ -102,6 +102,9 @@ func (p *procDiscovery) Generate(ctx context.Context, params module.Params, emit
 
 		ev := output.NewEvent(info, "system_discovery", false, fmt.Sprintf("running: %s", cmd))
 		out, err := exec.CommandContext(ctx, "sh", "-c", cmd).CombinedOutput()
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		if err != nil {
 			ev.Success = true
 			ev.Message = fmt.Sprintf("discovery command returned error: %s", cmd)
