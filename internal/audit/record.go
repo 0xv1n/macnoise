@@ -110,10 +110,10 @@ type OCSFTactic struct {
 
 // UnmappedData holds macnoise-specific fields that have no direct OCSF mapping.
 type UnmappedData struct {
-	Module         string            `json:"module"`
-	ModuleCategory string            `json:"module_category"`
-	Params         map[string]string `json:"params,omitempty"`
-	Privileges     string            `json:"privileges"`
+	Module         string         `json:"module"`
+	ModuleCategory string         `json:"module_category"`
+	Params         map[string]any `json:"params,omitempty"`
+	Privileges     string         `json:"privileges"`
 	// Outcome preserves the four-way event outcome that OCSF status collapses:
 	// status cannot tell a refused action apart from a broken tool, since both
 	// are a Failure of the reported activity.

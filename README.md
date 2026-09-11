@@ -158,13 +158,16 @@ steps:
   - module: net_connect
     params:
       target: "192.168.1.1"
-      port: "443"
-  - category: file
+      port: 443
+  - module: file_create
     params:
       base_dir: "/tmp/test"
 ```
 
-`on_error` defaults to `stop`. Set it to `continue` only when a coverage sweep should attempt later module invocations after a failure.
+Parameters are checked against each module's declared string, integer, boolean,
+path, or list type before preview or execution. Unknown names and invalid values
+are rejected. `on_error` defaults to `stop`. Set it to `continue` only when a
+coverage sweep should attempt later module invocations after a failure.
 
 ## Contributing
 

@@ -13,7 +13,10 @@ steps:
 
   - module: net_dns
     params:
-      domains: "example.com,google.com,github.com"
+      domains:
+        - example.com
+        - google.com
+        - github.com
 
   - module: net_beacon
     params:

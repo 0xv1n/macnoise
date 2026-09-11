@@ -45,23 +45,38 @@ type ModuleInfo struct { //nolint:revive // stutter is intentional: ModuleInfo i
 
 // ParamSpec describes a single named parameter accepted by a module.
 type ParamSpec struct {
-	Name         string
-	Description  string
-	Required     bool
-	DefaultValue string
-	Example      string
+	Name        string
+	Description string
+	Type        ParamType
+	Required    bool
+	Default     any
+	Example     any
+	Range       *IntegerRange
+	Choices     []string
 }
 
-// Params is the key-value map of runtime parameters passed to a module.
-type Params map[string]string
-
-// Get returns the value for key, or defaultVal if key is absent or empty.
-func (p Params) Get(key, defaultVal string) string {
-	if v, ok := p[key]; ok && v != "" {
-		return v
-	}
-	return defaultVal
+// IntegerRange defines inclusive bounds. A zero Max means no upper bound.
+type IntegerRange struct {
+	Min int `json:"min"`
+	Max int `json:"max,omitempty"`
 }
+
+// ParamType identifies the runtime type produced by parameter normalization.
+type ParamType string
+
+// Supported parameter types.
+const (
+	ParamString     ParamType = "string"
+	ParamInteger    ParamType = "integer"
+	ParamBoolean    ParamType = "boolean"
+	ParamPath       ParamType = "path"
+	ParamStringList ParamType = "string_list"
+	ParamPathList   ParamType = "path_list"
+)
+
+// Params holds raw or normalized runtime parameters. NormalizeParams converts
+// input values to the types declared by a module's ParamSpecs.
+type Params map[string]any
 
 // ProcessContext captures identifying information about the MacNoise process itself.
 type ProcessContext struct {

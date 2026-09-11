@@ -32,7 +32,7 @@ func (p *procSpawn) Info() module.ModuleInfo {
 
 func (p *procSpawn) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "command", Description: "Shell command to execute via sh -c", Required: false, DefaultValue: "echo 'Telemetry Payload Executed'", Example: "id && whoami"},
+		{Name: "command", Description: "Shell command to execute via sh -c", Type: module.ParamString, Default: "echo 'Telemetry Payload Executed'", Example: "id && whoami"},
 	}
 }
 
@@ -49,7 +49,7 @@ func stampCommand(command, runID string) string {
 }
 
 func (p *procSpawn) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	command := stampCommand(params.Get("command", "echo 'Telemetry Payload Executed'"), module.RunIDFromContext(ctx))
+	command := stampCommand(params.String("command", "echo 'Telemetry Payload Executed'"), module.RunIDFromContext(ctx))
 	info := p.Info()
 
 	ev := output.NewEvent(info, "process_spawn", false, fmt.Sprintf("spawning: sh -c %q", command))
@@ -68,7 +68,7 @@ func (p *procSpawn) Generate(ctx context.Context, params module.Params, emit mod
 }
 
 func (p *procSpawn) DryRun(params module.Params) []string {
-	command := params.Get("command", "echo 'Telemetry Payload Executed'")
+	command := params.String("command", "echo 'Telemetry Payload Executed'")
 	return []string{fmt.Sprintf("exec: sh -c %q", command)}
 }
 

@@ -15,7 +15,7 @@ import (
 )
 
 func (p *procSignal) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	targetCmd := stampCommand(params.Get("target_command", "sleep 30"), module.RunIDFromContext(ctx))
+	targetCmd := stampCommand(params.String("target_command", "sleep 30"), module.RunIDFromContext(ctx))
 	info := p.Info()
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", targetCmd)

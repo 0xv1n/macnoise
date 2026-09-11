@@ -63,11 +63,11 @@ func (f *fileKeychainCopy) Info() module.ModuleInfo {
 func (f *fileKeychainCopy) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "stage_dir",
-			Description:  "Directory to stage the keychain copies in",
-			Required:     false,
-			DefaultValue: defaultKeychainStageDir,
-			Example:      "/var/tmp/macnoise_kc",
+			Name:        "stage_dir",
+			Description: "Directory to stage the keychain copies in",
+			Type:        module.ParamPath,
+			Default:     defaultKeychainStageDir,
+			Example:     "/var/tmp/macnoise_kc",
 		},
 	}
 }
@@ -232,7 +232,7 @@ func (f *fileKeychainCopy) Generate(ctx context.Context, params module.Params, e
 		return fmt.Errorf("cannot determine home directory: %w", err)
 	}
 
-	stageDir := module.TagPath(params.Get("stage_dir", defaultKeychainStageDir), module.RunIDFromContext(ctx))
+	stageDir := module.TagPath(params.String("stage_dir", defaultKeychainStageDir), module.RunIDFromContext(ctx))
 	if err := os.MkdirAll(stageDir, 0o700); err != nil {
 		return fmt.Errorf("mkdir %s: %w", stageDir, err)
 	}
@@ -255,7 +255,7 @@ func (f *fileKeychainCopy) Generate(ctx context.Context, params module.Params, e
 }
 
 func (f *fileKeychainCopy) DryRun(params module.Params) []string {
-	stageDir := params.Get("stage_dir", defaultKeychainStageDir)
+	stageDir := params.String("stage_dir", defaultKeychainStageDir)
 	return []string{
 		fmt.Sprintf("mkdir -p %s (mode 0700)", stageDir),
 		fmt.Sprintf("cp ~/Library/Keychains/login.keychain-db ~/Library/Keychains/<uuid>/keychain-2.db %s/System.keychain %s/system-keychain-2.db %s/ (mode 0600)",

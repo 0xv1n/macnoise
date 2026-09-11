@@ -272,7 +272,7 @@ golangci-lint run ./...
 | Error returns | Never silently discard. Use `_ = f.Close()` or `defer func() { _ = f.Close() }()` for intentionally ignored returns (enforced by `errcheck`) |
 | No stdout from modules | All module output goes through `emit(ev)` |
 | No global state | Only the module registry (`pkg/module/registry.go`) uses package-level state; it is protected by `sync.RWMutex` |
-| Params access | Always `params.Get("key", "default")` — never index `params` directly |
+| Params access | Use the typed `params.String`, `Int`, `Bool`, `Strings`, or `Paths` accessor that matches `ParamSpecs()` |
 | Build tags | Keep metadata and registration portable; isolate Darwin-only implementation code behind `//go:build darwin` |
 | File names | One module per file, named after the module (`net_connect.go` → `net_connect` module) |
 | Package names | Module packages use the category name (e.g. `package network`), not the module name |
@@ -283,7 +283,7 @@ golangci-lint run ./...
 
 - **Writing to stdout from a module** — breaks JSONL output mode and bypasses the audit wrapper.
 - **Calling `audit.Logger` methods from a module** — the runner owns the logger. Modules must not import `internal/audit`.
-- **Hardcoding OS paths** — use `params.Get(...)` with a sensible default so callers can override.
+- **Hardcoding OS paths** — declare a path parameter and use `params.String(...)` so callers can override it.
 - **Missing `Cleanup()`** — every state change in `Generate()` must be reversible. If `Cleanup()` is a no-op because nothing persists, that is fine; it must still exist.
 - **Registering with a duplicate name** — `Register()` panics on collision. Module names are global and must be unique.
 - **Missing blank import** — a new category package won't register its modules unless imported in `cmd/macnoise/main.go`.

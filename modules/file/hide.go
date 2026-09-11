@@ -34,11 +34,11 @@ func (f *fileHide) Info() module.ModuleInfo {
 func (f *fileHide) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "work_dir",
-			Description:  "Working directory for hidden file creation",
-			Required:     false,
-			DefaultValue: "/tmp/macnoise_hide",
-			Example:      "/var/tmp/macnoise_hide",
+			Name:        "work_dir",
+			Description: "Working directory for hidden file creation",
+			Type:        module.ParamPath,
+			Default:     "/tmp/macnoise_hide",
+			Example:     "/var/tmp/macnoise_hide",
 		},
 	}
 }
@@ -46,7 +46,7 @@ func (f *fileHide) ParamSpecs() []module.ParamSpec {
 func (f *fileHide) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (f *fileHide) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	workDir := module.TagPath(params.Get("work_dir", "/tmp/macnoise_hide"), module.RunIDFromContext(ctx))
+	workDir := module.TagPath(params.String("work_dir", "/tmp/macnoise_hide"), module.RunIDFromContext(ctx))
 	f.workDir = workDir
 	info := f.Info()
 
@@ -83,7 +83,7 @@ func (f *fileHide) Generate(ctx context.Context, params module.Params, emit modu
 }
 
 func (f *fileHide) DryRun(params module.Params) []string {
-	workDir := params.Get("work_dir", "/tmp/macnoise_hide")
+	workDir := params.String("work_dir", "/tmp/macnoise_hide")
 	return []string{
 		fmt.Sprintf("mkdir -p %s", workDir),
 		fmt.Sprintf("create %s/visible_file.txt && chflags hidden %s/visible_file.txt", workDir, workDir),

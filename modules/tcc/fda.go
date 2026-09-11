@@ -35,11 +35,11 @@ func (t *tccFDA) Info() module.ModuleInfo {
 func (t *tccFDA) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "tcc_path",
-			Description:  "Path to the TCC-gated file to probe (defaults to the per-user TCC.db)",
-			Required:     false,
-			DefaultValue: "~/Library/Application Support/com.apple.TCC/TCC.db",
-			Example:      "/Library/Application Support/com.apple.TCC/TCC.db",
+			Name:        "tcc_path",
+			Description: "Path to the TCC-gated file to probe (defaults to the per-user TCC.db)",
+			Type:        module.ParamPath,
+			Default:     "",
+			Example:     "/Library/Application Support/com.apple.TCC/TCC.db",
 		},
 	}
 }
@@ -62,7 +62,7 @@ func defaultFDAPath() (string, error) {
 }
 
 func (t *tccFDA) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	tccPath := params.Get("tcc_path", "")
+	tccPath := params.String("tcc_path", "")
 	if tccPath == "" {
 		var err error
 		if tccPath, err = defaultFDAPath(); err != nil {
@@ -100,7 +100,7 @@ func (t *tccFDA) Generate(ctx context.Context, params module.Params, emit module
 }
 
 func (t *tccFDA) DryRun(params module.Params) []string {
-	path := params.Get("tcc_path", "")
+	path := params.String("tcc_path", "")
 	if path == "" {
 		path, _ = defaultFDAPath()
 	}

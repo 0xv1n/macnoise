@@ -33,18 +33,18 @@ func (n *netTLS) Info() module.ModuleInfo {
 func (n *netTLS) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "targets",
-			Description:  "Comma-separated host:port pairs to connect to",
-			Required:     false,
-			DefaultValue: "example.com:443,github.com:443",
-			Example:      "10.0.0.1:8443,c2.attacker.invalid:443",
+			Name:        "targets",
+			Description: "Host:port pairs to connect to",
+			Type:        module.ParamStringList,
+			Default:     []string{"example.com:443", "github.com:443"},
+			Example:     []string{"10.0.0.1:8443", "c2.attacker.invalid:443"},
 		},
 		{
-			Name:         "insecure",
-			Description:  "Skip certificate verification (true/false)",
-			Required:     false,
-			DefaultValue: "false",
-			Example:      "true",
+			Name:        "insecure",
+			Description: "Skip certificate verification (true/false)",
+			Type:        module.ParamBoolean,
+			Default:     false,
+			Example:     true,
 		},
 	}
 }
@@ -103,11 +103,11 @@ func tlsConnect(ctx context.Context, info module.ModuleInfo, target string, inse
 }
 
 func (n *netTLS) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	targetsStr := params.Get("targets", "example.com:443,github.com:443")
-	insecure := params.Get("insecure", "false") == "true"
+	targets := params.Strings("targets", []string{"example.com:443", "github.com:443"})
+	insecure := params.Bool("insecure", false)
 	info := n.Info()
 
-	for _, raw := range strings.Split(targetsStr, ",") {
+	for _, raw := range targets {
 		target := strings.TrimSpace(raw)
 		if target == "" {
 			continue
@@ -127,10 +127,10 @@ func (n *netTLS) Generate(ctx context.Context, params module.Params, emit module
 }
 
 func (n *netTLS) DryRun(params module.Params) []string {
-	targetsStr := params.Get("targets", "example.com:443,github.com:443")
-	insecure := params.Get("insecure", "false") == "true"
+	targets := params.Strings("targets", []string{"example.com:443", "github.com:443"})
+	insecure := params.Bool("insecure", false)
 	var steps []string
-	for _, raw := range strings.Split(targetsStr, ",") {
+	for _, raw := range targets {
 		target := strings.TrimSpace(raw)
 		if target == "" {
 			continue

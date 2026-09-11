@@ -40,8 +40,8 @@ func (p *procInject) Info() module.ModuleInfo {
 
 func (p *procInject) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "dylib_path", Description: "Path to the dylib to insert; it need not exist, dyld's refusal to find it is itself the evidence", Required: false, DefaultValue: "/tmp/macnoise_inject.dylib", Example: "/tmp/evil.dylib"},
-		{Name: "target", Description: "Binary to spawn with the injection env (defaults to macnoise itself, which is injectable)", Required: false, DefaultValue: "", Example: "/tmp/my_unsigned_binary"},
+		{Name: "dylib_path", Description: "Path to the dylib to insert; it need not exist, dyld's refusal to find it is itself the evidence", Type: module.ParamPath, Default: "/tmp/macnoise_inject.dylib", Example: "/tmp/evil.dylib"},
+		{Name: "target", Description: "Binary to spawn with the injection env (defaults to macnoise itself, which is injectable)", Type: module.ParamPath, Example: "/tmp/my_unsigned_binary"},
 	}
 }
 
@@ -83,8 +83,8 @@ func classifyInjection(dylibExists bool, stderr string) injectOutcome {
 }
 
 func (p *procInject) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	dylibPath := module.TagPath(params.Get("dylib_path", "/tmp/macnoise_inject.dylib"), module.RunIDFromContext(ctx))
-	targetBin := params.Get("target", "")
+	dylibPath := module.TagPath(params.String("dylib_path", "/tmp/macnoise_inject.dylib"), module.RunIDFromContext(ctx))
+	targetBin := params.String("target", "")
 	if targetBin == "" {
 		var err error
 		if targetBin, err = defaultTarget(); err != nil {
@@ -133,8 +133,8 @@ func (p *procInject) Generate(ctx context.Context, params module.Params, emit mo
 }
 
 func (p *procInject) DryRun(params module.Params) []string {
-	dylib := params.Get("dylib_path", "/tmp/macnoise_inject.dylib")
-	target := params.Get("target", "")
+	dylib := params.String("dylib_path", "/tmp/macnoise_inject.dylib")
+	target := params.String("target", "")
 	if target == "" {
 		target, _ = defaultTarget()
 	}

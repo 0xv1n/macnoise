@@ -37,8 +37,8 @@ func (s *svcLaunchDaemon) Info() module.ModuleInfo {
 
 func (s *svcLaunchDaemon) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "label", Description: "LaunchDaemon label", Required: false, DefaultValue: "com.macnoise.testdaemon", Example: "com.corp.mydaemon"},
-		{Name: "program", Description: "Program to run", Required: false, DefaultValue: "/usr/bin/true", Example: "/bin/sh"},
+		{Name: "label", Description: "LaunchDaemon label", Type: module.ParamString, Default: "com.macnoise.testdaemon", Example: "com.corp.mydaemon"},
+		{Name: "program", Description: "Program to run", Type: module.ParamPath, Default: "/usr/bin/true", Example: "/bin/sh"},
 	}
 }
 
@@ -47,8 +47,8 @@ func (s *svcLaunchDaemon) CheckPrereqs(ctx context.Context, params module.Params
 }
 
 func (s *svcLaunchDaemon) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	label := stampLabel(params.Get("label", "com.macnoise.testdaemon"), module.RunIDFromContext(ctx))
-	program := params.Get("program", "/usr/bin/true")
+	label := stampLabel(params.String("label", "com.macnoise.testdaemon"), module.RunIDFromContext(ctx))
+	program := params.String("program", "/usr/bin/true")
 	info := s.Info()
 
 	daemonDir := "/Library/LaunchDaemons"
@@ -104,8 +104,8 @@ func (s *svcLaunchDaemon) Generate(ctx context.Context, params module.Params, em
 }
 
 func (s *svcLaunchDaemon) DryRun(params module.Params) []string {
-	label := params.Get("label", "com.macnoise.testdaemon")
-	program := params.Get("program", "/usr/bin/true")
+	label := params.String("label", "com.macnoise.testdaemon")
+	program := params.String("program", "/usr/bin/true")
 	return []string{
 		fmt.Sprintf("create /Library/LaunchDaemons/%s.plist with Program=%s (requires root)", label, program),
 		launchctlCmdLine(bootstrapArgs(systemDomain, fmt.Sprintf("/Library/LaunchDaemons/%s.plist", label))),

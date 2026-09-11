@@ -34,8 +34,8 @@ func (s *svcLoginItem) Info() module.ModuleInfo {
 
 func (s *svcLoginItem) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "name", Description: "Login item name", Required: false, DefaultValue: "MacNoiseLoginItem", Example: "com.corp.helper"},
-		{Name: "path", Description: "POSIX path the login item points at", Required: false, DefaultValue: "/usr/bin/true", Example: "/Applications/Evil.app"},
+		{Name: "name", Description: "Login item name", Type: module.ParamString, Default: "MacNoiseLoginItem", Example: "com.corp.helper"},
+		{Name: "path", Description: "POSIX path the login item points at", Type: module.ParamPath, Default: "/usr/bin/true", Example: "/Applications/Evil.app"},
 	}
 }
 
@@ -117,11 +117,11 @@ func parseLoginItemNames(out string) []string {
 }
 
 func (s *svcLoginItem) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	name := params.Get("name", "MacNoiseLoginItem")
+	name := params.String("name", "MacNoiseLoginItem")
 	if runID := module.RunIDFromContext(ctx); runID != "" {
 		name += "_" + runID
 	}
-	targetPath := params.Get("path", "/usr/bin/true")
+	targetPath := params.String("path", "/usr/bin/true")
 	info := s.Info()
 	s.name = name
 
@@ -174,8 +174,8 @@ func runOsascript(ctx context.Context, script string) (string, error) {
 }
 
 func (s *svcLoginItem) DryRun(params module.Params) []string {
-	name := params.Get("name", "MacNoiseLoginItem")
-	targetPath := params.Get("path", "/usr/bin/true")
+	name := params.String("name", "MacNoiseLoginItem")
+	targetPath := params.String("path", "/usr/bin/true")
 	return []string{
 		fmt.Sprintf("osascript -e '%s' -> ES_EVENT_TYPE_NOTIFY_BTM_LAUNCH_ITEM_ADD", makeLoginItemScript(name, targetPath)),
 		fmt.Sprintf("osascript -e '%s'", deleteLoginItemScript(name)),

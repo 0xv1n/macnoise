@@ -34,11 +34,11 @@ func (p *procGatekeeper) Info() module.ModuleInfo {
 func (p *procGatekeeper) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "target_path",
-			Description:  "Path to the test file used for quarantine xattr operations",
-			Required:     false,
-			DefaultValue: "/tmp/macnoise_gatekeeper_test",
-			Example:      "/var/tmp/macnoise_gk",
+			Name:        "target_path",
+			Description: "Path to the test file used for quarantine xattr operations",
+			Type:        module.ParamPath,
+			Default:     "/tmp/macnoise_gatekeeper_test",
+			Example:     "/var/tmp/macnoise_gk",
 		},
 	}
 }
@@ -47,7 +47,7 @@ func (p *procGatekeeper) CheckPrereqs(ctx context.Context, params module.Params)
 
 func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
-	targetPath := module.TagPath(params.Get("target_path", "/tmp/macnoise_gatekeeper_test"), runID)
+	targetPath := module.TagPath(params.String("target_path", "/tmp/macnoise_gatekeeper_test"), runID)
 	p.targetPath = targetPath
 	info := p.Info()
 
@@ -104,7 +104,7 @@ func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emi
 }
 
 func (p *procGatekeeper) DryRun(params module.Params) []string {
-	targetPath := params.Get("target_path", "/tmp/macnoise_gatekeeper_test")
+	targetPath := params.String("target_path", "/tmp/macnoise_gatekeeper_test")
 	return []string{
 		fmt.Sprintf("create test file at %s", targetPath),
 		fmt.Sprintf("xattr -w com.apple.quarantine 0081;00000000;macnoise; %s", targetPath),

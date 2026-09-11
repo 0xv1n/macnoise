@@ -29,7 +29,7 @@ func (e *esProcess) Info() module.ModuleInfo {
 
 func (e *esProcess) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "chain_depth", Description: "Number of nested shell invocations", Required: false, DefaultValue: "3", Example: "5"},
+		{Name: "chain_depth", Description: "Number of nested shell invocations", Type: module.ParamInteger, Default: 3, Example: 5, Range: &module.IntegerRange{Min: 1, Max: 10}},
 	}
 }
 
@@ -56,9 +56,7 @@ func buildExecChainArgs(depth int, runID string) []string {
 }
 
 func (e *esProcess) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	depthStr := params.Get("chain_depth", "3")
-	depth := 3
-	fmt.Sscanf(depthStr, "%d", &depth) //nolint:errcheck
+	depth := params.Int("chain_depth", 3)
 	if depth > 10 {
 		depth = 10
 	}
@@ -88,9 +86,9 @@ func (e *esProcess) Generate(ctx context.Context, params module.Params, emit mod
 }
 
 func (e *esProcess) DryRun(params module.Params) []string {
-	depth := params.Get("chain_depth", "3")
+	depth := params.Int("chain_depth", 3)
 	return []string{
-		fmt.Sprintf("execute %s-deep nested sh -c chain → ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT", depth),
+		fmt.Sprintf("execute %d-deep nested sh -c chain → ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT", depth),
 	}
 }
 

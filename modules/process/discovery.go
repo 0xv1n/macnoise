@@ -72,11 +72,11 @@ func (p *procDiscovery) Info() module.ModuleInfo {
 func (p *procDiscovery) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "commands",
-			Description:  "Comma-separated list of discovery commands to run",
-			Required:     false,
-			DefaultValue: strings.Join(defaultDiscoveryCommands, ","),
-			Example:      "sw_vers,whoami",
+			Name:        "commands",
+			Description: "Discovery commands to run",
+			Type:        module.ParamStringList,
+			Default:     defaultDiscoveryCommands,
+			Example:     []string{"sw_vers", "whoami"},
 		},
 	}
 }
@@ -84,8 +84,7 @@ func (p *procDiscovery) ParamSpecs() []module.ParamSpec {
 func (p *procDiscovery) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (p *procDiscovery) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	commandsParam := params.Get("commands", strings.Join(defaultDiscoveryCommands, ","))
-	commands := strings.Split(commandsParam, ",")
+	commands := params.Strings("commands", defaultDiscoveryCommands)
 	info := p.Info()
 
 	for _, raw := range commands {
@@ -120,8 +119,7 @@ func (p *procDiscovery) Generate(ctx context.Context, params module.Params, emit
 }
 
 func (p *procDiscovery) DryRun(params module.Params) []string {
-	commandsParam := params.Get("commands", strings.Join(defaultDiscoveryCommands, ","))
-	commands := strings.Split(commandsParam, ",")
+	commands := params.Strings("commands", defaultDiscoveryCommands)
 	steps := make([]string, 0, len(commands))
 	for _, cmd := range commands {
 		cmd = strings.TrimSpace(cmd)

@@ -4,7 +4,9 @@
 package config
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -39,7 +41,16 @@ func Load(path string) (Config, error) {
 	if err != nil {
 		return cfg, fmt.Errorf("config: read %s: %w", path, err)
 	}
-	if err := yaml.Unmarshal(data, &cfg); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&cfg); err != nil {
+		return cfg, fmt.Errorf("config: parse %s: %w", path, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			err = fmt.Errorf("multiple YAML documents are not supported")
+		}
 		return cfg, fmt.Errorf("config: parse %s: %w", path, err)
 	}
 	return cfg, nil

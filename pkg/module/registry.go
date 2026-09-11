@@ -23,7 +23,11 @@ func Register(newGenerator Factory) { DefaultRegistry.Register(newGenerator) }
 
 // Register adds a constructor, panicking on duplicate or empty names.
 func (r *Registry) Register(newGenerator Factory) {
-	name := newGenerator().Info().Name
+	gen := newGenerator()
+	name := gen.Info().Name
+	if err := ValidateParamSpecs(gen.ParamSpecs()); err != nil {
+		panic(fmt.Sprintf("module: invalid parameters for %q: %v", name, err))
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if name == "" {

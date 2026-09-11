@@ -39,11 +39,11 @@ func (e *evadeLogClear) Info() module.ModuleInfo {
 func (e *evadeLogClear) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "stage_dir",
-			Description:  "Directory for staging evasion artifacts",
-			Required:     false,
-			DefaultValue: defaultEvasionStageDir,
-			Example:      "/var/tmp/macnoise_evasion",
+			Name:        "stage_dir",
+			Description: "Directory for staging evasion artifacts",
+			Type:        module.ParamPath,
+			Default:     defaultEvasionStageDir,
+			Example:     "/var/tmp/macnoise_evasion",
 		},
 	}
 }
@@ -138,7 +138,7 @@ func clearHistory(info module.ModuleInfo, stageDir string) module.TelemetryEvent
 
 func (e *evadeLogClear) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	info := e.Info()
-	stageDir := module.TagPath(params.Get("stage_dir", defaultEvasionStageDir), module.RunIDFromContext(ctx))
+	stageDir := module.TagPath(params.String("stage_dir", defaultEvasionStageDir), module.RunIDFromContext(ctx))
 	if err := os.MkdirAll(stageDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", stageDir, err)
 	}
@@ -169,7 +169,7 @@ func (e *evadeLogClear) Generate(ctx context.Context, params module.Params, emit
 }
 
 func (e *evadeLogClear) DryRun(params module.Params) []string {
-	stageDir := params.Get("stage_dir", defaultEvasionStageDir)
+	stageDir := params.String("stage_dir", defaultEvasionStageDir)
 	return []string{
 		fmt.Sprintf("mkdir -p %s", stageDir),
 		fmt.Sprintf("touch -t 200001010000 %s/timestomp_target (T1070.006)", stageDir),

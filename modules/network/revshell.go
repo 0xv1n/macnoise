@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net"
 	"os/exec"
+	"strconv"
 
 	"github.com/0xv1n/macnoise/internal/output"
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -31,16 +32,16 @@ func (n *netRevShell) Info() module.ModuleInfo {
 
 func (n *netRevShell) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "target", Description: "Listener IP (must have nc/socat listening)", Required: false, DefaultValue: "127.0.0.1", Example: "10.0.0.1"},
-		{Name: "port", Description: "Listener port", Required: false, DefaultValue: "4444", Example: "4444"},
+		{Name: "target", Description: "Listener IP (must have nc/socat listening)", Type: module.ParamString, Default: "127.0.0.1", Example: "10.0.0.1"},
+		{Name: "port", Description: "Listener port", Type: module.ParamInteger, Default: 4444, Example: 4444, Range: &module.IntegerRange{Min: 1, Max: 65535}},
 	}
 }
 
 func (n *netRevShell) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	target := params.Get("target", "127.0.0.1")
-	port := params.Get("port", "4444")
+	target := params.String("target", "127.0.0.1")
+	port := strconv.Itoa(params.Int("port", 4444))
 	address := net.JoinHostPort(target, port)
 
 	info := n.Info()
@@ -87,8 +88,8 @@ func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit m
 }
 
 func (n *netRevShell) DryRun(params module.Params) []string {
-	target := params.Get("target", "127.0.0.1")
-	port := params.Get("port", "4444")
+	target := params.String("target", "127.0.0.1")
+	port := strconv.Itoa(params.Int("port", 4444))
 	return []string{
 		fmt.Sprintf("dial TCP %s:%s", target, port),
 		"attach /bin/sh stdin/stdout/stderr to connection",

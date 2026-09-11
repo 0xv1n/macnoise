@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -17,16 +18,21 @@ import (
 )
 
 type mockGen struct {
-	name         string
-	category     module.Category
-	prereqErr    error
-	generateErr  error
-	cleanupErr   error
-	events       []module.TelemetryEvent
-	dryRunLines  []string
-	onGenerate   func()
-	cleanedUp    bool
-	cleanupRunID string
+	name          string
+	category      module.Category
+	prereqErr     error
+	generateErr   error
+	cleanupErr    error
+	events        []module.TelemetryEvent
+	dryRunLines   []string
+	onGenerate    func()
+	cleanedUp     bool
+	cleanupRunID  string
+	paramSpecs    []module.ParamSpec
+	params        module.Params
+	prereqCalls   int
+	dryRunCalls   int
+	generateCalls int
 }
 
 func (m *mockGen) Info() module.ModuleInfo {
@@ -36,9 +42,14 @@ func (m *mockGen) Info() module.ModuleInfo {
 	}
 	return module.ModuleInfo{Name: m.name, Category: category}
 }
-func (m *mockGen) ParamSpecs() []module.ParamSpec                               { return nil }
-func (m *mockGen) CheckPrereqs(ctx context.Context, params module.Params) error { return m.prereqErr }
-func (m *mockGen) Generate(_ context.Context, _ module.Params, emit module.EventEmitter) error {
+func (m *mockGen) ParamSpecs() []module.ParamSpec { return m.paramSpecs }
+func (m *mockGen) CheckPrereqs(ctx context.Context, params module.Params) error {
+	m.prereqCalls++
+	return m.prereqErr
+}
+func (m *mockGen) Generate(_ context.Context, params module.Params, emit module.EventEmitter) error {
+	m.generateCalls++
+	m.params = params
 	if m.onGenerate != nil {
 		m.onGenerate()
 	}
@@ -47,11 +58,52 @@ func (m *mockGen) Generate(_ context.Context, _ module.Params, emit module.Event
 	}
 	return m.generateErr
 }
-func (m *mockGen) DryRun(_ module.Params) []string { return m.dryRunLines }
+func (m *mockGen) DryRun(params module.Params) []string {
+	m.dryRunCalls++
+	m.params = params
+	return m.dryRunLines
+}
 func (m *mockGen) Cleanup(ctx context.Context) error {
 	m.cleanedUp = true
 	m.cleanupRunID = module.RunIDFromContext(ctx)
 	return m.cleanupErr
+}
+
+func TestRunSingleRejectsInvalidParamsBeforePreviewOrExecution(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dry_run_%v", dryRun), func(t *testing.T) {
+			gen := &mockGen{
+				name:       "typed",
+				paramSpecs: []module.ParamSpec{{Name: "count", Type: module.ParamInteger}},
+			}
+
+			err := runner.RunSingle(context.Background(), gen, module.Params{"count": "many"}, func(module.TelemetryEvent) {}, runner.Options{DryRun: dryRun})
+			if err == nil || !strings.Contains(err.Error(), `parameter "count" must be an integer`) {
+				t.Fatalf("RunSingle error = %v", err)
+			}
+			if gen.prereqCalls != 0 || gen.dryRunCalls != 0 || gen.generateCalls != 0 || gen.cleanedUp {
+				t.Fatalf("invalid input reached lifecycle: %+v", gen)
+			}
+		})
+	}
+}
+
+func TestRunSingleUsesSameNormalizationForPreviewAndExecution(t *testing.T) {
+	for _, dryRun := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dry_run_%v", dryRun), func(t *testing.T) {
+			gen := &mockGen{
+				name:       "typed",
+				paramSpecs: []module.ParamSpec{{Name: "count", Type: module.ParamInteger, Default: 3}},
+			}
+
+			if err := runner.RunSingle(context.Background(), gen, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{DryRun: dryRun}); err != nil {
+				t.Fatal(err)
+			}
+			if got := gen.params.Int("count", 0); got != 3 {
+				t.Fatalf("normalized count = %d, want 3", got)
+			}
+		})
+	}
 }
 
 func TestRunSingleSuccess(t *testing.T) {
@@ -461,5 +513,65 @@ func TestLoadScenarioRejectsInvalidOnError(t *testing.T) {
 	}
 	if _, err := runner.LoadScenario(path); err == nil || !strings.Contains(err.Error(), "invalid on_error") {
 		t.Fatalf("LoadScenario error = %v, want invalid on_error", err)
+	}
+}
+
+func TestLoadScenarioRejectsUnknownField(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scenario.yaml")
+	if err := os.WriteFile(path, []byte("name: invalid\ndescripton: typo\nsteps:\n  - module: example\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.LoadScenario(path); err == nil || !strings.Contains(err.Error(), "field descripton not found") {
+		t.Fatalf("LoadScenario error = %v, want unknown-field error", err)
+	}
+}
+
+func TestRunScenarioNormalizesPathList(t *testing.T) {
+	const name = "path_list"
+	var invocation *mockGen
+	var registry module.Registry
+	registry.Register(func() module.Generator {
+		invocation = &mockGen{
+			name:       name,
+			paramSpecs: []module.ParamSpec{{Name: "paths", Type: module.ParamPathList}},
+		}
+		return invocation
+	})
+
+	path := filepath.Join(t.TempDir(), "scenario.yaml")
+	body := "name: typed list\nsteps:\n  - module: " + name + "\n    params:\n      paths:\n        - /tmp/one\n        - /tmp/two\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) {}, runner.Options{Registry: &registry}); err != nil {
+		t.Fatal(err)
+	}
+	if got := invocation.params.Paths("paths", nil); !reflect.DeepEqual(got, []string{"/tmp/one", "/tmp/two"}) {
+		t.Fatalf("paths = %#v", got)
+	}
+}
+
+func TestRunScenarioRejectsUnknownParamBeforeExecution(t *testing.T) {
+	const name = "strict_params"
+	var invocation *mockGen
+	var registry module.Registry
+	registry.Register(func() module.Generator {
+		invocation = &mockGen{
+			name:       name,
+			paramSpecs: []module.ParamSpec{{Name: "path", Type: module.ParamPath}},
+		}
+		return invocation
+	})
+
+	path := filepath.Join(t.TempDir(), "scenario.yaml")
+	body := "name: strict params\nsteps:\n  - module: " + name + "\n    params:\n      paht: /tmp/typo\n"
+	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) {}, runner.Options{Registry: &registry})
+	if err == nil || invocation.generateCalls != 0 || invocation.cleanedUp {
+		t.Fatalf("RunScenario error = %v, invocation = %+v", err, invocation)
 	}
 }

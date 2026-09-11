@@ -45,9 +45,9 @@ func (e *evadeMasquerade) Info() module.ModuleInfo {
 
 func (e *evadeMasquerade) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "stage_dir", Description: "Directory for the masqueraded binary", Required: false, DefaultValue: defaultMasqueradeStageDir, Example: "/var/tmp/macnoise_masquerade"},
-		{Name: "source_binary", Description: "Benign system utility to copy and run", Required: false, DefaultValue: defaultMasqueradeSource, Example: "/bin/cp"},
-		{Name: "masquerade_name", Description: "Legitimate-looking name to run the copy under", Required: false, DefaultValue: defaultMasqueradeName, Example: "mdworker_shared"},
+		{Name: "stage_dir", Description: "Directory for the masqueraded binary", Type: module.ParamPath, Default: defaultMasqueradeStageDir, Example: "/var/tmp/macnoise_masquerade"},
+		{Name: "source_binary", Description: "Benign system utility to copy and run", Type: module.ParamPath, Default: defaultMasqueradeSource, Example: "/bin/cp"},
+		{Name: "masquerade_name", Description: "Legitimate-looking name to run the copy under", Type: module.ParamString, Default: defaultMasqueradeName, Example: "mdworker_shared"},
 	}
 }
 
@@ -76,9 +76,9 @@ func copyExecutable(src, dst string) error {
 
 func (e *evadeMasquerade) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
-	stageDir := module.TagPath(params.Get("stage_dir", defaultMasqueradeStageDir), runID)
-	source := params.Get("source_binary", defaultMasqueradeSource)
-	masqName := params.Get("masquerade_name", defaultMasqueradeName)
+	stageDir := module.TagPath(params.String("stage_dir", defaultMasqueradeStageDir), runID)
+	source := params.String("source_binary", defaultMasqueradeSource)
+	masqName := params.String("masquerade_name", defaultMasqueradeName)
 	info := e.Info()
 
 	if err := os.MkdirAll(stageDir, 0o755); err != nil {
@@ -131,9 +131,9 @@ func (e *evadeMasquerade) Generate(ctx context.Context, params module.Params, em
 }
 
 func (e *evadeMasquerade) DryRun(params module.Params) []string {
-	source := params.Get("source_binary", defaultMasqueradeSource)
-	masqName := params.Get("masquerade_name", defaultMasqueradeName)
-	stageDir := params.Get("stage_dir", defaultMasqueradeStageDir)
+	source := params.String("source_binary", defaultMasqueradeSource)
+	masqName := params.String("masquerade_name", defaultMasqueradeName)
+	stageDir := params.String("stage_dir", defaultMasqueradeStageDir)
 	dest := filepath.Join(stageDir, masqName)
 	return []string{
 		fmt.Sprintf("copy %s to %s (T1036.003)", source, dest),

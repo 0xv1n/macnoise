@@ -32,22 +32,19 @@ func (n *netExfil) Info() module.ModuleInfo {
 
 func (n *netExfil) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "target", Description: "Target URL for the POST request", Required: false, DefaultValue: "http://127.0.0.1:8080/upload", Example: "http://10.0.0.1/exfil"},
-		{Name: "payload_size", Description: "Payload size in bytes", Required: false, DefaultValue: "4096", Example: "1024"},
-		{Name: "content_type", Description: "Content-Type header value", Required: false, DefaultValue: "application/octet-stream", Example: "application/json"},
+		{Name: "target", Description: "Target URL for the POST request", Type: module.ParamString, Default: "http://127.0.0.1:8080/upload", Example: "http://10.0.0.1/exfil"},
+		{Name: "payload_size", Description: "Payload size in bytes", Type: module.ParamInteger, Default: 4096, Example: 1024, Range: &module.IntegerRange{Min: 0}},
+		{Name: "content_type", Description: "Content-Type header value", Type: module.ParamString, Default: "application/octet-stream", Example: "application/json"},
 	}
 }
 
 func (n *netExfil) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netExfil) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	target := tagURL(params.Get("target", "http://127.0.0.1:8080/upload"), module.RunIDFromContext(ctx))
-	payloadSizeStr := params.Get("payload_size", "4096")
-	contentType := params.Get("content_type", "application/octet-stream")
+	target := tagURL(params.String("target", "http://127.0.0.1:8080/upload"), module.RunIDFromContext(ctx))
+	payloadSize := params.Int("payload_size", 4096)
+	contentType := params.String("content_type", "application/octet-stream")
 	info := n.Info()
-
-	payloadSize := 4096
-	fmt.Sscanf(payloadSizeStr, "%d", &payloadSize) //nolint:errcheck
 
 	payload := make([]byte, payloadSize)
 	rand.Read(payload) //nolint:errcheck
@@ -92,11 +89,11 @@ func (n *netExfil) Generate(ctx context.Context, params module.Params, emit modu
 }
 
 func (n *netExfil) DryRun(params module.Params) []string {
-	target := params.Get("target", "http://127.0.0.1:8080/upload")
-	payloadSizeStr := params.Get("payload_size", "4096")
-	contentType := params.Get("content_type", "application/octet-stream")
+	target := params.String("target", "http://127.0.0.1:8080/upload")
+	payloadSize := params.Int("payload_size", 4096)
+	contentType := params.String("content_type", "application/octet-stream")
 	return []string{
-		fmt.Sprintf("HTTP POST %s bytes of %s to %s", payloadSizeStr, contentType, target),
+		fmt.Sprintf("HTTP POST %d bytes of %s to %s", payloadSize, contentType, target),
 	}
 }
 

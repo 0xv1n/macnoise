@@ -32,10 +32,10 @@ func (c *c2Beacon) Info() module.ModuleInfo {
 
 func (c *c2Beacon) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "target", Description: "Target URL or host", Required: false, DefaultValue: "http://example.com", Example: "http://10.0.0.1"},
-		{Name: "count", Description: "Number of beacon attempts", Required: false, DefaultValue: "3", Example: "5"},
-		{Name: "interval", Description: "Seconds between beacons", Required: false, DefaultValue: "2", Example: "10"},
-		{Name: "jitter", Description: "Percent to randomise each interval by, 0-100 (0 = fixed)", Required: false, DefaultValue: "0", Example: "30"},
+		{Name: "target", Description: "Target URL or host", Type: module.ParamString, Default: "http://example.com", Example: "http://10.0.0.1"},
+		{Name: "count", Description: "Number of beacon attempts", Type: module.ParamInteger, Default: 3, Example: 5, Range: &module.IntegerRange{Min: 1}},
+		{Name: "interval", Description: "Seconds between beacons", Type: module.ParamInteger, Default: 2, Example: 10, Range: &module.IntegerRange{Min: 0}},
+		{Name: "jitter", Description: "Percent to randomise each interval by, 0-100 (0 = fixed)", Type: module.ParamInteger, Default: 0, Example: 30, Range: &module.IntegerRange{Min: 0, Max: 100}},
 	}
 }
 
@@ -63,18 +63,11 @@ func jitterInterval(base time.Duration, jitterPct int, rnd *rand.Rand) time.Dura
 func (c *c2Beacon) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	target := tagURL(params.Get("target", "http://example.com"), module.RunIDFromContext(ctx))
-	countStr := params.Get("count", "3")
-	intervalStr := params.Get("interval", "2")
-	jitterStr := params.Get("jitter", "0")
-
-	count := 3
-	fmt.Sscanf(countStr, "%d", &count) //nolint:errcheck
-	intervalSecs := 2
-	fmt.Sscanf(intervalStr, "%d", &intervalSecs) //nolint:errcheck
+	target := tagURL(params.String("target", "http://example.com"), module.RunIDFromContext(ctx))
+	count := params.Int("count", 3)
+	intervalSecs := params.Int("interval", 2)
 	interval := time.Duration(intervalSecs) * time.Second
-	jitterPct := 0
-	fmt.Sscanf(jitterStr, "%d", &jitterPct)                //nolint:errcheck
+	jitterPct := params.Int("jitter", 0)
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // jitter timing, not security
 
 	info := c.Info()
@@ -119,12 +112,12 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 }
 
 func (c *c2Beacon) DryRun(params module.Params) []string {
-	target := params.Get("target", "http://example.com")
-	countStr := params.Get("count", "3")
-	intervalStr := params.Get("interval", "2")
-	jitterStr := params.Get("jitter", "0")
+	target := params.String("target", "http://example.com")
+	count := params.Int("count", 3)
+	interval := params.Int("interval", 2)
+	jitter := params.Int("jitter", 0)
 	return []string{
-		fmt.Sprintf("send %s HTTP GET requests to %s with %ss interval (jitter %s%%)", countStr, target, intervalStr, jitterStr),
+		fmt.Sprintf("send %d HTTP GET requests to %s with %ds interval (jitter %d%%)", count, target, interval, jitter),
 	}
 }
 

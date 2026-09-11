@@ -28,7 +28,7 @@ func (p *procSignal) Info() module.ModuleInfo {
 
 func (p *procSignal) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "target_command", Description: "Command to spawn as signal target", Required: false, DefaultValue: "sleep 30", Example: "sleep 60"},
+		{Name: "target_command", Description: "Command to spawn as signal target", Type: module.ParamString, Default: "sleep 30", Example: "sleep 60"},
 	}
 }
 
@@ -40,7 +40,7 @@ func (p *procSignal) CheckPrereqs(ctx context.Context, params module.Params) err
 }
 
 func (p *procSignal) DryRun(params module.Params) []string {
-	targetCmd := params.Get("target_command", "sleep 30")
+	targetCmd := params.String("target_command", "sleep 30")
 	return []string{
 		fmt.Sprintf("fork: sh -c %q", targetCmd),
 		"send SIGSTOP, SIGCONT, SIGTERM to forked PID",
