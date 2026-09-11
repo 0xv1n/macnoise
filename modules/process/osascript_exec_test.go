@@ -60,7 +60,7 @@ func TestOsascriptGenerate_Execution(t *testing.T) {
 			if wantError := strings.Contains(tt.name, "error"); hasError != wantError {
 				t.Errorf("error detail present = %t, want %t: %+v", hasError, wantError, ev)
 			}
-			if err := p.Cleanup(); err != nil {
+			if err := p.Cleanup(context.Background()); err != nil {
 				t.Fatalf("Cleanup: %v", err)
 			}
 		})

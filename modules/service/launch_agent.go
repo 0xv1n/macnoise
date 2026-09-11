@@ -44,7 +44,7 @@ func (s *svcLaunchAgent) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (s *svcLaunchAgent) CheckPrereqs() error {
+func (s *svcLaunchAgent) CheckPrereqs(ctx context.Context, params module.Params) error {
 	return nil
 }
 
@@ -140,10 +140,10 @@ func (s *svcLaunchAgent) DryRun(params module.Params) []string {
 // failure there says nothing about whether cleanup worked. Reporting it
 // anyway would mark every run on a host without a GUI session as a cleanup
 // error while leaving nothing behind.
-func (s *svcLaunchAgent) Cleanup() error {
+func (s *svcLaunchAgent) Cleanup(ctx context.Context) error {
 	var bootoutErr error
 	if s.loaded {
-		out, err := exec.Command("launchctl", bootoutArgs(guiDomain(), s.label)...).CombinedOutput()
+		out, err := exec.CommandContext(ctx, "launchctl", bootoutArgs(guiDomain(), s.label)...).CombinedOutput()
 		if err != nil {
 			bootoutErr = fmt.Errorf("launchctl bootout %s: %v: %s", s.label, err, out)
 		}
@@ -157,5 +157,5 @@ func (s *svcLaunchAgent) Cleanup() error {
 }
 
 func init() {
-	module.Register(&svcLaunchAgent{})
+	module.Register(func() module.Generator { return &svcLaunchAgent{} })
 }

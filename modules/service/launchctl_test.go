@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -94,10 +95,10 @@ func TestDryRun_AdvertisesBootstrap(t *testing.T) {
 // failure as a cleanup error would mark those runs failed while nothing was
 // actually left behind.
 func TestCleanup_SkipsBootoutWhenNeverLoaded(t *testing.T) {
-	if err := (&svcLaunchAgent{label: "com.macnoise.never", loaded: false}).Cleanup(); err != nil {
+	if err := (&svcLaunchAgent{label: "com.macnoise.never", loaded: false}).Cleanup(context.Background()); err != nil {
 		t.Errorf("agent Cleanup() = %v, want nil when the agent was never loaded", err)
 	}
-	if err := (&svcLaunchDaemon{label: "com.macnoise.never", loaded: false}).Cleanup(); err != nil {
+	if err := (&svcLaunchDaemon{label: "com.macnoise.never", loaded: false}).Cleanup(context.Background()); err != nil {
 		t.Errorf("daemon Cleanup() = %v, want nil when the daemon was never loaded", err)
 	}
 }

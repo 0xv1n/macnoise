@@ -21,7 +21,7 @@ func TestNetListen_AcceptsSelfConnection(t *testing.T) {
 	if err := n.Generate(ctx, module.Params{"port": "18081"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	defer n.Cleanup() //nolint:errcheck
+	defer n.Cleanup(context.Background()) //nolint:errcheck
 
 	if len(events) != 2 {
 		t.Fatalf("expected 2 events (tcp_listen, tcp_accept), got %d", len(events))
@@ -48,7 +48,7 @@ func TestNetListen_RespectsContextCancellation(t *testing.T) {
 	start := time.Now()
 	err := n.Generate(ctx, module.Params{"port": "18082"}, emit)
 	elapsed := time.Since(start)
-	defer n.Cleanup() //nolint:errcheck
+	defer n.Cleanup(context.Background()) //nolint:errcheck
 
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("err = %v, want context.Canceled", err)
@@ -68,7 +68,7 @@ func TestNetListen_DefaultBindsLoopback(t *testing.T) {
 	if err := n.Generate(ctx, module.Params{"port": "18083"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	defer n.Cleanup() //nolint:errcheck
+	defer n.Cleanup(context.Background()) //nolint:errcheck
 
 	addr, ok := n.listener.Addr().(*net.TCPAddr)
 	if !ok {
@@ -90,7 +90,7 @@ func TestNetListen_CustomBindAddr(t *testing.T) {
 	if err := n.Generate(ctx, params, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	defer n.Cleanup() //nolint:errcheck
+	defer n.Cleanup(context.Background()) //nolint:errcheck
 
 	addr, ok := n.listener.Addr().(*net.TCPAddr)
 	if !ok {

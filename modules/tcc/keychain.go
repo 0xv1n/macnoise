@@ -48,7 +48,7 @@ func (t *tccKeychain) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (t *tccKeychain) CheckPrereqs() error { return nil }
+func (t *tccKeychain) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (t *tccKeychain) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	keychainPath := params.Get("keychain_path", "")
@@ -120,8 +120,8 @@ func (t *tccKeychain) DryRun(params module.Params) []string {
 	}
 }
 
-func (t *tccKeychain) Cleanup() error { return nil }
+func (t *tccKeychain) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&tccKeychain{})
+	module.Register(func() module.Generator { return &tccKeychain{} })
 }

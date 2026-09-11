@@ -43,7 +43,7 @@ func (f *fileHide) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (f *fileHide) CheckPrereqs() error { return nil }
+func (f *fileHide) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (f *fileHide) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	workDir := module.TagPath(params.Get("work_dir", "/tmp/macnoise_hide"), module.RunIDFromContext(ctx))
@@ -91,7 +91,7 @@ func (f *fileHide) DryRun(params module.Params) []string {
 	}
 }
 
-func (f *fileHide) Cleanup() error {
+func (f *fileHide) Cleanup(ctx context.Context) error {
 	if f.workDir != "" {
 		return os.RemoveAll(f.workDir)
 	}
@@ -99,5 +99,5 @@ func (f *fileHide) Cleanup() error {
 }
 
 func init() {
-	module.Register(&fileHide{})
+	module.Register(func() module.Generator { return &fileHide{} })
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -16,29 +17,40 @@ import (
 )
 
 type mockGen struct {
-	name        string
-	prereqErr   error
-	generateErr error
-	cleanupErr  error
-	events      []module.TelemetryEvent
-	dryRunLines []string
-	cleanedUp   bool
+	name         string
+	category     module.Category
+	prereqErr    error
+	generateErr  error
+	cleanupErr   error
+	events       []module.TelemetryEvent
+	dryRunLines  []string
+	onGenerate   func()
+	cleanedUp    bool
+	cleanupRunID string
 }
 
 func (m *mockGen) Info() module.ModuleInfo {
-	return module.ModuleInfo{Name: m.name, Category: "test"}
+	category := m.category
+	if category == "" {
+		category = "test"
+	}
+	return module.ModuleInfo{Name: m.name, Category: category}
 }
-func (m *mockGen) ParamSpecs() []module.ParamSpec { return nil }
-func (m *mockGen) CheckPrereqs() error            { return m.prereqErr }
+func (m *mockGen) ParamSpecs() []module.ParamSpec                               { return nil }
+func (m *mockGen) CheckPrereqs(ctx context.Context, params module.Params) error { return m.prereqErr }
 func (m *mockGen) Generate(_ context.Context, _ module.Params, emit module.EventEmitter) error {
+	if m.onGenerate != nil {
+		m.onGenerate()
+	}
 	for _, ev := range m.events {
 		emit(ev)
 	}
 	return m.generateErr
 }
 func (m *mockGen) DryRun(_ module.Params) []string { return m.dryRunLines }
-func (m *mockGen) Cleanup() error {
+func (m *mockGen) Cleanup(ctx context.Context) error {
 	m.cleanedUp = true
+	m.cleanupRunID = module.RunIDFromContext(ctx)
 	return m.cleanupErr
 }
 
@@ -65,6 +77,59 @@ func TestRunSingleSuccess(t *testing.T) {
 	}
 }
 
+func TestRunSingleReturnsCleanupError(t *testing.T) {
+	want := errors.New("cleanup failed")
+	gen := &mockGen{name: "cleanup_error", cleanupErr: want}
+	err := runner.RunSingle(context.Background(), gen, nil, func(module.TelemetryEvent) {}, runner.Options{})
+	if !errors.Is(err, want) {
+		t.Fatalf("RunSingle = %v, want cleanup failure", err)
+	}
+}
+
+func TestRunSingleJoinsGenerateAndCleanupErrors(t *testing.T) {
+	generateErr := errors.New("generation failed")
+	cleanupErr := errors.New("cleanup failed")
+	gen := &mockGen{name: "joined_errors", generateErr: generateErr, cleanupErr: cleanupErr}
+	err := runner.RunSingle(context.Background(), gen, nil, func(module.TelemetryEvent) {}, runner.Options{})
+	if !errors.Is(err, generateErr) || !errors.Is(err, cleanupErr) {
+		t.Fatalf("RunSingle = %v, want both generation and cleanup failures", err)
+	}
+}
+
+func TestRunScenarioAuditDoesNotChangeFailurePolicy(t *testing.T) {
+	for _, auditEnabled := range []bool{false, true} {
+		t.Run(fmt.Sprint(auditEnabled), func(t *testing.T) {
+			name := fmt.Sprintf("failed_step_%v", auditEnabled)
+			var registry module.Registry
+			registry.Register(func() module.Generator {
+				return &mockGen{
+					name:        name,
+					generateErr: errors.New("execution failed"),
+					events:      []module.TelemetryEvent{{Success: true}},
+				}
+			})
+			var logger *audit.Logger
+			if auditEnabled {
+				var err error
+				logger, err = audit.NewLogger(filepath.Join(t.TempDir(), "audit.jsonl"), "test", "run")
+				if err != nil {
+					t.Fatal(err)
+				}
+				defer logger.Close()
+			}
+			path := writeScenario(t, name, 2, "")
+			calls := 0
+			err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) { calls++ }, runner.Options{
+				Registry: &registry,
+				AuditLog: logger,
+			})
+			if err == nil || calls != 1 {
+				t.Fatalf("error = %v, steps executed = %d; want one failed step", err, calls)
+			}
+		})
+	}
+}
+
 func TestRunSinglePrereqFails(t *testing.T) {
 	gen := &mockGen{
 		name:      "mock_prereq_fail",
@@ -79,6 +144,7 @@ func TestRunSinglePrereqFails(t *testing.T) {
 func TestRunSingleDryRun(t *testing.T) {
 	gen := &mockGen{
 		name:        "mock_dryrun",
+		prereqErr:   errors.New("native prerequisites should not run during preview"),
 		dryRunLines: []string{"action one", "action two"},
 		generateErr: errors.New("should not run"),
 	}
@@ -95,8 +161,11 @@ func TestRunSingleTimeout(t *testing.T) {
 	slowGen := &slowMockGen{name: "mock_slow", delay: 2 * time.Second}
 
 	err := runner.RunSingle(context.Background(), slowGen, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{Timeout: 50 * time.Millisecond})
-	if err == nil {
-		t.Error("expected timeout error")
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("RunSingle = %v, want context deadline exceeded", err)
+	}
+	if !slowGen.cleanedUp || slowGen.cleanupCtxErr != nil {
+		t.Errorf("cleanup called = %v, cleanup context error = %v", slowGen.cleanedUp, slowGen.cleanupCtxErr)
 	}
 }
 
@@ -112,14 +181,15 @@ func TestRunManyCollectsErrors(t *testing.T) {
 }
 
 type slowMockGen struct {
-	name      string
-	delay     time.Duration
-	cleanedUp bool
+	name          string
+	delay         time.Duration
+	cleanedUp     bool
+	cleanupCtxErr error
 }
 
-func (s *slowMockGen) Info() module.ModuleInfo        { return module.ModuleInfo{Name: s.name} }
-func (s *slowMockGen) ParamSpecs() []module.ParamSpec { return nil }
-func (s *slowMockGen) CheckPrereqs() error            { return nil }
+func (s *slowMockGen) Info() module.ModuleInfo                                      { return module.ModuleInfo{Name: s.name} }
+func (s *slowMockGen) ParamSpecs() []module.ParamSpec                               { return nil }
+func (s *slowMockGen) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 func (s *slowMockGen) Generate(ctx context.Context, _ module.Params, _ module.EventEmitter) error {
 	select {
 	case <-ctx.Done():
@@ -129,8 +199,9 @@ func (s *slowMockGen) Generate(ctx context.Context, _ module.Params, _ module.Ev
 	}
 }
 func (s *slowMockGen) DryRun(_ module.Params) []string { return nil }
-func (s *slowMockGen) Cleanup() error {
+func (s *slowMockGen) Cleanup(ctx context.Context) error {
 	s.cleanedUp = true
+	s.cleanupCtxErr = ctx.Err()
 	return nil
 }
 
@@ -153,36 +224,41 @@ func TestRunSingleCleansUpOnCancel(t *testing.T) {
 	if !gen.cleanedUp {
 		t.Error("expected Cleanup to run after cancellation")
 	}
+	if gen.cleanupCtxErr != nil {
+		t.Errorf("cleanup context error = %v, want independent context", gen.cleanupCtxErr)
+	}
 }
 
 // countingGen records how many times Generate was invoked and can trigger a
 // side-effect (used here to cancel the scenario context mid-run).
 type countingGen struct {
 	name   string
-	calls  int
 	onCall func()
 }
 
 func (c *countingGen) Info() module.ModuleInfo {
 	return module.ModuleInfo{Name: c.name, Category: "test"}
 }
-func (c *countingGen) ParamSpecs() []module.ParamSpec { return nil }
-func (c *countingGen) CheckPrereqs() error            { return nil }
+func (c *countingGen) ParamSpecs() []module.ParamSpec                               { return nil }
+func (c *countingGen) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 func (c *countingGen) Generate(_ context.Context, _ module.Params, _ module.EventEmitter) error {
-	c.calls++
 	if c.onCall != nil {
 		c.onCall()
 	}
 	return nil
 }
-func (c *countingGen) DryRun(_ module.Params) []string { return nil }
-func (c *countingGen) Cleanup() error                  { return nil }
+func (c *countingGen) DryRun(_ module.Params) []string   { return nil }
+func (c *countingGen) Cleanup(ctx context.Context) error { return nil }
 
 // writeScenario builds a temp scenario file invoking moduleName stepCount times.
-func writeScenario(t *testing.T, moduleName string, stepCount int) string {
+func writeScenario(t *testing.T, moduleName string, stepCount int, onError string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "scenario.yaml")
-	body := "name: cancel test\nsteps:\n" +
+	body := "name: cancel test\n"
+	if onError != "" {
+		body += "on_error: " + onError + "\n"
+	}
+	body += "steps:\n" +
 		strings.Repeat("  - module: "+moduleName+"\n", stepCount)
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatalf("write scenario: %v", err)
@@ -193,20 +269,36 @@ func writeScenario(t *testing.T, moduleName string, stepCount int) string {
 // An interrupted scenario must stop at the step it reached rather than
 // fast-failing through every remaining step.
 func TestRunScenarioStopsOnCancel(t *testing.T) {
-	ctx, cancel := context.WithCancel(context.Background())
-	defer cancel()
+	for _, tc := range []struct {
+		name    string
+		onError string
+	}{
+		{name: "stop"},
+		{name: "continue", onError: "continue"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx, cancel := context.WithCancel(context.Background())
+			defer cancel()
 
-	gen := &countingGen{name: "mock_scenario_step", onCall: cancel}
-	module.Register(gen)
+			calls := 0
+			name := "mock_scenario_step_" + tc.name
+			var registry module.Registry
+			registry.Register(func() module.Generator {
+				return &countingGen{name: name, onCall: func() {
+					calls++
+					cancel()
+				}}
+			})
 
-	path := writeScenario(t, gen.name, 4)
-
-	err := runner.RunScenario(ctx, path, func(module.TelemetryEvent) {}, runner.Options{})
-	if !errors.Is(err, context.Canceled) {
-		t.Errorf("expected context.Canceled, got %v", err)
-	}
-	if gen.calls != 1 {
-		t.Errorf("expected scenario to stop after 1 step, ran %d", gen.calls)
+			path := writeScenario(t, name, 4, tc.onError)
+			err := runner.RunScenario(ctx, path, func(module.TelemetryEvent) {}, runner.Options{Registry: &registry})
+			if !errors.Is(err, context.Canceled) {
+				t.Errorf("expected context.Canceled, got %v", err)
+			}
+			if calls != 1 {
+				t.Errorf("expected scenario to stop after 1 step, ran %d", calls)
+			}
+		})
 	}
 }
 
@@ -216,8 +308,11 @@ func TestRunScenarioAuditsInterrupt(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	gen := &countingGen{name: "mock_audited_step", onCall: cancel}
-	module.Register(gen)
+	name := "mock_audited_step"
+	var registry module.Registry
+	registry.Register(func() module.Generator {
+		return &countingGen{name: name, onCall: cancel}
+	})
 
 	auditPath := filepath.Join(t.TempDir(), "audit.jsonl")
 	logger, err := audit.NewLogger(auditPath, "test", "")
@@ -225,8 +320,11 @@ func TestRunScenarioAuditsInterrupt(t *testing.T) {
 		t.Fatalf("new audit logger: %v", err)
 	}
 
-	path := writeScenario(t, gen.name, 5)
-	runErr := runner.RunScenario(ctx, path, func(module.TelemetryEvent) {}, runner.Options{AuditLog: logger})
+	path := writeScenario(t, name, 5, "")
+	runErr := runner.RunScenario(ctx, path, func(module.TelemetryEvent) {}, runner.Options{
+		Registry: &registry,
+		AuditLog: logger,
+	})
 	if !errors.Is(runErr, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", runErr)
 	}
@@ -257,8 +355,11 @@ func TestRunScenarioAuditsInterrupt(t *testing.T) {
 	}
 
 	unmapped := scenarioRec["unmapped"].(map[string]any)
-	if got := unmapped["steps_passed"]; got != float64(1) {
-		t.Errorf("steps_passed = %v, want 1", got)
+	if got := unmapped["steps_passed"]; got != float64(0) {
+		t.Errorf("steps_passed = %v, want 0", got)
+	}
+	if got := unmapped["steps_failed"]; got != float64(0) {
+		t.Errorf("steps_failed = %v, want 0", got)
 	}
 	if got := unmapped["total_steps"]; got != float64(5) {
 		t.Errorf("total_steps = %v, want 5", got)
@@ -296,5 +397,69 @@ func TestRunSingle_RunIDInContext(t *testing.T) {
 	}
 	if gen.capturedRunID != "test_run_id_1234" {
 		t.Errorf("RunIDFromContext = %q, want test_run_id_1234", gen.capturedRunID)
+	}
+	if gen.cleanupRunID != "test_run_id_1234" {
+		t.Errorf("cleanup RunIDFromContext = %q, want test_run_id_1234", gen.cleanupRunID)
+	}
+}
+
+func TestRunScenarioCategoryHonorsOnErrorPerInvocation(t *testing.T) {
+	for _, tt := range []struct {
+		name      string
+		onError   string
+		wantCalls int
+	}{
+		{name: "default_stop", wantCalls: 1},
+		{name: "explicit_stop", onError: "stop", wantCalls: 1},
+		{name: "continue", onError: "continue", wantCalls: 2},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			const category = module.Category("category_policy")
+			calls := 0
+			var registry module.Registry
+			registry.Register(func() module.Generator {
+				return &mockGen{
+					name:        "a_fail",
+					category:    category,
+					generateErr: errors.New("execution failed"),
+					onGenerate:  func() { calls++ },
+				}
+			})
+			registry.Register(func() module.Generator {
+				return &mockGen{
+					name:       "b_after",
+					category:   category,
+					onGenerate: func() { calls++ },
+				}
+			})
+
+			path := filepath.Join(t.TempDir(), "scenario.yaml")
+			body := "name: category policy\n"
+			if tt.onError != "" {
+				body += "on_error: " + tt.onError + "\n"
+			}
+			body += "steps:\n  - category: " + string(category) + "\n"
+			if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) {}, runner.Options{Registry: &registry})
+			if err == nil {
+				t.Fatal("expected scenario failure")
+			}
+			if calls != tt.wantCalls {
+				t.Errorf("module calls = %d, want %d", calls, tt.wantCalls)
+			}
+		})
+	}
+}
+
+func TestLoadScenarioRejectsInvalidOnError(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "scenario.yaml")
+	if err := os.WriteFile(path, []byte("name: invalid\non_error: retry\nsteps:\n  - module: example\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := runner.LoadScenario(path); err == nil || !strings.Contains(err.Error(), "invalid on_error") {
+		t.Fatalf("LoadScenario error = %v, want invalid on_error", err)
 	}
 }

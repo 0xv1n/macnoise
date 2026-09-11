@@ -37,7 +37,7 @@ func (t *tccAccessibility) Info() module.ModuleInfo {
 
 func (t *tccAccessibility) ParamSpecs() []module.ParamSpec { return nil }
 
-func (t *tccAccessibility) CheckPrereqs() error { return nil }
+func (t *tccAccessibility) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // accessibilityProbeScript reads the menu bar items of the frontmost process
 // through System Events. Reading any process's UI elements requires the
@@ -109,8 +109,8 @@ func (t *tccAccessibility) DryRun(params module.Params) []string {
 	return []string{fmt.Sprintf("osascript -e '%s' (probes Accessibility permission)", accessibilityProbeScript())}
 }
 
-func (t *tccAccessibility) Cleanup() error { return nil }
+func (t *tccAccessibility) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&tccAccessibility{})
+	module.Register(func() module.Generator { return &tccAccessibility{} })
 }

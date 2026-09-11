@@ -41,7 +41,7 @@ func (e *esFile) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (e *esFile) CheckPrereqs() error { return nil }
+func (e *esFile) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (e *esFile) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	workDir := module.TagPath(params.Get("work_dir", "/tmp/macnoise_es"), module.RunIDFromContext(ctx))
@@ -157,7 +157,7 @@ func (e *esFile) DryRun(params module.Params) []string {
 	}
 }
 
-func (e *esFile) Cleanup() error {
+func (e *esFile) Cleanup(ctx context.Context) error {
 	if e.createdPath != "" {
 		return os.Remove(e.createdPath)
 	}
@@ -165,5 +165,5 @@ func (e *esFile) Cleanup() error {
 }
 
 func init() {
-	module.Register(&esFile{})
+	module.Register(func() module.Generator { return &esFile{} })
 }

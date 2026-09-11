@@ -43,7 +43,7 @@ func TestSvcShellProfile_CleanupRestoresOriginalContent(t *testing.T) {
 		t.Errorf("expected one successful shell_profile_modify event, got %+v", events)
 	}
 
-	if err := s.Cleanup(); err != nil {
+	if err := s.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	restored, err := os.ReadFile(target)
@@ -74,7 +74,7 @@ func TestSvcShellProfile_CleanupRemovesRepeatedBlocks(t *testing.T) {
 		}
 	}
 
-	if err := s.Cleanup(); err != nil {
+	if err := s.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	restored, err := os.ReadFile(target)

@@ -1,6 +1,7 @@
 package endpointsecurity
 
 import (
+	"context"
 	"strings"
 	"testing"
 )
@@ -105,7 +106,7 @@ func TestCleanupIsNoOpWhenNothingWasMounted(t *testing.T) {
 	if target := (&esMount{}).detachTarget(); target != "" {
 		t.Errorf("detach target = %q, want empty when nothing was mounted", target)
 	}
-	if err := (&esMount{}).Cleanup(); err != nil {
+	if err := (&esMount{}).Cleanup(context.Background()); err != nil {
 		t.Errorf("Cleanup on an untouched module returned %v", err)
 	}
 }

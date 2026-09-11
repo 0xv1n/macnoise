@@ -72,7 +72,7 @@ func TestTLSGenerate_Handshakes(t *testing.T) {
 					t.Errorf("untrusted certificate result = %+v", ev)
 				}
 			}
-			if err := mod.Cleanup(); err != nil {
+			if err := mod.Cleanup(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 		})

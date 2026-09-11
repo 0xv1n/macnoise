@@ -54,7 +54,7 @@ func (n *netDNSExfil) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netDNSExfil) CheckPrereqs() error { return nil }
+func (n *netDNSExfil) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // encodeExfilPayload base32-encodes a payload and returns it lowercased
 // with padding stripped. The resulting charset (a-z2-7) is DNS-safe.
@@ -155,8 +155,8 @@ func (n *netDNSExfil) DryRun(params module.Params) []string {
 	return steps
 }
 
-func (n *netDNSExfil) Cleanup() error { return nil }
+func (n *netDNSExfil) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&netDNSExfil{})
+	module.Register(func() module.Generator { return &netDNSExfil{} })
 }

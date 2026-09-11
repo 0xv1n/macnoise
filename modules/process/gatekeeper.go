@@ -43,7 +43,7 @@ func (p *procGatekeeper) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (p *procGatekeeper) CheckPrereqs() error { return nil }
+func (p *procGatekeeper) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
@@ -113,7 +113,7 @@ func (p *procGatekeeper) DryRun(params module.Params) []string {
 	}
 }
 
-func (p *procGatekeeper) Cleanup() error {
+func (p *procGatekeeper) Cleanup(ctx context.Context) error {
 	if p.targetPath != "" {
 		if err := os.Remove(p.targetPath); err != nil && !os.IsNotExist(err) {
 			return err
@@ -123,5 +123,5 @@ func (p *procGatekeeper) Cleanup() error {
 }
 
 func init() {
-	module.Register(&procGatekeeper{})
+	module.Register(func() module.Generator { return &procGatekeeper{} })
 }

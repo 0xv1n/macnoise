@@ -1,6 +1,7 @@
 package evasion
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -72,7 +73,7 @@ func TestMasqueradeCleanup_RemovesStageDir(t *testing.T) {
 	}
 
 	e := &evadeMasquerade{stageDir: dir}
-	if err := e.Cleanup(); err != nil {
+	if err := e.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(dir); !os.IsNotExist(err) {

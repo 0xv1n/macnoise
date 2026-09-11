@@ -49,7 +49,7 @@ func (n *netTLS) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netTLS) CheckPrereqs() error { return nil }
+func (n *netTLS) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // tlsConnect dials one target and returns the event. Extracted so the
 // handshake metadata parsing is testable against a local TLS server.
@@ -144,8 +144,8 @@ func (n *netTLS) DryRun(params module.Params) []string {
 	return steps
 }
 
-func (n *netTLS) Cleanup() error { return nil }
+func (n *netTLS) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&netTLS{})
+	module.Register(func() module.Generator { return &netTLS{} })
 }

@@ -60,7 +60,7 @@ func jitterInterval(base time.Duration, jitterPct int, rnd *rand.Rand) time.Dura
 	return out
 }
 
-func (c *c2Beacon) CheckPrereqs() error { return nil }
+func (c *c2Beacon) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	target := tagURL(params.Get("target", "http://example.com"), module.RunIDFromContext(ctx))
@@ -128,8 +128,8 @@ func (c *c2Beacon) DryRun(params module.Params) []string {
 	}
 }
 
-func (c *c2Beacon) Cleanup() error { return nil }
+func (c *c2Beacon) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&c2Beacon{})
+	module.Register(func() module.Generator { return &c2Beacon{} })
 }

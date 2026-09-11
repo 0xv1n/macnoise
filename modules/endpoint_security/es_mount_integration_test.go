@@ -22,7 +22,7 @@ func runMount(t *testing.T, e *esMount, workDir string) []module.TelemetryEvent 
 	// Registered before Generate so a panic or an assertion failure part-way
 	// through still detaches the image, rather than leaving a mounted volume
 	// behind for every subsequent run on the same machine.
-	t.Cleanup(func() { _ = e.Cleanup() })
+	t.Cleanup(func() { _ = e.Cleanup(context.Background()) })
 
 	if err := e.Generate(context.Background(), module.Params{"work_dir": workDir}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -114,7 +114,7 @@ func TestESMount_CleanupRemovesTheDiskImage(t *testing.T) {
 	if _, err := os.Stat(dmgPath); err != nil {
 		t.Fatalf("expected %s to exist before Cleanup: %v", dmgPath, err)
 	}
-	if err := e.Cleanup(); err != nil {
+	if err := e.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(dmgPath); !os.IsNotExist(err) {

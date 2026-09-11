@@ -171,7 +171,7 @@ func TestEncryptCleanup_RemovesStageDir(t *testing.T) {
 		t.Fatal(err)
 	}
 	f := &fileEncrypt{stageDir: stage}
-	if err := f.Cleanup(); err != nil {
+	if err := f.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(stage); !os.IsNotExist(err) {

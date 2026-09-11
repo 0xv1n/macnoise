@@ -51,7 +51,7 @@ func (e *evadeMasquerade) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (e *evadeMasquerade) CheckPrereqs() error { return nil }
+func (e *evadeMasquerade) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // copyExecutable copies src to dst with executable permissions. It is the pure,
 // cross-platform-testable half of the module; the exec that follows is the
@@ -141,7 +141,7 @@ func (e *evadeMasquerade) DryRun(params module.Params) []string {
 	}
 }
 
-func (e *evadeMasquerade) Cleanup() error {
+func (e *evadeMasquerade) Cleanup(ctx context.Context) error {
 	if e.stageDir == "" {
 		return nil
 	}
@@ -149,5 +149,5 @@ func (e *evadeMasquerade) Cleanup() error {
 }
 
 func init() {
-	module.Register(&evadeMasquerade{})
+	module.Register(func() module.Generator { return &evadeMasquerade{} })
 }

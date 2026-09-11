@@ -148,7 +148,7 @@ func TestDNSExfilGenerate_QueriesAndOutcomes(t *testing.T) {
 					t.Errorf("event %d details = %+v", i, ev.Details)
 				}
 			}
-			if err := mod.Cleanup(); err != nil {
+			if err := mod.Cleanup(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 		})

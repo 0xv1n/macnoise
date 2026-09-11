@@ -81,7 +81,7 @@ func (p *procDiscovery) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (p *procDiscovery) CheckPrereqs() error { return nil }
+func (p *procDiscovery) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (p *procDiscovery) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	commandsParam := params.Get("commands", strings.Join(defaultDiscoveryCommands, ","))
@@ -132,8 +132,8 @@ func (p *procDiscovery) DryRun(params module.Params) []string {
 	return steps
 }
 
-func (p *procDiscovery) Cleanup() error { return nil }
+func (p *procDiscovery) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&procDiscovery{})
+	module.Register(func() module.Generator { return &procDiscovery{} })
 }

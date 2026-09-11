@@ -43,7 +43,7 @@ func (s *svcShellProfile) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (s *svcShellProfile) CheckPrereqs() error { return nil }
+func (s *svcShellProfile) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (s *svcShellProfile) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	target := params.Get("target", "~/.zshrc")
@@ -101,7 +101,7 @@ func (s *svcShellProfile) DryRun(params module.Params) []string {
 	}
 }
 
-func (s *svcShellProfile) Cleanup() error {
+func (s *svcShellProfile) Cleanup(ctx context.Context) error {
 	if s.targetFile == "" {
 		return nil
 	}
@@ -136,5 +136,5 @@ func (s *svcShellProfile) Cleanup() error {
 }
 
 func init() {
-	module.Register(&svcShellProfile{})
+	module.Register(func() module.Generator { return &svcShellProfile{} })
 }

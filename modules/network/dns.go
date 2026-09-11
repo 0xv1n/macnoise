@@ -40,7 +40,7 @@ func (n *netDNS) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netDNS) CheckPrereqs() error { return nil }
+func (n *netDNS) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netDNS) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	domainsStr := params.Get("domains", "example.com,google.com,github.com")
@@ -75,8 +75,8 @@ func (n *netDNS) DryRun(params module.Params) []string {
 	}
 }
 
-func (n *netDNS) Cleanup() error { return nil }
+func (n *netDNS) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&netDNS{})
+	module.Register(func() module.Generator { return &netDNS{} })
 }

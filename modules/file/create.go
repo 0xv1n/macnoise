@@ -43,7 +43,7 @@ func (f *fileCreate) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (f *fileCreate) CheckPrereqs() error { return nil }
+func (f *fileCreate) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // stampedFileName builds the file name, folding the run ID in after the prefix
 // when one is set so a consumer can correlate the file back to the run.
@@ -130,7 +130,7 @@ func (f *fileCreate) DryRun(params module.Params) []string {
 	}
 }
 
-func (f *fileCreate) Cleanup() error {
+func (f *fileCreate) Cleanup(ctx context.Context) error {
 	var lastErr error
 	for _, p := range f.createdPaths {
 		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
@@ -142,5 +142,5 @@ func (f *fileCreate) Cleanup() error {
 }
 
 func init() {
-	module.Register(&fileCreate{})
+	module.Register(func() module.Generator { return &fileCreate{} })
 }

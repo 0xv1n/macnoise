@@ -133,8 +133,8 @@ type EventEmitter func(TelemetryEvent)
 type Generator interface {
 	Info() ModuleInfo
 	ParamSpecs() []ParamSpec
-	CheckPrereqs() error
+	CheckPrereqs(ctx context.Context, params Params) error
 	Generate(ctx context.Context, params Params, emit EventEmitter) error
 	DryRun(params Params) []string
-	Cleanup() error
+	Cleanup(ctx context.Context) error
 }

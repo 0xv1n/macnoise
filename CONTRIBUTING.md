@@ -16,10 +16,10 @@ Thanks for your interest in contributing! This guide covers how to add new telem
 type Generator interface {
     Info() ModuleInfo
     ParamSpecs() []ParamSpec
-    CheckPrereqs() error
+    CheckPrereqs(ctx context.Context, params Params) error
     Generate(ctx context.Context, params Params, emit EventEmitter) error
     DryRun(params Params) []string
-    Cleanup() error
+    Cleanup(ctx context.Context) error
 }
 ```
 
@@ -27,7 +27,7 @@ type Generator interface {
 
 ```go
 func init() {
-    module.Register(&myModule{})
+    module.Register(func() module.Generator { return &myModule{} })
 }
 ```
 
@@ -44,9 +44,9 @@ _ "github.com/0xv1n/macnoise/modules/mynewcategory"
 - [ ] Implements all 6 methods of `Generator`
 - [ ] `Info()` has accurate `Category`, `Tags`, `Privileges`, and `MITRE` entries
 - [ ] `ParamSpecs()` documents every accepted parameter with defaults and examples
-- [ ] `CheckPrereqs()` returns a clear error when requirements aren't met
+- [ ] `CheckPrereqs(ctx, params)` returns a clear error when requirements aren't met
 - [ ] `DryRun()` describes every action without executing side-effects
-- [ ] `Cleanup()` fully reverts any persistent changes
+- [ ] `Cleanup(ctx)` fully reverts any persistent changes
 - [ ] Module emits events via `emit()`, never writes directly to stdout
 - [ ] Registered in `cmd/macnoise/main.go` via blank import
 - [ ] Integration test file added

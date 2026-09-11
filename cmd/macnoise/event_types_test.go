@@ -47,10 +47,14 @@ func TestModuleEventTypesMatchEmitted(t *testing.T) {
 			return nil // helper file, or event type built from a variable
 		}
 
-		declared := map[string]bool{}
-		if m := eventTypesLiteralRe.FindStringSubmatch(text); m != nil {
-			for _, q := range quotedStringRe.FindAllStringSubmatch(m[1], -1) {
-				declared[q[1]] = true
+		declared := declaredEventTypes(text)
+		if len(declared) == 0 {
+			commonPath := strings.TrimSuffix(path, ".go") + "_common.go"
+			commonSrc, readErr := os.ReadFile(commonPath)
+			if readErr == nil {
+				declared = declaredEventTypes(string(commonSrc))
+			} else if !os.IsNotExist(readErr) {
+				return readErr
 			}
 		}
 
@@ -66,9 +70,19 @@ func TestModuleEventTypesMatchEmitted(t *testing.T) {
 	}
 }
 
+func declaredEventTypes(src string) map[string]bool {
+	declared := map[string]bool{}
+	if m := eventTypesLiteralRe.FindStringSubmatch(src); m != nil {
+		for _, q := range quotedStringRe.FindAllStringSubmatch(m[1], -1) {
+			declared[q[1]] = true
+		}
+	}
+	return declared
+}
+
 // Every registered module must declare at least one event type, since every
-// module emits telemetry. Off darwin the registry is a subset (some modules are
-// build-tagged), which is fine: this checks whatever is registered.
+// module emits telemetry. The registry is portable, so this covers the complete
+// catalog on every supported development platform.
 func TestAllModulesDeclareEventTypes(t *testing.T) {
 	for _, g := range module.All() {
 		if len(g.Info().EventTypes) == 0 {

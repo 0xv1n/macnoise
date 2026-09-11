@@ -45,7 +45,7 @@ func TestFileHide_GenerateAndCleanup(t *testing.T) {
 		t.Error("expected a successful file_hide_dotfile event")
 	}
 
-	if err := f.Cleanup(); err != nil {
+	if err := f.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(workDir); !os.IsNotExist(err) {

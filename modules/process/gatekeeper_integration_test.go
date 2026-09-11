@@ -23,7 +23,7 @@ func TestGatekeeperGenerate_FullCycle(t *testing.T) {
 	if err := p.Generate(ctx, module.Params{"target_path": target}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	t.Cleanup(func() { _ = p.Cleanup() })
+	t.Cleanup(func() { _ = p.Cleanup(context.Background()) })
 
 	byType := map[string]module.TelemetryEvent{}
 	for _, ev := range events {

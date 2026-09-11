@@ -46,7 +46,7 @@ func TestPlistCreate_GenerateAndCleanup(t *testing.T) {
 		t.Error("expected a successful plist_create event")
 	}
 
-	if err := p.Cleanup(); err != nil {
+	if err := p.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(outPath); !os.IsNotExist(err) {
@@ -68,7 +68,7 @@ func TestPlistCreate_LaunchAgentMode(t *testing.T) {
 	if err := p.Generate(context.Background(), params, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	defer p.Cleanup() //nolint:errcheck
+	defer p.Cleanup(context.Background()) //nolint:errcheck
 
 	f, err := os.Open(outPath)
 	if err != nil {

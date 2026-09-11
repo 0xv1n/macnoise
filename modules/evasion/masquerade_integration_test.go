@@ -24,7 +24,7 @@ func TestMasqueradeGenerate_CopiesAndExecutes(t *testing.T) {
 	if err := e.Generate(ctx, params, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	t.Cleanup(func() { _ = e.Cleanup() })
+	t.Cleanup(func() { _ = e.Cleanup(context.Background()) })
 
 	if len(events) != 2 {
 		t.Fatalf("emitted %d events, want 2: %+v", len(events), events)

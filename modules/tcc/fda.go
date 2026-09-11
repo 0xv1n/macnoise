@@ -44,7 +44,7 @@ func (t *tccFDA) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (t *tccFDA) CheckPrereqs() error { return nil }
+func (t *tccFDA) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // defaultFDAPath returns the per-user TCC database.
 //
@@ -107,8 +107,8 @@ func (t *tccFDA) DryRun(params module.Params) []string {
 	return []string{fmt.Sprintf("open %s for reading (probes FDA permission)", path)}
 }
 
-func (t *tccFDA) Cleanup() error { return nil }
+func (t *tccFDA) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&tccFDA{})
+	module.Register(func() module.Generator { return &tccFDA{} })
 }

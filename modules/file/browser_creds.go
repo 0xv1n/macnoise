@@ -144,7 +144,7 @@ func (f *fileBrowserCreds) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (f *fileBrowserCreds) CheckPrereqs() error { return nil }
+func (f *fileBrowserCreds) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func browserTargets() ([]browserTarget, error) {
 	home, err := os.UserHomeDir()
@@ -255,8 +255,8 @@ func (f *fileBrowserCreds) DryRun(params module.Params) []string {
 	}
 }
 
-func (f *fileBrowserCreds) Cleanup() error { return nil }
+func (f *fileBrowserCreds) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&fileBrowserCreds{})
+	module.Register(func() module.Generator { return &fileBrowserCreds{} })
 }

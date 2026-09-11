@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -205,6 +206,38 @@ func TestLogLifecycle_ModuleRun(t *testing.T) {
 	}
 	if rec.StatusID != 1 {
 		t.Errorf("expected status_id 1 (Success), got %d", rec.StatusID)
+	}
+}
+
+func TestLogLifecycle_CleanupFail(t *testing.T) {
+	l, path := newTestLogger(t)
+
+	info := module.ModuleInfo{Name: "file_create", Category: "file", Privileges: module.PrivilegeNone}
+	data := LifecycleData{
+		StartTime:     time.Now(),
+		EndTime:       time.Now(),
+		PrereqResult:  "pass",
+		CleanupResult: "error",
+		CleanupError:  "remove artifact: permission denied",
+	}
+
+	l.LogLifecycle("module_run", info, module.Params{}, data)
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	records := readRecords(t, path)
+	if len(records) != 1 {
+		t.Fatalf("expected 1 record, got %d", len(records))
+	}
+	if records[0].SeverityID != 3 {
+		t.Errorf("severity_id = %d, want 3 (Medium)", records[0].SeverityID)
+	}
+	if records[0].StatusID != 2 {
+		t.Errorf("status_id = %d, want 2 (Failure)", records[0].StatusID)
+	}
+	if !strings.Contains(records[0].Message, "cleanup failed") {
+		t.Errorf("message = %q, want cleanup failure", records[0].Message)
 	}
 }
 

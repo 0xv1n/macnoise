@@ -1,5 +1,5 @@
 name: Network Telemetry Sweep
-description: Runs all network category modules to generate comprehensive network telemetry
+description: Runs selected network modules to generate connection, listener, DNS, and beacon telemetry
 
 steps:
   - module: net_connect

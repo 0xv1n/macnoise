@@ -52,7 +52,7 @@ func (f *fileEncrypt) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (f *fileEncrypt) CheckPrereqs() error { return nil }
+func (f *fileEncrypt) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // stageDecoyFiles writes all plaintext decoys into dir before encryption begins.
 // Only these macnoise-created decoys are ever encrypted; the module never reads
@@ -179,7 +179,7 @@ func (f *fileEncrypt) DryRun(params module.Params) []string {
 	}
 }
 
-func (f *fileEncrypt) Cleanup() error {
+func (f *fileEncrypt) Cleanup(ctx context.Context) error {
 	if f.stageDir == "" {
 		return nil
 	}
@@ -187,5 +187,5 @@ func (f *fileEncrypt) Cleanup() error {
 }
 
 func init() {
-	module.Register(&fileEncrypt{})
+	module.Register(func() module.Generator { return &fileEncrypt{} })
 }

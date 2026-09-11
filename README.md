@@ -133,7 +133,7 @@ Scenarios chain modules into ordered sequences - a single YAML file that replays
 
 | File | Description |
 |------|-------------|
-| `network_only.yaml` | All network modules |
+| `network_only.yaml` | Selected connection, listener, DNS, and beacon modules |
 | `edr_validation.yaml` | Comprehensive EDR detection coverage |
 | `full_sweep.yaml` | All categories |
 | `lazarus_group.yaml` | Lazarus Group: dylib injection, service discovery, reverse shell, plist persistence |
@@ -153,6 +153,7 @@ The two APT scenarios follow real documented intrusion sequences, technique by t
 **Writing your own:**
 ```yaml
 name: My Custom Scenario
+on_error: stop
 steps:
   - module: net_connect
     params:
@@ -162,6 +163,8 @@ steps:
     params:
       base_dir: "/tmp/test"
 ```
+
+`on_error` defaults to `stop`. Set it to `continue` only when a coverage sweep should attempt later module invocations after a failure.
 
 ## Contributing
 

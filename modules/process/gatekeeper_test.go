@@ -1,6 +1,7 @@
 package process
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,7 @@ func TestGatekeeperCleanup_RemovesTargetFile(t *testing.T) {
 	}
 
 	p := &procGatekeeper{targetPath: path}
-	if err := p.Cleanup(); err != nil {
+	if err := p.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
@@ -39,12 +40,12 @@ func TestGatekeeperCleanup_RemovesTargetFile(t *testing.T) {
 
 func TestGatekeeperCleanup_ToleratesMissingAndEmpty(t *testing.T) {
 	// No target path recorded (Generate never ran).
-	if err := (&procGatekeeper{}).Cleanup(); err != nil {
+	if err := (&procGatekeeper{}).Cleanup(context.Background()); err != nil {
 		t.Errorf("Cleanup with no target should be a no-op, got %v", err)
 	}
 	// Target recorded but already gone.
 	p := &procGatekeeper{targetPath: filepath.Join(t.TempDir(), "never_created")}
-	if err := p.Cleanup(); err != nil {
+	if err := p.Cleanup(context.Background()); err != nil {
 		t.Errorf("Cleanup of an absent file should tolerate IsNotExist, got %v", err)
 	}
 }

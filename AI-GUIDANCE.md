@@ -103,18 +103,18 @@ MacNoise is structured in five distinct layers. When reasoning about where a cha
 | File | Purpose |
 |------|---------|
 | `internal/config/config.go` | `Config` struct (`DefaultFormat`, `DefaultTimeout`, `OutputFile`, `AuditLog`); `Defaults()`, `Load(path)` |
-| `internal/prereqs/checker.go` | `IsMacOS`, `IsRoot`, `IsAdmin`, `HasCommand`; error-returning variants `CheckMacOS`, `CheckRoot`, `CheckCommand`; called from module `CheckPrereqs()` implementations |
+| `internal/prereqs/checker.go` | `IsMacOS`, `IsRoot`, `IsAdmin`, `HasCommand`; error-returning variants `CheckMacOS`, `CheckRoot`, `CheckCommand`; called from module `CheckPrereqs(ctx, params)` implementations |
 
 ### Configs and Scenarios
 
 | File | Purpose |
 |------|---------|
 | `configs/defaults.yaml` | Example config file — set `default_format`, `default_timeout`, `audit_log`, `output_file` |
-| `configs/scenarios/network_only.yaml` | All five network modules |
+| `configs/scenarios/network_only.yaml` | Selected connection, listener, DNS, and beacon modules |
 | `configs/scenarios/edr_validation.yaml` | Broad EDR detection coverage across process, network, file, persistence, TCC |
-| `configs/scenarios/full_sweep.yaml` | All 19 modules across all categories |
+| `configs/scenarios/full_sweep.yaml` | Broad sweep across all categories, excluding root-only modules |
 | `configs/scenarios/lazarus_group.yaml` | DPRK-style implant chain (T1574.006, T1071, T1059.004, T1543) |
-| `configs/scenarios/amos_atomic_stealer.yaml` | AMOS 2025 variant — 10 phases, 17 modules, full infostealer kill chain |
+| `configs/scenarios/amos_atomic_stealer.yaml` | AMOS 2025 variant with a 10-phase infostealer kill chain |
 
 ---
 
@@ -126,17 +126,17 @@ Every module is a Go struct that satisfies `module.Generator`:
 type Generator interface {
     Info()         ModuleInfo     // Static metadata: name, category, tags, privileges, MITRE
     ParamSpecs()   []ParamSpec    // Accepted parameters with defaults and examples
-    CheckPrereqs() error          // Fail fast if OS/privilege/command requirements aren't met
+    CheckPrereqs(ctx context.Context, params Params) error // Fail fast if requirements aren't met
     Generate(ctx context.Context, params Params, emit EventEmitter) error
     DryRun(params Params) []string // Human-readable description of actions; no side-effects
-    Cleanup() error               // Fully revert any persistent changes made by Generate
+    Cleanup(ctx context.Context) error // Fully revert persistent changes made by Generate
 }
 ```
 
 **Registration** — every module file has an `init()` function:
 ```go
 func init() {
-    module.Register(&myModule{})
+    module.Register(func() module.Generator { return &myModule{} })
 }
 ```
 
@@ -154,14 +154,14 @@ Adding a blank import there is the only change needed to the CLI when a new modu
 `RunSingle` in `internal/runner/runner.go` drives every module through this sequence:
 
 ```
-CheckPrereqs()
-  └─ fail → emit error, write audit lifecycle record, return
 DryRun mode?
   └─ yes → print actions, write audit dry-run record, return
+CheckPrereqs(ctx, params)
+  └─ fail → write audit lifecycle record, return error
 Generate(ctx, params, auditWrappedEmit)
   └─ each emit() call → telemetry event to stdout/file
                       → audit.LogEvent() (if --audit-log active)
-Cleanup()
+Cleanup(cleanupCtx)
   └─ write audit lifecycle record with full outcome data
 ```
 
@@ -217,12 +217,12 @@ The audit system is entirely transparent to module code. The runner owns it:
 
 ## Build and Platform Notes
 
-- **Target platform**: macOS (darwin). The binary is meaningless on other OSes.
+- **Target execution platform**: macOS (darwin). Other platforms support the complete catalog, scenario validation, and dry runs.
 - **Development environment**: Cross-compilation from any OS is supported via `GOOS=darwin`.
-- **Darwin-only code**: Modules that use `SIGSTOP`/`SIGCONT`, `launchctl`, or other Darwin-only syscalls carry a `//go:build darwin` tag.
+- **Darwin-only code**: Keep module metadata and registration portable, and isolate native syscall implementations behind `//go:build darwin` when required.
 - **CGO**: Not used. The build is pure Go.
 - **Version injection**: `make build` passes `-ldflags "-X main.version=$(VERSION)"`. Do not hardcode version strings.
-- **Unit tests run on any OS**: `go test ./pkg/... ./internal/...` — these packages avoid OS-specific syscalls.
+- **Unit tests run on any OS**: `go test ./...` covers the portable catalog and all cross-platform packages.
 - **Integration tests**: Tagged `//go:build integration && darwin` and require a real macOS system.
 
 ```bash
@@ -230,7 +230,7 @@ The audit system is entirely transparent to module code. The runner owns it:
 GOOS=darwin GOARCH=arm64 go build ./cmd/macnoise
 
 # Unit tests (any OS)
-go test ./pkg/... ./internal/...
+go test ./...
 
 # Lint
 golangci-lint run ./...
@@ -243,7 +243,7 @@ golangci-lint run ./...
 1. Create `modules/<category>/<name>.go`.
 2. Define a private struct and implement all 6 `Generator` methods.
 3. Populate `ModuleInfo` accurately — `Name` (unique, snake_case), `Category`, `Tags`, `Privileges`, `MITRE`.
-4. Add `func init() { module.Register(&myStruct{}) }`.
+4. Add `func init() { module.Register(func() module.Generator { return &myStruct{} }) }`.
 5. Add a blank import in `cmd/macnoise/main.go` (only needed for new *packages*).
 6. If the module emits a new `eventType` string that should map to a non-default OCSF activity, add a case in `internal/audit/classify.go`.
 7. Add a doc comment on the struct (required by `revive:exported` lint rule).
@@ -273,7 +273,7 @@ golangci-lint run ./...
 | No stdout from modules | All module output goes through `emit(ev)` |
 | No global state | Only the module registry (`pkg/module/registry.go`) uses package-level state; it is protected by `sync.RWMutex` |
 | Params access | Always `params.Get("key", "default")` — never index `params` directly |
-| Build tags | Darwin-only code: `//go:build darwin` on the first line |
+| Build tags | Keep metadata and registration portable; isolate Darwin-only implementation code behind `//go:build darwin` |
 | File names | One module per file, named after the module (`net_connect.go` → `net_connect` module) |
 | Package names | Module packages use the category name (e.g. `package network`), not the module name |
 
@@ -287,7 +287,7 @@ golangci-lint run ./...
 - **Missing `Cleanup()`** — every state change in `Generate()` must be reversible. If `Cleanup()` is a no-op because nothing persists, that is fine; it must still exist.
 - **Registering with a duplicate name** — `Register()` panics on collision. Module names are global and must be unique.
 - **Missing blank import** — a new category package won't register its modules unless imported in `cmd/macnoise/main.go`.
-- **Forgetting the darwin build tag** — Darwin-only syscalls in a file without `//go:build darwin` will cause `go test ./...` to fail on the dev machine.
+- **Hiding metadata behind a darwin build tag** - keep metadata and registration portable, and put only native implementation code behind `//go:build darwin`.
 
 ---
 

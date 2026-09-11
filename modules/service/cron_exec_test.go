@@ -114,14 +114,14 @@ func TestCronGenerate_InstallAndCleanup(t *testing.T) {
 			// A later writer's entry must survive cleanup too.
 			const later = "0 0 2 1 * /usr/bin/true # keep later entry\n"
 			cronInstall(t, installed+later)
-			if err := s.Cleanup(); err != nil {
+			if err := s.Cleanup(context.Background()); err != nil {
 				t.Fatalf("Cleanup: %v", err)
 			}
 			want = strings.TrimRight(baseline, "\n") + "\n" + later
 			if got, _ := cronRead(t); got != want {
 				t.Errorf("crontab after cleanup = %q, want %q", got, want)
 			}
-			if err := s.Cleanup(); err != nil {
+			if err := s.Cleanup(context.Background()); err != nil {
 				t.Fatalf("second Cleanup: %v", err)
 			}
 			if got, _ := cronRead(t); got != want {
@@ -153,7 +153,7 @@ func TestCronGenerate_InvalidSchedule(t *testing.T) {
 	if got, _ := cronRead(t); got != baseline {
 		t.Errorf("failed install changed crontab: %q", got)
 	}
-	if err := s.Cleanup(); err != nil {
+	if err := s.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup after failed install: %v", err)
 	}
 	if got, _ := cronRead(t); got != baseline {

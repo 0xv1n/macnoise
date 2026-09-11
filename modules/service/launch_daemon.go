@@ -42,7 +42,7 @@ func (s *svcLaunchDaemon) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (s *svcLaunchDaemon) CheckPrereqs() error {
+func (s *svcLaunchDaemon) CheckPrereqs(ctx context.Context, params module.Params) error {
 	return prereqs.CheckRoot()
 }
 
@@ -114,10 +114,10 @@ func (s *svcLaunchDaemon) DryRun(params module.Params) []string {
 
 // Cleanup boots the daemon out before removing its plist. As with the agent, a
 // bootout failure is only reported when Generate actually loaded it.
-func (s *svcLaunchDaemon) Cleanup() error {
+func (s *svcLaunchDaemon) Cleanup(ctx context.Context) error {
 	var bootoutErr error
 	if s.loaded {
-		out, err := exec.Command("launchctl", bootoutArgs(systemDomain, s.label)...).CombinedOutput()
+		out, err := exec.CommandContext(ctx, "launchctl", bootoutArgs(systemDomain, s.label)...).CombinedOutput()
 		if err != nil {
 			bootoutErr = fmt.Errorf("launchctl bootout %s: %v: %s", s.label, err, out)
 		}
@@ -131,5 +131,5 @@ func (s *svcLaunchDaemon) Cleanup() error {
 }
 
 func init() {
-	module.Register(&svcLaunchDaemon{})
+	module.Register(func() module.Generator { return &svcLaunchDaemon{} })
 }

@@ -395,14 +395,14 @@ func lifecycleSeverity(data LifecycleData) (int, string) {
 	if data.PrereqResult == "fail" {
 		return 2, "Low"
 	}
-	if data.GenerateError != "" {
+	if data.GenerateError != "" || data.CleanupError != "" {
 		return 3, "Medium"
 	}
 	return 1, "Informational"
 }
 
 func lifecycleStatus(data LifecycleData) (int, string) {
-	if data.PrereqResult == "fail" || data.GenerateError != "" {
+	if data.PrereqResult == "fail" || data.GenerateError != "" || data.CleanupError != "" {
 		return 2, "Failure"
 	}
 	return 1, "Success"
@@ -415,8 +415,14 @@ func lifecycleMessage(recordType, moduleName string, data LifecycleData) string 
 	case "module_dry_run":
 		return fmt.Sprintf("Module %s dry-run completed", moduleName)
 	default:
+		if data.GenerateError != "" && data.CleanupError != "" {
+			return fmt.Sprintf("Module %s failed: %s; cleanup failed: %s", moduleName, data.GenerateError, data.CleanupError)
+		}
 		if data.GenerateError != "" {
 			return fmt.Sprintf("Module %s failed: %s", moduleName, data.GenerateError)
+		}
+		if data.CleanupError != "" {
+			return fmt.Sprintf("Module %s cleanup failed: %s", moduleName, data.CleanupError)
 		}
 		return fmt.Sprintf("Module %s completed successfully (%d events emitted)", moduleName, data.EventsEmitted)
 	}

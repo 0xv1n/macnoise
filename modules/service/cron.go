@@ -37,7 +37,7 @@ func (s *svcCron) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (s *svcCron) CheckPrereqs() error { return nil }
+func (s *svcCron) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // noCrontabMarker is the substring `crontab -l` prints to stderr when a user
 // genuinely has no crontab yet (e.g. "crontab: no crontab for alice"). It is
@@ -135,11 +135,11 @@ func (s *svcCron) DryRun(params module.Params) []string {
 	}
 }
 
-func (s *svcCron) Cleanup() error {
+func (s *svcCron) Cleanup(ctx context.Context) error {
 	if s.addedEntry == "" {
 		return nil
 	}
-	out, err := exec.Command("crontab", "-l").CombinedOutput()
+	out, err := exec.CommandContext(ctx, "crontab", "-l").CombinedOutput()
 	existing, safe := classifyCrontabList(out, err)
 	if !safe {
 		// Leave addedEntry set: we don't know whether our entry is still
@@ -156,7 +156,7 @@ func (s *svcCron) Cleanup() error {
 		}
 	}
 	newCrontab := strings.Join(filtered, "\n")
-	cmd := exec.Command("crontab", "-")
+	cmd := exec.CommandContext(ctx, "crontab", "-")
 	cmd.Stdin = strings.NewReader(newCrontab)
 	if err := cmd.Run(); err != nil {
 		return fmt.Errorf("svc_cron: failed to reinstall filtered crontab during cleanup: %w", err)
@@ -166,5 +166,5 @@ func (s *svcCron) Cleanup() error {
 }
 
 func init() {
-	module.Register(&svcCron{})
+	module.Register(func() module.Generator { return &svcCron{} })
 }

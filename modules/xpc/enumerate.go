@@ -40,7 +40,7 @@ func (x *xpcEnumerate) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (x *xpcEnumerate) CheckPrereqs() error {
+func (x *xpcEnumerate) CheckPrereqs(ctx context.Context, params module.Params) error {
 	return prereqs.CheckCommand("launchctl")
 }
 
@@ -144,8 +144,8 @@ func (x *xpcEnumerate) DryRun(params module.Params) []string {
 	}
 }
 
-func (x *xpcEnumerate) Cleanup() error { return nil }
+func (x *xpcEnumerate) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&xpcEnumerate{})
+	module.Register(func() module.Generator { return &xpcEnumerate{} })
 }

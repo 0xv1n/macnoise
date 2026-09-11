@@ -90,7 +90,7 @@ func TestESProcessGenerate_Chains(t *testing.T) {
 			if err != nil || string(data) != strings.Repeat("sh\n", tt.wantDepth-1) {
 				t.Errorf("shell trace = %q, %v; want %d wrappers", data, err, tt.wantDepth-1)
 			}
-			if err := p.Cleanup(); err != nil {
+			if err := p.Cleanup(context.Background()); err != nil {
 				t.Fatalf("Cleanup: %v", err)
 			}
 		})

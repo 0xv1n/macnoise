@@ -28,7 +28,7 @@ func TestFileModify_CleanupRemovesFileItCreated(t *testing.T) {
 		t.Fatalf("expected Generate to create %s: %v", target, err)
 	}
 
-	if err := f.Cleanup(); err != nil {
+	if err := f.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 
@@ -60,7 +60,7 @@ func TestFileModify_CleanupRestoresPriorContent(t *testing.T) {
 		t.Fatal("Generate did not modify the file, test setup is invalid")
 	}
 
-	if err := f.Cleanup(); err != nil {
+	if err := f.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 

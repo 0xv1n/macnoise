@@ -1,6 +1,7 @@
 package plistmod
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -18,7 +19,7 @@ func TestCleanup_RemovesEmptyParentDir(t *testing.T) {
 	}
 
 	p := &plistCreate{createdPath: fpath}
-	if err := p.Cleanup(); err != nil {
+	if err := p.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 
@@ -46,7 +47,7 @@ func TestCleanup_LeavesNonEmptyParentDir(t *testing.T) {
 	}
 
 	p := &plistCreate{createdPath: fpath}
-	if err := p.Cleanup(); err != nil {
+	if err := p.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 

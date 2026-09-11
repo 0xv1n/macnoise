@@ -40,7 +40,7 @@ func (t *tccContacts) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (t *tccContacts) CheckPrereqs() error { return nil }
+func (t *tccContacts) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (t *tccContacts) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	abPath := params.Get("addressbook_path", "")
@@ -82,8 +82,8 @@ func (t *tccContacts) DryRun(params module.Params) []string {
 	return []string{"enumerate ~/Library/Application Support/AddressBook (probes Contacts TCC permission)"}
 }
 
-func (t *tccContacts) Cleanup() error { return nil }
+func (t *tccContacts) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&tccContacts{})
+	module.Register(func() module.Generator { return &tccContacts{} })
 }

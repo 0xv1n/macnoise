@@ -36,7 +36,7 @@ func (n *netRevShell) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netRevShell) CheckPrereqs() error { return nil }
+func (n *netRevShell) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	target := params.Get("target", "127.0.0.1")
@@ -95,8 +95,8 @@ func (n *netRevShell) DryRun(params module.Params) []string {
 	}
 }
 
-func (n *netRevShell) Cleanup() error { return nil }
+func (n *netRevShell) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&netRevShell{})
+	module.Register(func() module.Generator { return &netRevShell{} })
 }
