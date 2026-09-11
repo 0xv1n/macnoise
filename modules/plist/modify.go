@@ -84,9 +84,9 @@ func (p *plistModify) Info() module.ModuleInfo {
 
 func (p *plistModify) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "domain", Description: "Defaults domain to write to", Required: false, DefaultValue: "com.macnoise.test", Example: "com.apple.finder"},
-		{Name: "key", Description: "Preference key to set", Required: false, DefaultValue: "MacnoiseTest", Example: "ShowHiddenFiles"},
-		{Name: "value", Description: "String value to set", Required: false, DefaultValue: "true", Example: "1"},
+		{Name: "domain", Description: "Defaults domain to write to", Type: module.ParamString, Default: "com.macnoise.test", Example: "com.apple.finder"},
+		{Name: "key", Description: "Preference key to set", Type: module.ParamString, Default: "MacnoiseTest", Example: "ShowHiddenFiles"},
+		{Name: "value", Description: "String value to set", Type: module.ParamString, Default: "true", Example: "1"},
 	}
 }
 
@@ -95,12 +95,12 @@ func (p *plistModify) CheckPrereqs(ctx context.Context, params module.Params) er
 }
 
 func (p *plistModify) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	domain := params.Get("domain", "com.macnoise.test")
+	domain := params.String("domain", "com.macnoise.test")
 	if runID := module.RunIDFromContext(ctx); runID != "" {
 		domain += "." + runID
 	}
-	key := params.Get("key", "MacnoiseTest")
-	value := params.Get("value", "true")
+	key := params.String("key", "MacnoiseTest")
+	value := params.String("value", "true")
 	info := p.Info()
 
 	readEv := output.NewEvent(info, "plist_read_prior", false, fmt.Sprintf("reading prior value of %s %s", domain, key))
@@ -141,9 +141,9 @@ func (p *plistModify) Generate(ctx context.Context, params module.Params, emit m
 }
 
 func (p *plistModify) DryRun(params module.Params) []string {
-	domain := params.Get("domain", "com.macnoise.test")
-	key := params.Get("key", "MacnoiseTest")
-	value := params.Get("value", "true")
+	domain := params.String("domain", "com.macnoise.test")
+	key := params.String("key", "MacnoiseTest")
+	value := params.String("value", "true")
 	return []string{
 		fmt.Sprintf("defaults read %s %s (capture prior value for cleanup)", domain, key),
 		fmt.Sprintf("defaults write %s %s -string %s", domain, key, value),

@@ -36,11 +36,11 @@ func (p *plistCreate) Info() module.ModuleInfo {
 
 func (p *plistCreate) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "output_path", Description: "Path for the created plist file", Required: false, DefaultValue: "/tmp/macnoise_test.plist", Example: "/tmp/test.plist"},
-		{Name: "bundle_id", Description: "Bundle ID value to embed in plist", Required: false, DefaultValue: "com.macnoise.test", Example: "com.example.app"},
-		{Name: "mode", Description: "Plist mode: 'bundle' (default) writes CFBundle keys; 'launchagent' writes LaunchAgent keys", Required: false, DefaultValue: "bundle", Example: "launchagent"},
-		{Name: "label", Description: "LaunchAgent Label key (used when mode=launchagent, defaults to bundle_id)", Required: false, DefaultValue: "", Example: "com.apple.coredata"},
-		{Name: "program", Description: "LaunchAgent ProgramArguments first element (used when mode=launchagent)", Required: false, DefaultValue: "/usr/bin/true", Example: "/Library/LaunchAgents/helper"},
+		{Name: "output_path", Description: "Path for the created plist file", Type: module.ParamPath, Default: "/tmp/macnoise_test.plist", Example: "/tmp/test.plist"},
+		{Name: "bundle_id", Description: "Bundle ID value to embed in plist", Type: module.ParamString, Default: "com.macnoise.test", Example: "com.example.app"},
+		{Name: "mode", Description: "Plist mode: 'bundle' (default) writes CFBundle keys; 'launchagent' writes LaunchAgent keys", Type: module.ParamString, Default: "bundle", Example: "launchagent", Choices: []string{"bundle", "launchagent"}},
+		{Name: "label", Description: "LaunchAgent Label key (used when mode=launchagent, defaults to bundle_id)", Type: module.ParamString, Example: "com.apple.coredata"},
+		{Name: "program", Description: "LaunchAgent ProgramArguments first element (used when mode=launchagent)", Type: module.ParamPath, Default: "/usr/bin/true", Example: "/Library/LaunchAgents/helper"},
 	}
 }
 
@@ -48,12 +48,12 @@ func (p *plistCreate) CheckPrereqs(ctx context.Context, params module.Params) er
 
 func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
-	outPath := module.TagPath(params.Get("output_path", "/tmp/macnoise_test.plist"), runID)
-	bundleID := params.Get("bundle_id", "com.macnoise.test")
+	outPath := module.TagPath(params.String("output_path", "/tmp/macnoise_test.plist"), runID)
+	bundleID := params.String("bundle_id", "com.macnoise.test")
 	if runID != "" {
 		bundleID += "." + runID
 	}
-	mode := params.Get("mode", "bundle")
+	mode := params.String("mode", "bundle")
 	info := p.Info()
 
 	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
@@ -64,8 +64,8 @@ func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit m
 	var evAction, evMsg string
 
 	if mode == "launchagent" {
-		label := params.Get("label", bundleID)
-		program := params.Get("program", "/usr/bin/true")
+		label := params.String("label", bundleID)
+		program := params.String("program", "/usr/bin/true")
 		plistData = map[string]any{
 			"Label":            label,
 			"ProgramArguments": []string{program},
@@ -104,8 +104,8 @@ func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit m
 	p.createdPath = outPath
 
 	if mode == "launchagent" {
-		label := params.Get("label", bundleID)
-		program := params.Get("program", "/usr/bin/true")
+		label := params.String("label", bundleID)
+		program := params.String("program", "/usr/bin/true")
 		ev.Success = true
 		ev.Message = fmt.Sprintf("created LaunchAgent plist at %s (label: %s, program: %s)", outPath, label, program)
 		ev = output.WithDetails(ev, map[string]any{"path": outPath, "label": label, "program": program, "run_at_load": true, "format": "xml"})
@@ -119,17 +119,17 @@ func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit m
 }
 
 func (p *plistCreate) DryRun(params module.Params) []string {
-	outPath := params.Get("output_path", "/tmp/macnoise_test.plist")
-	mode := params.Get("mode", "bundle")
+	outPath := params.String("output_path", "/tmp/macnoise_test.plist")
+	mode := params.String("mode", "bundle")
 	if mode == "launchagent" {
-		bundleID := params.Get("bundle_id", "com.macnoise.test")
-		label := params.Get("label", bundleID)
-		program := params.Get("program", "/usr/bin/true")
+		bundleID := params.String("bundle_id", "com.macnoise.test")
+		label := params.String("label", bundleID)
+		program := params.String("program", "/usr/bin/true")
 		return []string{
 			fmt.Sprintf("create LaunchAgent plist at %s with Label=%s ProgramArguments=[%s] RunAtLoad=true", outPath, label, program),
 		}
 	}
-	bundleID := params.Get("bundle_id", "com.macnoise.test")
+	bundleID := params.String("bundle_id", "com.macnoise.test")
 	return []string{
 		fmt.Sprintf("create XML plist at %s with CFBundleIdentifier=%s", outPath, bundleID),
 	}

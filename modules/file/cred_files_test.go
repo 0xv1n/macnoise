@@ -94,29 +94,6 @@ func TestDefaultCredTargetsCoversEachKind(t *testing.T) {
 	}
 }
 
-func TestParseExtraPaths(t *testing.T) {
-	tests := []struct {
-		in   string
-		want []string
-	}{
-		{"", nil},
-		{"/a/.env", []string{"/a/.env"}},
-		{"/a/.env, /b/.netrc", []string{"/a/.env", "/b/.netrc"}},
-		{"/a,,  ,/b", []string{"/a", "/b"}},
-	}
-	for _, tt := range tests {
-		got := parseExtraPaths(tt.in)
-		if len(got) != len(tt.want) {
-			t.Fatalf("parseExtraPaths(%q) = %v, want %v", tt.in, got, tt.want)
-		}
-		for i := range got {
-			if got[i] != tt.want[i] {
-				t.Errorf("parseExtraPaths(%q)[%d] = %q, want %q", tt.in, i, got[i], tt.want[i])
-			}
-		}
-	}
-}
-
 // The read path: a present, readable credential file is reported as an executed
 // read with a byte count. Works on any OS, no chmod needed.
 func TestCredEventReadsPresentFile(t *testing.T) {

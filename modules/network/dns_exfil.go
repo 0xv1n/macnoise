@@ -38,18 +38,18 @@ func (n *netDNSExfil) Info() module.ModuleInfo {
 func (n *netDNSExfil) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "payload",
-			Description:  "String to exfiltrate via DNS subdomain encoding",
-			Required:     false,
-			DefaultValue: "macnoise-exfil-test",
-			Example:      "stolen-secret-data",
+			Name:        "payload",
+			Description: "String to exfiltrate via DNS subdomain encoding",
+			Type:        module.ParamString,
+			Default:     "macnoise-exfil-test",
+			Example:     "stolen-secret-data",
 		},
 		{
-			Name:         "base_domain",
-			Description:  "Base domain appended to each query (use .invalid TLD for offline safety)",
-			Required:     false,
-			DefaultValue: defaultExfilDomain,
-			Example:      "data.attacker.invalid",
+			Name:        "base_domain",
+			Description: "Base domain appended to each query (use .invalid TLD for offline safety)",
+			Type:        module.ParamString,
+			Default:     defaultExfilDomain,
+			Example:     "data.attacker.invalid",
 		},
 	}
 }
@@ -100,8 +100,8 @@ func exfilQueries(payload, baseDomain, runID string) []string {
 }
 
 func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	payload := params.Get("payload", "macnoise-exfil-test")
-	baseDomain := params.Get("base_domain", defaultExfilDomain)
+	payload := params.String("payload", "macnoise-exfil-test")
+	baseDomain := params.String("base_domain", defaultExfilDomain)
 	info := n.Info()
 
 	queries := exfilQueries(payload, baseDomain, module.RunIDFromContext(ctx))
@@ -145,8 +145,8 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 }
 
 func (n *netDNSExfil) DryRun(params module.Params) []string {
-	payload := params.Get("payload", "macnoise-exfil-test")
-	baseDomain := params.Get("base_domain", defaultExfilDomain)
+	payload := params.String("payload", "macnoise-exfil-test")
+	baseDomain := params.String("base_domain", defaultExfilDomain)
 	queries := exfilQueries(payload, baseDomain, "")
 	steps := make([]string, len(queries))
 	for i, q := range queries {

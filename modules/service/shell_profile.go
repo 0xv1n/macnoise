@@ -38,16 +38,16 @@ func (s *svcShellProfile) Info() module.ModuleInfo {
 
 func (s *svcShellProfile) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "target", Description: "Shell profile file to modify", Required: false, DefaultValue: "~/.zshrc", Example: "~/.bash_profile"},
-		{Name: "payload", Description: "Shell expression to inject between markers", Required: false, DefaultValue: "export MACNOISE_PERSIST=1", Example: "alias ls='ls -la'"},
+		{Name: "target", Description: "Shell profile file to modify", Type: module.ParamPath, Default: "~/.zshrc", Example: "~/.bash_profile"},
+		{Name: "payload", Description: "Shell expression to inject between markers", Type: module.ParamString, Default: "export MACNOISE_PERSIST=1", Example: "alias ls='ls -la'"},
 	}
 }
 
 func (s *svcShellProfile) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (s *svcShellProfile) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	target := params.Get("target", "~/.zshrc")
-	payload := params.Get("payload", "export MACNOISE_PERSIST=1")
+	target := params.String("target", "~/.zshrc")
+	payload := params.String("payload", "export MACNOISE_PERSIST=1")
 	info := s.Info()
 
 	if strings.HasPrefix(target, "~/") {
@@ -94,8 +94,8 @@ func (s *svcShellProfile) Generate(ctx context.Context, params module.Params, em
 }
 
 func (s *svcShellProfile) DryRun(params module.Params) []string {
-	target := params.Get("target", "~/.zshrc")
-	payload := params.Get("payload", "export MACNOISE_PERSIST=1")
+	target := params.String("target", "~/.zshrc")
+	payload := params.String("payload", "export MACNOISE_PERSIST=1")
 	return []string{
 		fmt.Sprintf("append %s/%s/%s block to %s", shellProfileMarkerStart, payload, shellProfileMarkerEnd, target),
 	}

@@ -37,14 +37,14 @@ func (e *esFile) Info() module.ModuleInfo {
 
 func (e *esFile) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "work_dir", Description: "Directory for ES file operations", Required: false, DefaultValue: "/tmp/macnoise_es", Example: "/var/tmp/es_test"},
+		{Name: "work_dir", Description: "Directory for ES file operations", Type: module.ParamPath, Default: "/tmp/macnoise_es", Example: "/var/tmp/es_test"},
 	}
 }
 
 func (e *esFile) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (e *esFile) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	workDir := module.TagPath(params.Get("work_dir", "/tmp/macnoise_es"), module.RunIDFromContext(ctx))
+	workDir := module.TagPath(params.String("work_dir", "/tmp/macnoise_es"), module.RunIDFromContext(ctx))
 	info := e.Info()
 
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -141,7 +141,7 @@ func (e *esFile) Generate(ctx context.Context, params module.Params, emit module
 }
 
 func (e *esFile) DryRun(params module.Params) []string {
-	workDir := params.Get("work_dir", "/tmp/macnoise_es")
+	workDir := params.String("work_dir", "/tmp/macnoise_es")
 	// path.Join, not filepath.Join: these are always macOS paths, and a
 	// Windows-compiled binary would otherwise advertise backslashes in a dry run
 	// it can never perform. Same trap es_mount hit.

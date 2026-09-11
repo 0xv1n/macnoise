@@ -30,11 +30,14 @@ type CatalogMITRE struct {
 
 // CatalogParam is one parameter in a CatalogEntry.
 type CatalogParam struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Required    bool   `json:"required"`
-	Default     string `json:"default,omitempty"`
-	Example     string `json:"example,omitempty"`
+	Name        string        `json:"name"`
+	Description string        `json:"description"`
+	Type        ParamType     `json:"type"`
+	Required    bool          `json:"required"`
+	Default     any           `json:"default,omitempty"`
+	Example     any           `json:"example,omitempty"`
+	Range       *IntegerRange `json:"range,omitempty"`
+	Choices     []string      `json:"choices,omitempty"`
 }
 
 // NewCatalogEntry builds the catalog view of a module from its Info and
@@ -54,13 +57,7 @@ func NewCatalogEntry(g Generator) CatalogEntry {
 	specs := g.ParamSpecs()
 	params := make([]CatalogParam, 0, len(specs))
 	for _, s := range specs {
-		params = append(params, CatalogParam{
-			Name:        s.Name,
-			Description: s.Description,
-			Required:    s.Required,
-			Default:     s.DefaultValue,
-			Example:     s.Example,
-		})
+		params = append(params, CatalogParam(s))
 	}
 
 	return CatalogEntry{

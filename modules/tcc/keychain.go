@@ -32,18 +32,17 @@ func (t *tccKeychain) Info() module.ModuleInfo {
 func (t *tccKeychain) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "keychain_path",
-			Description:  "Path to the target keychain file (default: ~/Library/Keychains/login.keychain-db)",
-			Required:     false,
-			DefaultValue: "",
-			Example:      "/Users/victim/Library/Keychains/login.keychain-db",
+			Name:        "keychain_path",
+			Description: "Path to the target keychain file (default: ~/Library/Keychains/login.keychain-db)",
+			Type:        module.ParamPath,
+			Example:     "/Users/victim/Library/Keychains/login.keychain-db",
 		},
 		{
-			Name:         "password",
-			Description:  "Password for unlock attempt (empty causes expected failure telemetry)",
-			Required:     false,
-			DefaultValue: "",
-			Example:      "hunter2",
+			Name:        "password",
+			Description: "Password for unlock attempt (empty causes expected failure telemetry)",
+			Type:        module.ParamString,
+			Default:     "",
+			Example:     "hunter2",
 		},
 	}
 }
@@ -51,8 +50,8 @@ func (t *tccKeychain) ParamSpecs() []module.ParamSpec {
 func (t *tccKeychain) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (t *tccKeychain) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	keychainPath := params.Get("keychain_path", "")
-	password := params.Get("password", "")
+	keychainPath := params.String("keychain_path", "")
+	password := params.String("password", "")
 	info := t.Info()
 
 	if keychainPath == "" {
@@ -112,7 +111,7 @@ func (t *tccKeychain) Generate(ctx context.Context, params module.Params, emit m
 }
 
 func (t *tccKeychain) DryRun(params module.Params) []string {
-	keychainPath := params.Get("keychain_path", "~/Library/Keychains/login.keychain-db")
+	keychainPath := params.String("keychain_path", "~/Library/Keychains/login.keychain-db")
 	return []string{
 		"security list-keychains",
 		fmt.Sprintf("security unlock-keychain -p '' %s", keychainPath),

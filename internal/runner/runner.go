@@ -36,6 +36,11 @@ type Options struct {
 // RunSingle executes one module through its full lifecycle (prereqs → generate → cleanup).
 func RunSingle(ctx context.Context, gen module.Generator, params module.Params, emit module.EventEmitter, opts Options) (resultErr error) {
 	info := gen.Info()
+	normalized, err := module.NormalizeParams(gen.ParamSpecs(), params)
+	if err != nil {
+		return fmt.Errorf("[%s] params: %w", info.Name, err)
+	}
+	params = normalized
 	startTime := time.Now()
 
 	lifecycle := audit.LifecycleData{
@@ -176,7 +181,7 @@ stepLoop:
 		default:
 		}
 
-		params := module.Params(step.Params)
+		params := step.Params
 		if params == nil {
 			params = module.Params{}
 		}

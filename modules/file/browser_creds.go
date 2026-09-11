@@ -135,11 +135,12 @@ func (f *fileBrowserCreds) Info() module.ModuleInfo {
 func (f *fileBrowserCreds) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "browsers",
-			Description:  "Comma-separated browser names to probe, or 'all'",
-			Required:     false,
-			DefaultValue: "all",
-			Example:      "chrome,firefox",
+			Name:        "browsers",
+			Description: "Browser names to probe, or 'all'",
+			Type:        module.ParamStringList,
+			Default:     []string{"all"},
+			Example:     []string{"chrome", "firefox"},
+			Choices:     []string{"all", "chrome", "chromecanary", "brave", "edge", "arc", "vivaldi", "opera", "operagx", "yandex", "firefox", "safari"},
 		},
 	}
 }
@@ -173,7 +174,7 @@ func browserTargets() ([]browserTarget, error) {
 }
 
 func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	browsersParam := params.Get("browsers", "all")
+	browsers := params.Strings("browsers", []string{"all"})
 	info := f.Info()
 
 	targets, err := browserTargets()
@@ -182,8 +183,8 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 	}
 
 	filter := map[string]bool{}
-	if browsersParam != "all" {
-		for _, b := range strings.Split(browsersParam, ",") {
+	if len(browsers) != 1 || browsers[0] != "all" {
+		for _, b := range browsers {
 			filter[strings.TrimSpace(strings.ToLower(b))] = true
 		}
 	}
@@ -249,9 +250,9 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 }
 
 func (f *fileBrowserCreds) DryRun(params module.Params) []string {
-	browsersParam := params.Get("browsers", "all")
+	browsers := params.Strings("browsers", []string{"all"})
 	return []string{
-		fmt.Sprintf("open and read browser credential files for: %s (contents discarded)", browsersParam),
+		fmt.Sprintf("open and read browser credential files for: %s (contents discarded)", strings.Join(browsers, ", ")),
 	}
 }
 

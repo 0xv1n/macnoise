@@ -35,8 +35,8 @@ func (f *fileModify) Info() module.ModuleInfo {
 
 func (f *fileModify) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "target_path", Description: "File to modify (created if absent)", Required: false, DefaultValue: "/tmp/macnoise_modify_target.txt", Example: "/tmp/test.txt"},
-		{Name: "content", Description: "Content to append", Required: false, DefaultValue: "macnoise modification", Example: "injected data"},
+		{Name: "target_path", Description: "File to modify (created if absent)", Type: module.ParamPath, Default: "/tmp/macnoise_modify_target.txt", Example: "/tmp/test.txt"},
+		{Name: "content", Description: "Content to append", Type: module.ParamString, Default: "macnoise modification", Example: "injected data"},
 	}
 }
 
@@ -44,8 +44,8 @@ func (f *fileModify) CheckPrereqs(ctx context.Context, params module.Params) err
 
 func (f *fileModify) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
-	targetPath := module.TagPath(params.Get("target_path", "/tmp/macnoise_modify_target.txt"), runID)
-	content := params.Get("content", "macnoise modification")
+	targetPath := module.TagPath(params.String("target_path", "/tmp/macnoise_modify_target.txt"), runID)
+	content := params.String("content", "macnoise modification")
 	if runID != "" {
 		content += " mn:" + runID
 	}
@@ -93,8 +93,8 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 }
 
 func (f *fileModify) DryRun(params module.Params) []string {
-	target := params.Get("target_path", "/tmp/macnoise_modify_target.txt")
-	content := params.Get("content", "macnoise modification")
+	target := params.String("target_path", "/tmp/macnoise_modify_target.txt")
+	content := params.String("content", "macnoise modification")
 	return []string{
 		fmt.Sprintf("read original content of %s", target),
 		fmt.Sprintf("append %q with timestamp to %s", content, target),

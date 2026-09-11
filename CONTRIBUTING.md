@@ -43,7 +43,7 @@ _ "github.com/0xv1n/macnoise/modules/mynewcategory"
 
 - [ ] Implements all 6 methods of `Generator`
 - [ ] `Info()` has accurate `Category`, `Tags`, `Privileges`, and `MITRE` entries
-- [ ] `ParamSpecs()` documents every accepted parameter with defaults and examples
+- [ ] `ParamSpecs()` declares the type of every accepted parameter, with defaults and examples
 - [ ] `CheckPrereqs(ctx, params)` returns a clear error when requirements aren't met
 - [ ] `DryRun()` describes every action without executing side-effects
 - [ ] `Cleanup(ctx)` fully reverts any persistent changes

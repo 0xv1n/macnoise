@@ -1,17 +1,20 @@
 package runner
 
 import (
+	"bytes"
 	"fmt"
+	"io"
 	"os"
 
+	"github.com/0xv1n/macnoise/pkg/module"
 	"gopkg.in/yaml.v3"
 )
 
 // ScenarioStep defines a single module invocation within a scenario.
 type ScenarioStep struct {
-	Module   string            `yaml:"module"`
-	Category string            `yaml:"category"`
-	Params   map[string]string `yaml:"params"`
+	Module   string        `yaml:"module"`
+	Category string        `yaml:"category"`
+	Params   module.Params `yaml:"params"`
 }
 
 // Scenario is the top-level structure parsed from a scenario YAML file.
@@ -30,7 +33,16 @@ func LoadScenario(path string) (Scenario, error) {
 		return Scenario{}, fmt.Errorf("scenario: read %s: %w", path, err)
 	}
 	var sc Scenario
-	if err := yaml.Unmarshal(data, &sc); err != nil {
+	decoder := yaml.NewDecoder(bytes.NewReader(data))
+	decoder.KnownFields(true)
+	if err := decoder.Decode(&sc); err != nil {
+		return Scenario{}, fmt.Errorf("scenario: parse %s: %w", path, err)
+	}
+	var extra any
+	if err := decoder.Decode(&extra); err != io.EOF {
+		if err == nil {
+			err = fmt.Errorf("multiple YAML documents are not supported")
+		}
 		return Scenario{}, fmt.Errorf("scenario: parse %s: %w", path, err)
 	}
 	if len(sc.Steps) == 0 {

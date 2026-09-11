@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xv1n/macnoise/internal/runner"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -56,10 +57,9 @@ func TestDocsListEveryRegisteredModule(t *testing.T) {
 	}
 }
 
-// Scenario files must only reference modules that exist. A typo or a module
-// renamed out from under a scenario fails at run time partway through the
-// chain, after earlier steps have already made changes on the host.
-func TestScenariosReferenceRegisteredModules(t *testing.T) {
+// Stock scenarios must parse strictly and provide valid parameters for every
+// module they invoke.
+func TestStockScenariosHaveValidInputs(t *testing.T) {
 	dir := filepath.Join("..", "..", "configs", "scenarios")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -70,16 +70,36 @@ func TestScenariosReferenceRegisteredModules(t *testing.T) {
 		if !strings.HasSuffix(e.Name(), ".yaml") {
 			continue
 		}
-		body := readRepoFile(t, "configs", "scenarios", e.Name())
-		for _, line := range strings.Split(body, "\n") {
-			line = strings.TrimSpace(line)
-			name, ok := strings.CutPrefix(line, "- module:")
-			if !ok {
+		path := filepath.Join(dir, e.Name())
+		scenario, err := runner.LoadScenario(path)
+		if err != nil {
+			t.Errorf("%s: %v", e.Name(), err)
+			continue
+		}
+		for i, step := range scenario.Steps {
+			var generators []module.Generator
+			switch {
+			case step.Module != "":
+				gen, found := module.Get(step.Module)
+				if !found {
+					t.Errorf("%s step %d references unregistered module %q", e.Name(), i+1, step.Module)
+					continue
+				}
+				generators = []module.Generator{gen}
+			case step.Category != "":
+				generators = module.ByCategory(module.Category(step.Category))
+				if len(generators) == 0 {
+					t.Errorf("%s step %d references empty category %q", e.Name(), i+1, step.Category)
+					continue
+				}
+			default:
+				t.Errorf("%s step %d has neither module nor category", e.Name(), i+1)
 				continue
 			}
-			name = strings.TrimSpace(name)
-			if _, found := module.Get(name); !found {
-				t.Errorf("%s references unregistered module %q", e.Name(), name)
+			for _, gen := range generators {
+				if _, err := module.NormalizeParams(gen.ParamSpecs(), step.Params); err != nil {
+					t.Errorf("%s step %d (%s): %v", e.Name(), i+1, gen.Info().Name, err)
+				}
 			}
 		}
 	}

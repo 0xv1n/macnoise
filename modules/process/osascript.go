@@ -56,18 +56,19 @@ func (p *procOsascript) Info() module.ModuleInfo {
 func (p *procOsascript) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "script",
-			Description:  "AppleScript or JXA code to execute",
-			Required:     false,
-			DefaultValue: `display notification "macnoise telemetry" with title "MacNoise"`,
-			Example:      `do shell script "id"`,
+			Name:        "script",
+			Description: "AppleScript or JXA code to execute",
+			Type:        module.ParamString,
+			Default:     `display notification "macnoise telemetry" with title "MacNoise"`,
+			Example:     `do shell script "id"`,
 		},
 		{
-			Name:         "language",
-			Description:  "Script language: AppleScript or JavaScript",
-			Required:     false,
-			DefaultValue: "AppleScript",
-			Example:      "JavaScript",
+			Name:        "language",
+			Description: "Script language: AppleScript or JavaScript",
+			Type:        module.ParamString,
+			Default:     "AppleScript",
+			Example:     "JavaScript",
+			Choices:     []string{"AppleScript", "JavaScript"},
 		},
 	}
 }
@@ -96,8 +97,8 @@ func (p *procOsascript) Generate(ctx context.Context, params module.Params, emit
 	if err := ctx.Err(); err != nil {
 		return err
 	}
-	language := params.Get("language", "AppleScript")
-	script := stampScript(params.Get("script", `display notification "macnoise telemetry" with title "MacNoise"`), language, module.RunIDFromContext(ctx))
+	language := params.String("language", "AppleScript")
+	script := stampScript(params.String("script", `display notification "macnoise telemetry" with title "MacNoise"`), language, module.RunIDFromContext(ctx))
 	info := p.Info()
 
 	ev := output.NewEvent(info, "osascript_exec", false, fmt.Sprintf("executing %s via osascript", language))
@@ -120,8 +121,8 @@ func (p *procOsascript) Generate(ctx context.Context, params module.Params, emit
 }
 
 func (p *procOsascript) DryRun(params module.Params) []string {
-	script := params.Get("script", `display notification "macnoise telemetry" with title "MacNoise"`)
-	language := params.Get("language", "AppleScript")
+	script := params.String("script", `display notification "macnoise telemetry" with title "MacNoise"`)
+	language := params.String("language", "AppleScript")
 	return []string{fmt.Sprintf("osascript -l %s -e %q", language, script)}
 }
 

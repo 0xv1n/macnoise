@@ -31,11 +31,10 @@ func (t *tccContacts) Info() module.ModuleInfo {
 func (t *tccContacts) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "addressbook_path",
-			Description:  "Path to AddressBook directory",
-			Required:     false,
-			DefaultValue: "",
-			Example:      "~/Library/Application Support/AddressBook",
+			Name:        "addressbook_path",
+			Description: "Path to AddressBook directory",
+			Type:        module.ParamPath,
+			Example:     "~/Library/Application Support/AddressBook",
 		},
 	}
 }
@@ -43,7 +42,7 @@ func (t *tccContacts) ParamSpecs() []module.ParamSpec {
 func (t *tccContacts) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (t *tccContacts) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	abPath := params.Get("addressbook_path", "")
+	abPath := params.String("addressbook_path", "")
 	if abPath == "" {
 		home, err := os.UserHomeDir()
 		if err != nil {

@@ -112,7 +112,7 @@ func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, para
 		Unmapped: UnmappedData{
 			Module:         info.Name,
 			ModuleCategory: string(info.Category),
-			Params:         map[string]string(params),
+			Params:         map[string]any(params),
 			Privileges:     string(info.Privileges),
 			Outcome:        string(outcome),
 		},
@@ -150,7 +150,7 @@ func (l *Logger) LogLifecycle(recordType string, info module.ModuleInfo, params 
 	unmapped := UnmappedData{
 		Module:         info.Name,
 		ModuleCategory: string(info.Category),
-		Params:         map[string]string(params),
+		Params:         map[string]any(params),
 		Privileges:     string(info.Privileges),
 		DryRun:         data.DryRun,
 		PrereqResult:   data.PrereqResult,

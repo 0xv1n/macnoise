@@ -35,8 +35,8 @@ func (x *xpcEnumerate) Info() module.ModuleInfo {
 
 func (x *xpcEnumerate) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "filter", Description: "Filter string for service name (empty = all)", Required: false, DefaultValue: "com.apple", Example: "com.apple.security"},
-		{Name: "max_results", Description: "Maximum services to enumerate", Required: false, DefaultValue: "10", Example: "20"},
+		{Name: "filter", Description: "Filter string for service name (empty = all)", Type: module.ParamString, Default: "com.apple", Example: "com.apple.security"},
+		{Name: "max_results", Description: "Maximum services to enumerate", Type: module.ParamInteger, Default: 10, Example: 20, Range: &module.IntegerRange{Min: 1}},
 	}
 }
 
@@ -115,10 +115,8 @@ func (x *xpcEnumerate) enumerateDomain(ctx context.Context, domain, filter strin
 }
 
 func (x *xpcEnumerate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	filter := params.Get("filter", "com.apple")
-	maxStr := params.Get("max_results", "10")
-	max := 10
-	fmt.Sscanf(maxStr, "%d", &max) //nolint:errcheck
+	filter := params.String("filter", "com.apple")
+	max := params.Int("max_results", 10)
 
 	// Both domains are attempted unprivileged. `launchctl print system` was
 	// verified to succeed as a non-root user on macOS 26 (412 services read
@@ -136,7 +134,7 @@ func guiDomain() string {
 }
 
 func (x *xpcEnumerate) DryRun(params module.Params) []string {
-	filter := params.Get("filter", "com.apple")
+	filter := params.String("filter", "com.apple")
 	return []string{
 		fmt.Sprintf("launchctl print %s", guiDomain()),
 		"launchctl print system",

@@ -32,8 +32,8 @@ func (s *svcCron) Info() module.ModuleInfo {
 
 func (s *svcCron) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "schedule", Description: "Cron schedule expression", Required: false, DefaultValue: "*/5 * * * *", Example: "@hourly"},
-		{Name: "command", Description: "Command for the cron job", Required: false, DefaultValue: "/usr/bin/true", Example: "/bin/sh -c 'echo test'"},
+		{Name: "schedule", Description: "Cron schedule expression", Type: module.ParamString, Default: "*/5 * * * *", Example: "@hourly"},
+		{Name: "command", Description: "Command for the cron job", Type: module.ParamString, Default: "/usr/bin/true", Example: "/bin/sh -c 'echo test'"},
 	}
 }
 
@@ -77,8 +77,8 @@ func cronMarker(runID string) string {
 }
 
 func (s *svcCron) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	schedule := params.Get("schedule", "*/5 * * * *")
-	command := params.Get("command", "/usr/bin/true")
+	schedule := params.String("schedule", "*/5 * * * *")
+	command := params.String("command", "/usr/bin/true")
 	info := s.Info()
 
 	marker := cronMarker(module.RunIDFromContext(ctx))
@@ -127,8 +127,8 @@ func (s *svcCron) Generate(ctx context.Context, params module.Params, emit modul
 }
 
 func (s *svcCron) DryRun(params module.Params) []string {
-	schedule := params.Get("schedule", "*/5 * * * *")
-	command := params.Get("command", "/usr/bin/true")
+	schedule := params.String("schedule", "*/5 * * * *")
+	command := params.String("command", "/usr/bin/true")
 	return []string{
 		"crontab -l",
 		fmt.Sprintf("crontab -: append \"%s %s # macnoise\"", schedule, command),

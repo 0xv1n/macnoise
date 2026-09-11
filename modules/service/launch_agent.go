@@ -39,8 +39,8 @@ func (s *svcLaunchAgent) Info() module.ModuleInfo {
 
 func (s *svcLaunchAgent) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "label", Description: "LaunchAgent label (bundle ID style)", Required: false, DefaultValue: "com.macnoise.testagent", Example: "com.corp.myagent"},
-		{Name: "program", Description: "Program path to run", Required: false, DefaultValue: "/usr/bin/true", Example: "/bin/sh"},
+		{Name: "label", Description: "LaunchAgent label (bundle ID style)", Type: module.ParamString, Default: "com.macnoise.testagent", Example: "com.corp.myagent"},
+		{Name: "program", Description: "Program path to run", Type: module.ParamPath, Default: "/usr/bin/true", Example: "/bin/sh"},
 	}
 }
 
@@ -59,8 +59,8 @@ func stampLabel(label, runID string) string {
 }
 
 func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	label := stampLabel(params.Get("label", "com.macnoise.testagent"), module.RunIDFromContext(ctx))
-	program := params.Get("program", "/usr/bin/true")
+	label := stampLabel(params.String("label", "com.macnoise.testagent"), module.RunIDFromContext(ctx))
+	program := params.String("program", "/usr/bin/true")
 	info := s.Info()
 
 	home, err := os.UserHomeDir()
@@ -125,8 +125,8 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 }
 
 func (s *svcLaunchAgent) DryRun(params module.Params) []string {
-	label := params.Get("label", "com.macnoise.testagent")
-	program := params.Get("program", "/usr/bin/true")
+	label := params.String("label", "com.macnoise.testagent")
+	program := params.String("program", "/usr/bin/true")
 	plistPath := fmt.Sprintf("~/Library/LaunchAgents/%s.plist", label)
 	return []string{
 		fmt.Sprintf("create %s with Program=%s", plistPath, program),

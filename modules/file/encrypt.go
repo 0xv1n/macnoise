@@ -46,9 +46,9 @@ func (f *fileEncrypt) Info() module.ModuleInfo {
 
 func (f *fileEncrypt) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "stage_dir", Description: "Directory used to stage and encrypt decoy files (only files here are touched)", Required: false, DefaultValue: defaultEncryptStageDir, Example: "/var/tmp/macnoise_encrypt"},
-		{Name: "file_count", Description: "Number of plaintext decoy files to stage before encrypting", Required: false, DefaultValue: "5", Example: "20"},
-		{Name: "extension", Description: "Extension appended to encrypted files", Required: false, DefaultValue: defaultEncryptExtension, Example: ".crypted"},
+		{Name: "stage_dir", Description: "Directory used to stage and encrypt decoy files (only files here are touched)", Type: module.ParamPath, Default: defaultEncryptStageDir, Example: "/var/tmp/macnoise_encrypt"},
+		{Name: "file_count", Description: "Number of plaintext decoy files to stage before encrypting", Type: module.ParamInteger, Default: 5, Example: 20, Range: &module.IntegerRange{Min: 1}},
+		{Name: "extension", Description: "Extension appended to encrypted files", Type: module.ParamString, Default: defaultEncryptExtension, Example: ".crypted"},
 	}
 }
 
@@ -118,10 +118,9 @@ func encryptFile(path, extension string, key []byte) (string, error) {
 
 func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
-	stageDir := module.TagPath(params.Get("stage_dir", defaultEncryptStageDir), runID)
-	extension := params.Get("extension", defaultEncryptExtension)
-	count := defaultEncryptCount
-	fmt.Sscanf(params.Get("file_count", "5"), "%d", &count) //nolint:errcheck
+	stageDir := module.TagPath(params.String("stage_dir", defaultEncryptStageDir), runID)
+	extension := params.String("extension", defaultEncryptExtension)
+	count := params.Int("file_count", defaultEncryptCount)
 	if count < 1 {
 		count = 1
 	}
@@ -170,11 +169,11 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 }
 
 func (f *fileEncrypt) DryRun(params module.Params) []string {
-	stageDir := params.Get("stage_dir", defaultEncryptStageDir)
-	extension := params.Get("extension", defaultEncryptExtension)
-	count := params.Get("file_count", "5")
+	stageDir := params.String("stage_dir", defaultEncryptStageDir)
+	extension := params.String("extension", defaultEncryptExtension)
+	count := params.Int("file_count", defaultEncryptCount)
 	return []string{
-		fmt.Sprintf("stage %s plaintext decoy files with randomized extensions in %s", count, stageDir),
+		fmt.Sprintf("stage %d plaintext decoy files with randomized extensions in %s", count, stageDir),
 		fmt.Sprintf("AES-256-GCM encrypt each in place, appending %q and removing the original (T1486)", extension),
 	}
 }

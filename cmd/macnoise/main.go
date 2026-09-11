@@ -219,6 +219,10 @@ func buildRun() *cobra.Command {
   macnoise run --category network
   macnoise run --all --format jsonl`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			params, err := parseParams(paramFlags)
+			if err != nil {
+				return err
+			}
 			em, closeEM, err := buildEmitter()
 			if err != nil {
 				return err
@@ -234,7 +238,6 @@ func buildRun() *cobra.Command {
 
 			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
 
-			params := parseParams(paramFlags)
 			opts := buildRunOpts(auditLogger, runID)
 			ctx, stop := signalContext()
 			defer stop()
@@ -354,12 +357,12 @@ func buildInfo() *cobra.Command {
 					if s.Required {
 						req = " (required)"
 					}
-					fmt.Printf("  %-20s %s%s\n", s.Name, s.Description, req)
-					if s.DefaultValue != "" {
-						fmt.Printf("    default: %s\n", s.DefaultValue)
+					fmt.Printf("  %-20s %s%s\n", s.Name+" ("+string(s.Type)+")", s.Description, req)
+					if s.Default != nil {
+						fmt.Printf("    default: %v\n", s.Default)
 					}
-					if s.Example != "" {
-						fmt.Printf("    example: %s\n", s.Example)
+					if s.Example != nil {
+						fmt.Printf("    example: %v\n", s.Example)
 					}
 				}
 			}
@@ -429,13 +432,22 @@ func buildVersion() *cobra.Command {
 	}
 }
 
-func parseParams(flags []string) module.Params {
+func parseParams(flags []string) (module.Params, error) {
 	p := module.Params{}
 	for _, f := range flags {
 		parts := strings.SplitN(f, "=", 2)
-		if len(parts) == 2 {
-			p[parts[0]] = parts[1]
+		if len(parts) != 2 || parts[0] == "" {
+			return nil, fmt.Errorf("invalid --param %q: expected key=value", f)
 		}
+		if existing, exists := p[parts[0]]; exists {
+			if values, ok := existing.([]any); ok {
+				p[parts[0]] = append(values, parts[1])
+			} else {
+				p[parts[0]] = []any{existing, parts[1]}
+			}
+			continue
+		}
+		p[parts[0]] = parts[1]
 	}
-	return p
+	return p, nil
 }

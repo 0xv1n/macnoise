@@ -35,9 +35,9 @@ func (f *fileArchive) Info() module.ModuleInfo {
 
 func (f *fileArchive) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "source_dir", Description: "Directory to archive", Required: false, DefaultValue: "/tmp/macnoise_archive_src", Example: "/var/tmp/stage"},
-		{Name: "output_path", Description: "Output archive path", Required: false, DefaultValue: "/tmp/macnoise_archive.zip", Example: "/var/tmp/out.zip"},
-		{Name: "tool", Description: "Archival tool: zip, ditto, or tar", Required: false, DefaultValue: "zip", Example: "ditto"},
+		{Name: "source_dir", Description: "Directory to archive", Type: module.ParamPath, Default: "/tmp/macnoise_archive_src", Example: "/var/tmp/stage"},
+		{Name: "output_path", Description: "Output archive path", Type: module.ParamPath, Default: "/tmp/macnoise_archive.zip", Example: "/var/tmp/out.zip"},
+		{Name: "tool", Description: "Archival tool: zip, ditto, or tar", Type: module.ParamString, Default: "zip", Example: "ditto", Choices: []string{"zip", "ditto", "tar"}},
 	}
 }
 
@@ -45,9 +45,9 @@ func (f *fileArchive) CheckPrereqs(ctx context.Context, params module.Params) er
 
 func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
-	sourceDir := module.TagPath(params.Get("source_dir", "/tmp/macnoise_archive_src"), runID)
-	outputPath := module.TagPath(params.Get("output_path", "/tmp/macnoise_archive.zip"), runID)
-	tool := params.Get("tool", "zip")
+	sourceDir := module.TagPath(params.String("source_dir", "/tmp/macnoise_archive_src"), runID)
+	outputPath := module.TagPath(params.String("output_path", "/tmp/macnoise_archive.zip"), runID)
+	tool := params.String("tool", "zip")
 	f.sourceDir = sourceDir
 	f.outputPath = outputPath
 	info := f.Info()
@@ -106,9 +106,9 @@ func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit m
 }
 
 func (f *fileArchive) DryRun(params module.Params) []string {
-	sourceDir := params.Get("source_dir", "/tmp/macnoise_archive_src")
-	outputPath := params.Get("output_path", "/tmp/macnoise_archive.zip")
-	tool := params.Get("tool", "zip")
+	sourceDir := params.String("source_dir", "/tmp/macnoise_archive_src")
+	outputPath := params.String("output_path", "/tmp/macnoise_archive.zip")
+	tool := params.String("tool", "zip")
 	return []string{
 		fmt.Sprintf("mkdir -p %s && create 3 staged files", sourceDir),
 		fmt.Sprintf("%s -r %s %s", tool, outputPath, sourceDir),

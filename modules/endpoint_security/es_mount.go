@@ -49,7 +49,7 @@ func (e *esMount) Info() module.ModuleInfo {
 
 func (e *esMount) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "work_dir", Description: "Directory to build the disk image in", Required: false, DefaultValue: "/tmp/macnoise_es", Example: "/var/tmp/es_test"},
+		{Name: "work_dir", Description: "Directory to build the disk image in", Type: module.ParamPath, Default: "/tmp/macnoise_es", Example: "/var/tmp/es_test"},
 	}
 }
 
@@ -109,7 +109,7 @@ func detachArgs(target string) []string {
 
 func (e *esMount) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
-	workDir := module.TagPath(params.Get("work_dir", "/tmp/macnoise_es"), runID)
+	workDir := module.TagPath(params.String("work_dir", "/tmp/macnoise_es"), runID)
 	info := e.Info()
 
 	if err := os.MkdirAll(workDir, 0o755); err != nil {
@@ -214,7 +214,7 @@ func (e *esMount) emitVolumeExec(ctx context.Context, info module.ModuleInfo, em
 }
 
 func (e *esMount) DryRun(params module.Params) []string {
-	workDir := params.Get("work_dir", "/tmp/macnoise_es")
+	workDir := params.String("work_dir", "/tmp/macnoise_es")
 	dmgPath := path.Join(workDir, "macnoise_delivery.dmg")
 	mountPoint := path.Join("/Volumes", volumeName)
 	return []string{

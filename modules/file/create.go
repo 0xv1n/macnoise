@@ -35,11 +35,11 @@ func (f *fileCreate) Info() module.ModuleInfo {
 
 func (f *fileCreate) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "base_dir", Description: "Directory to create files in", Required: false, DefaultValue: "/tmp/macnoise_test", Example: "/var/tmp/macnoise"},
-		{Name: "count", Description: "Number of files to create", Required: false, DefaultValue: "3", Example: "10"},
-		{Name: "prefix", Description: "File name prefix", Required: false, DefaultValue: "mnfile_", Example: "test_"},
-		{Name: "filename", Description: "Exact name for a single file (overrides count and prefix)", Required: false, Example: "RECOVER_YOUR_FILES.txt"},
-		{Name: "content", Description: "Contents for a named file", Required: false, Example: "Your files have been encrypted."},
+		{Name: "base_dir", Description: "Directory to create files in", Type: module.ParamPath, Default: "/tmp/macnoise_test", Example: "/var/tmp/macnoise"},
+		{Name: "count", Description: "Number of files to create", Type: module.ParamInteger, Default: 3, Example: 10, Range: &module.IntegerRange{Min: 1}},
+		{Name: "prefix", Description: "File name prefix", Type: module.ParamString, Default: "mnfile_", Example: "test_"},
+		{Name: "filename", Description: "Exact name for a single file (overrides count and prefix)", Type: module.ParamString, Example: "RECOVER_YOUR_FILES.txt"},
+		{Name: "content", Description: "Contents for a named file", Type: module.ParamString, Example: "Your files have been encrypted."},
 	}
 }
 
@@ -55,15 +55,12 @@ func stampedFileName(prefix, runID, ts string, i int) string {
 }
 
 func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	baseDir := params.Get("base_dir", "/tmp/macnoise_test")
-	countStr := params.Get("count", "3")
-	prefix := params.Get("prefix", "mnfile_")
-	filename := params.Get("filename", "")
-	content := params.Get("content", "")
+	baseDir := params.String("base_dir", "/tmp/macnoise_test")
+	count := params.Int("count", 3)
+	prefix := params.String("prefix", "mnfile_")
+	filename := params.String("filename", "")
+	content := params.String("content", "")
 	runID := module.RunIDFromContext(ctx)
-
-	count := 3
-	fmt.Sscanf(countStr, "%d", &count) //nolint:errcheck
 
 	info := f.Info()
 
@@ -114,10 +111,10 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 }
 
 func (f *fileCreate) DryRun(params module.Params) []string {
-	baseDir := params.Get("base_dir", "/tmp/macnoise_test")
-	countStr := params.Get("count", "3")
-	prefix := params.Get("prefix", "mnfile_")
-	filename := params.Get("filename", "")
+	baseDir := params.String("base_dir", "/tmp/macnoise_test")
+	count := params.Int("count", 3)
+	prefix := params.String("prefix", "mnfile_")
+	filename := params.String("filename", "")
 	if filename != "" {
 		return []string{
 			fmt.Sprintf("mkdir -p %s", baseDir),
@@ -126,7 +123,7 @@ func (f *fileCreate) DryRun(params module.Params) []string {
 	}
 	return []string{
 		fmt.Sprintf("mkdir -p %s", baseDir),
-		fmt.Sprintf("create %s files with prefix %q in %s", countStr, prefix, baseDir),
+		fmt.Sprintf("create %d files with prefix %q in %s", count, prefix, baseDir),
 	}
 }
 

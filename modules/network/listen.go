@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strconv"
 	"time"
 
 	"github.com/0xv1n/macnoise/internal/output"
@@ -32,16 +33,16 @@ func (n *netListen) Info() module.ModuleInfo {
 
 func (n *netListen) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "port", Description: "Local port to bind", Required: false, DefaultValue: "8080", Example: "9999"},
-		{Name: "bind_addr", Description: "Address to bind", Required: false, DefaultValue: "127.0.0.1", Example: "0.0.0.0"},
+		{Name: "port", Description: "Local port to bind", Type: module.ParamInteger, Default: 8080, Example: 9999, Range: &module.IntegerRange{Min: 1, Max: 65535}},
+		{Name: "bind_addr", Description: "Address to bind", Type: module.ParamString, Default: "127.0.0.1", Example: "0.0.0.0"},
 	}
 }
 
 func (n *netListen) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netListen) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	port := params.Get("port", "8080")
-	bindAddr := params.Get("bind_addr", "127.0.0.1")
+	port := strconv.Itoa(params.Int("port", 8080))
+	bindAddr := params.String("bind_addr", "127.0.0.1")
 	address := net.JoinHostPort(bindAddr, port)
 	info := n.Info()
 
@@ -102,8 +103,8 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 }
 
 func (n *netListen) DryRun(params module.Params) []string {
-	port := params.Get("port", "8080")
-	bindAddr := params.Get("bind_addr", "127.0.0.1")
+	port := strconv.Itoa(params.Int("port", 8080))
+	bindAddr := params.String("bind_addr", "127.0.0.1")
 	return []string{
 		fmt.Sprintf("bind TCP %s:%s", bindAddr, port),
 		"accept one connection from self (127.0.0.1)",

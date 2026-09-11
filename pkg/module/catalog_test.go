@@ -23,7 +23,7 @@ func (catalogTestGen) Info() ModuleInfo {
 }
 func (catalogTestGen) ParamSpecs() []ParamSpec {
 	return []ParamSpec{
-		{Name: "target", Description: "the target", Required: true, DefaultValue: "1.2.3.4", Example: "10.0.0.1"},
+		{Name: "target", Description: "the target", Type: ParamString, Required: true, Default: "1.2.3.4", Example: "10.0.0.1"},
 	}
 }
 func (catalogTestGen) CheckPrereqs(ctx context.Context, params Params) error { return nil }
@@ -48,7 +48,7 @@ func TestNewCatalogEntry(t *testing.T) {
 	if e.MITRE[1].SubTechnique != "" {
 		t.Errorf("sub_technique should be empty for technique-only mapping, got %q", e.MITRE[1].SubTechnique)
 	}
-	if len(e.Params) != 1 || e.Params[0].Name != "target" || !e.Params[0].Required || e.Params[0].Default != "1.2.3.4" {
+	if len(e.Params) != 1 || e.Params[0].Name != "target" || e.Params[0].Type != ParamString || !e.Params[0].Required || e.Params[0].Default != "1.2.3.4" {
 		t.Errorf("params mapped wrong: %+v", e.Params)
 	}
 }

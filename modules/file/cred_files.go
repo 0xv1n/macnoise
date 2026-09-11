@@ -40,11 +40,11 @@ func (f *fileCredFiles) Info() module.ModuleInfo {
 func (f *fileCredFiles) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "paths",
-			Description:  "Comma-separated extra file paths to probe, e.g. a project .env",
-			Required:     false,
-			DefaultValue: "",
-			Example:      "/Users/dev/project/.env,/Users/dev/.netrc",
+			Name:        "paths",
+			Description: "Extra file paths to probe, e.g. a project .env",
+			Type:        module.ParamPathList,
+			Default:     []string{},
+			Example:     []string{"/Users/dev/project/.env", "/Users/dev/.netrc"},
 		},
 	}
 }
@@ -99,21 +99,6 @@ func defaultCredTargets(home string) []credTarget {
 	return targets
 }
 
-// parseExtraPaths splits the user-supplied paths parameter, dropping empties so
-// a trailing comma or blank value does not produce a probe for "".
-func parseExtraPaths(param string) []string {
-	if param == "" {
-		return nil
-	}
-	var paths []string
-	for _, p := range strings.Split(param, ",") {
-		if p = strings.TrimSpace(p); p != "" {
-			paths = append(paths, p)
-		}
-	}
-	return paths
-}
-
 func (f *fileCredFiles) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	info := f.Info()
 
@@ -123,7 +108,7 @@ func (f *fileCredFiles) Generate(ctx context.Context, params module.Params, emit
 	}
 
 	targets := defaultCredTargets(home)
-	for _, p := range parseExtraPaths(params.Get("paths", "")) {
+	for _, p := range params.Paths("paths", nil) {
 		targets = append(targets, credTarget{kind: "custom", path: p})
 	}
 
@@ -187,7 +172,7 @@ func credEvent(info module.ModuleInfo, target credTarget) module.TelemetryEvent 
 }
 
 func (f *fileCredFiles) DryRun(params module.Params) []string {
-	extra := parseExtraPaths(params.Get("paths", ""))
+	extra := params.Paths("paths", nil)
 	lines := []string{
 		"open and read ~/.ssh/id_* (private keys only), ~/.aws/credentials, ~/.kube/config, ~/.docker/config.json, ~/.env (contents discarded)",
 	}

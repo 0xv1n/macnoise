@@ -31,11 +31,11 @@ func (n *netDNS) Info() module.ModuleInfo {
 func (n *netDNS) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{
-			Name:         "domains",
-			Description:  "Comma-separated list of domains to resolve",
-			Required:     false,
-			DefaultValue: "example.com,google.com,github.com",
-			Example:      "internal.corp,10.0.0.1.xip.io",
+			Name:        "domains",
+			Description: "Domains to resolve",
+			Type:        module.ParamStringList,
+			Default:     []string{"example.com", "google.com", "github.com"},
+			Example:     []string{"internal.corp", "10.0.0.1.xip.io"},
 		},
 	}
 }
@@ -43,8 +43,7 @@ func (n *netDNS) ParamSpecs() []module.ParamSpec {
 func (n *netDNS) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netDNS) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	domainsStr := params.Get("domains", "example.com,google.com,github.com")
-	domains := strings.Split(domainsStr, ",")
+	domains := params.Strings("domains", []string{"example.com", "google.com", "github.com"})
 	info := n.Info()
 
 	resolver := net.DefaultResolver
@@ -69,9 +68,9 @@ func (n *netDNS) Generate(ctx context.Context, params module.Params, emit module
 }
 
 func (n *netDNS) DryRun(params module.Params) []string {
-	domains := params.Get("domains", "example.com,google.com,github.com")
+	domains := params.Strings("domains", []string{"example.com", "google.com", "github.com"})
 	return []string{
-		fmt.Sprintf("DNS resolve: %s", domains),
+		fmt.Sprintf("DNS resolve: %s", strings.Join(domains, ",")),
 	}
 }
 

@@ -3,6 +3,7 @@ package config_test
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/0xv1n/macnoise/internal/config"
@@ -79,5 +80,18 @@ func TestLoadInvalidYAMLReturnsError(t *testing.T) {
 	_, err := config.Load(path)
 	if err == nil {
 		t.Error("expected error for invalid YAML")
+	}
+}
+
+func TestLoadRejectsUnknownField(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "unknown.yaml")
+	if err := os.WriteFile(path, []byte("default_timeout: 30\ndefault_timout: 60\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := config.Load(path)
+	if err == nil || !strings.Contains(err.Error(), "field default_timout not found") {
+		t.Fatalf("Load error = %v, want unknown-field error", err)
 	}
 }
