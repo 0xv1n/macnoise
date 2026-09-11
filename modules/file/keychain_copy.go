@@ -72,7 +72,7 @@ func (f *fileKeychainCopy) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (f *fileKeychainCopy) CheckPrereqs() error { return nil }
+func (f *fileKeychainCopy) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // defaultKeychainTargets lists the keychain databases to copy. Both directories
 // are parameters so tests can point the enumeration at temp directories.
@@ -266,7 +266,7 @@ func (f *fileKeychainCopy) DryRun(params module.Params) []string {
 // Cleanup removes the staged copies. Leaving real credential stores duplicated
 // on disk is not an acceptable default, so this runs unless --no-cleanup is
 // passed, which announces itself.
-func (f *fileKeychainCopy) Cleanup() error {
+func (f *fileKeychainCopy) Cleanup(ctx context.Context) error {
 	if f.stageDir == "" {
 		return nil
 	}
@@ -274,5 +274,5 @@ func (f *fileKeychainCopy) Cleanup() error {
 }
 
 func init() {
-	module.Register(&fileKeychainCopy{})
+	module.Register(func() module.Generator { return &fileKeychainCopy{} })
 }

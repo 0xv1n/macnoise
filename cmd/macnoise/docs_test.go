@@ -3,24 +3,11 @@ package main
 import (
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 
 	"github.com/0xv1n/macnoise/pkg/module"
 )
-
-// requireFullRegistry skips a check that needs every module registered.
-// proc_osascript and proc_signal carry //go:build darwin, so off a Mac they are
-// not compiled in and the registry is a subset. A completeness check run
-// against that subset either misses modules or, worse, reports a scenario's
-// valid reference as unregistered.
-func requireFullRegistry(t *testing.T) {
-	t.Helper()
-	if runtime.GOOS != "darwin" {
-		t.Skip("registry is incomplete off darwin; this runs in the macOS job")
-	}
-}
 
 // readRepoFile reads a path relative to the repository root. Tests run in their
 // own package directory, so the two levels up are cmd/macnoise.
@@ -47,8 +34,6 @@ func readRepoFile(t *testing.T, parts ...string) string {
 // This package blank-imports every module package, so module.All() here is the
 // same set the binary exposes.
 func TestDocsListEveryRegisteredModule(t *testing.T) {
-	requireFullRegistry(t)
-
 	readme := readRepoFile(t, "README.md")
 
 	categoryDocs := map[module.Category]string{}
@@ -75,8 +60,6 @@ func TestDocsListEveryRegisteredModule(t *testing.T) {
 // renamed out from under a scenario fails at run time partway through the
 // chain, after earlier steps have already made changes on the host.
 func TestScenariosReferenceRegisteredModules(t *testing.T) {
-	requireFullRegistry(t)
-
 	dir := filepath.Join("..", "..", "configs", "scenarios")
 	entries, err := os.ReadDir(dir)
 	if err != nil {
@@ -98,6 +81,14 @@ func TestScenariosReferenceRegisteredModules(t *testing.T) {
 			if _, found := module.Get(name); !found {
 				t.Errorf("%s references unregistered module %q", e.Name(), name)
 			}
+		}
+	}
+}
+
+func TestPortableRegistryIncludesNativeModules(t *testing.T) {
+	for _, name := range []string{"proc_osascript", "proc_signal"} {
+		if _, ok := module.Get(name); !ok {
+			t.Errorf("portable registry is missing %s", name)
 		}
 	}
 }

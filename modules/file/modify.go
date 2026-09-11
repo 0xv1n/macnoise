@@ -40,7 +40,7 @@ func (f *fileModify) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (f *fileModify) CheckPrereqs() error { return nil }
+func (f *fileModify) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (f *fileModify) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
@@ -101,7 +101,7 @@ func (f *fileModify) DryRun(params module.Params) []string {
 	}
 }
 
-func (f *fileModify) Cleanup() error {
+func (f *fileModify) Cleanup(ctx context.Context) error {
 	if f.targetPath == "" {
 		return nil
 	}
@@ -115,5 +115,5 @@ func (f *fileModify) Cleanup() error {
 }
 
 func init() {
-	module.Register(&fileModify{})
+	module.Register(func() module.Generator { return &fileModify{} })
 }

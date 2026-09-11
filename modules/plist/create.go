@@ -44,7 +44,7 @@ func (p *plistCreate) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (p *plistCreate) CheckPrereqs() error { return nil }
+func (p *plistCreate) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
@@ -135,7 +135,7 @@ func (p *plistCreate) DryRun(params module.Params) []string {
 	}
 }
 
-func (p *plistCreate) Cleanup() error {
+func (p *plistCreate) Cleanup(ctx context.Context) error {
 	if p.createdPath == "" {
 		return nil
 	}
@@ -148,5 +148,5 @@ func (p *plistCreate) Cleanup() error {
 }
 
 func init() {
-	module.Register(&plistCreate{})
+	module.Register(func() module.Generator { return &plistCreate{} })
 }

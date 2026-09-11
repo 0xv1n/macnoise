@@ -39,7 +39,7 @@ func (n *netConnect) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netConnect) CheckPrereqs() error { return nil }
+func (n *netConnect) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netConnect) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	target := params.Get("target", "127.0.0.1")
@@ -92,8 +92,8 @@ func (n *netConnect) DryRun(params module.Params) []string {
 	}
 }
 
-func (n *netConnect) Cleanup() error { return nil }
+func (n *netConnect) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&netConnect{})
+	module.Register(func() module.Generator { return &netConnect{} })
 }

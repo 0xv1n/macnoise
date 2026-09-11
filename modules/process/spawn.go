@@ -36,7 +36,7 @@ func (p *procSpawn) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (p *procSpawn) CheckPrereqs() error { return nil }
+func (p *procSpawn) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // stampCommand appends the run ID as a shell comment. It is inert to execution
 // but lands in the process argv, where a consumer's EDR captures it and can
@@ -72,8 +72,8 @@ func (p *procSpawn) DryRun(params module.Params) []string {
 	return []string{fmt.Sprintf("exec: sh -c %q", command)}
 }
 
-func (p *procSpawn) Cleanup() error { return nil }
+func (p *procSpawn) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&procSpawn{})
+	module.Register(func() module.Generator { return &procSpawn{} })
 }

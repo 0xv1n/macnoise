@@ -48,7 +48,7 @@ func (e *evadeLogClear) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (e *evadeLogClear) CheckPrereqs() error { return nil }
+func (e *evadeLogClear) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // timestomp creates a file and sets its mtime to a date in the past.
 // The os.Chtimes call generates the utimes syscall that an EDR fires on,
@@ -178,7 +178,7 @@ func (e *evadeLogClear) DryRun(params module.Params) []string {
 	}
 }
 
-func (e *evadeLogClear) Cleanup() error {
+func (e *evadeLogClear) Cleanup(ctx context.Context) error {
 	if e.stageDir == "" {
 		return nil
 	}
@@ -186,5 +186,5 @@ func (e *evadeLogClear) Cleanup() error {
 }
 
 func init() {
-	module.Register(&evadeLogClear{})
+	module.Register(func() module.Generator { return &evadeLogClear{} })
 }

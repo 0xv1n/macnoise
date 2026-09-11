@@ -39,7 +39,7 @@ func TestFileCreate_GenerateAndCleanup(t *testing.T) {
 		t.Errorf("expected 3 successful file_create events, got %d", successCount)
 	}
 
-	if err := f.Cleanup(); err != nil {
+	if err := f.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	entries, err = os.ReadDir(dir)

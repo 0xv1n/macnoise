@@ -62,7 +62,7 @@ func TestLogClearGenerate_RealExecution(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(stage, ".zsh_history")); !os.IsNotExist(err) {
 		t.Errorf("history not removed: %v", err)
 	}
-	if err := g.Cleanup(); err != nil {
+	if err := g.Cleanup(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(stage); !os.IsNotExist(err) {
@@ -86,7 +86,7 @@ func TestLogClearGenerate_CancelBetweenOperations(t *testing.T) {
 	if !errors.Is(err, context.Canceled) || len(events) != 1 || events[0].EventType != "file_timestomp" {
 		t.Fatalf("Generate = %v, events = %+v", err, events)
 	}
-	if err := g.Cleanup(); err != nil {
+	if err := g.Cleanup(context.Background()); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := os.Stat(stage); !os.IsNotExist(err) {

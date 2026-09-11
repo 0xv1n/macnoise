@@ -42,7 +42,7 @@ func TestFileArchive_GenerateAndCleanup(t *testing.T) {
 		t.Error("expected a successful archive_create event")
 	}
 
-	if err := f.Cleanup(); err != nil {
+	if err := f.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {

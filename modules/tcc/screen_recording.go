@@ -31,7 +31,9 @@ func (t *tccScreenRecording) Info() module.ModuleInfo {
 
 func (t *tccScreenRecording) ParamSpecs() []module.ParamSpec { return nil }
 
-func (t *tccScreenRecording) CheckPrereqs() error { return nil }
+func (t *tccScreenRecording) CheckPrereqs(ctx context.Context, params module.Params) error {
+	return nil
+}
 
 // screenCaptureOutcome classifies a screencapture run.
 //
@@ -110,8 +112,8 @@ func (t *tccScreenRecording) DryRun(params module.Params) []string {
 	return []string{"screencapture -x <tempfile> then delete it (probes Screen Recording, contents discarded)"}
 }
 
-func (t *tccScreenRecording) Cleanup() error { return nil }
+func (t *tccScreenRecording) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&tccScreenRecording{})
+	module.Register(func() module.Generator { return &tccScreenRecording{} })
 }

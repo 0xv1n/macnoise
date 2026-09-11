@@ -58,7 +58,7 @@ func TestDiscoveryGenerate_Commands(t *testing.T) {
 			t.Errorf("successful command %d has error: %+v", i, events[i])
 		}
 	}
-	if err := p.Cleanup(); err != nil {
+	if err := p.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	// Discovery cleanup is a no-op, including for effects of custom commands.

@@ -15,7 +15,7 @@ func runLoginItem(t *testing.T, e *svcLoginItem, params module.Params) module.Te
 
 	var events []module.TelemetryEvent
 	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
-	t.Cleanup(func() { _ = e.Cleanup() })
+	t.Cleanup(func() { _ = e.Cleanup(context.Background()) })
 
 	if err := e.Generate(context.Background(), params, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -72,7 +72,7 @@ func TestLoginItem_FullCycleWithGUISession(t *testing.T) {
 	if present, ok := ev.Details["verified_present"].(bool); !ok || !present {
 		t.Errorf("login item %q was not found in the list after add", name)
 	}
-	if err := e.Cleanup(); err != nil {
+	if err := e.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 

@@ -67,7 +67,7 @@ func TestPlistModifyGenerate_WriteAndCleanup(t *testing.T) {
 					t.Errorf("write details[%s] = %v, want %q", k, got, want)
 				}
 			}
-			if err := p.Cleanup(); err != nil {
+			if err := p.Cleanup(context.Background()); err != nil {
 				t.Fatalf("Cleanup: %v", err)
 			}
 			if existing {
@@ -112,7 +112,7 @@ func TestPlistModifyGenerate_RunID(t *testing.T) {
 	if len(events) != 2 || events[1].Details["domain"] != stamped || !events[1].Success {
 		t.Errorf("events = %+v, want successful write to stamped domain", events)
 	}
-	if err := p.Cleanup(); err != nil {
+	if err := p.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if got := defaultsCommand(t, "read", domain, "MacnoiseTest"); got != "base untouched" {
@@ -142,7 +142,7 @@ func TestPlistModifyGenerate_RefusesComplexValues(t *testing.T) {
 			if len(events) != 1 || events[0].EventType != "plist_read_prior" || events[0].Success || events[0].Error == "" {
 				t.Errorf("events = %+v, want failed prior read only", events)
 			}
-			if err := p.Cleanup(); err != nil {
+			if err := p.Cleanup(context.Background()); err != nil {
 				t.Fatalf("Cleanup after refusal: %v", err)
 			}
 			if after := defaultsCommand(t, "export", domain, "-"); after != before {

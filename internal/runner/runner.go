@@ -7,7 +7,9 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 	"time"
 
 	"github.com/0xv1n/macnoise/internal/audit"
@@ -16,7 +18,8 @@ import (
 
 // Options controls module execution behaviour in RunSingle, RunMany, and RunScenario.
 type Options struct {
-	DryRun bool
+	Registry *module.Registry
+	DryRun   bool
 	// NoCleanup leaves module artifacts in place after Generate. Validation
 	// workflows need the installed artifact to persist so the persistence
 	// itself can be detected, not just the install event.
@@ -31,7 +34,7 @@ type Options struct {
 }
 
 // RunSingle executes one module through its full lifecycle (prereqs → generate → cleanup).
-func RunSingle(ctx context.Context, gen module.Generator, params module.Params, emit module.EventEmitter, opts Options) error {
+func RunSingle(ctx context.Context, gen module.Generator, params module.Params, emit module.EventEmitter, opts Options) (resultErr error) {
 	info := gen.Info()
 	startTime := time.Now()
 
@@ -40,14 +43,25 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 		DryRun:    opts.DryRun,
 	}
 
-	if err := gen.CheckPrereqs(); err != nil {
-		lifecycle.PrereqResult = "fail"
-		lifecycle.PrereqError = err.Error()
-		if opts.AuditLog != nil {
-			lifecycle.EndTime = time.Now()
-			opts.AuditLog.LogLifecycle("module_prereq_fail", info, params, lifecycle)
+	runCtx := module.ContextWithRunID(ctx, opts.RunID)
+	if opts.Timeout > 0 {
+		var cancel context.CancelFunc
+		runCtx, cancel = context.WithTimeout(runCtx, opts.Timeout)
+		defer cancel()
+	}
+	if err := runCtx.Err(); err != nil {
+		return err
+	}
+	if !opts.DryRun {
+		if err := gen.CheckPrereqs(runCtx, params); err != nil {
+			lifecycle.PrereqResult = "fail"
+			lifecycle.PrereqError = err.Error()
+			if opts.AuditLog != nil {
+				lifecycle.EndTime = time.Now()
+				opts.AuditLog.LogLifecycle("module_prereq_fail", info, params, lifecycle)
+			}
+			return fmt.Errorf("[%s] prereqs: %w", info.Name, err)
 		}
-		return fmt.Errorf("[%s] prereqs: %w", info.Name, err)
 	}
 	lifecycle.PrereqResult = "pass"
 
@@ -68,13 +82,6 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 		auditEmit = opts.AuditLog.WrapEmitter(emit, info, params, &eventsEmitted)
 	}
 
-	runCtx := module.ContextWithRunID(ctx, opts.RunID)
-	var cancel context.CancelFunc
-	if opts.Timeout > 0 {
-		runCtx, cancel = context.WithTimeout(runCtx, opts.Timeout)
-		defer cancel()
-	}
-
 	var generateErr error
 	defer func() {
 		cleanupResult := "ok"
@@ -87,12 +94,13 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 			cleanupResult = "skipped"
 			fmt.Printf("[%s] cleanup skipped (--no-cleanup); artifacts left in place, see 'macnoise info %s'\n", info.Name, info.Name)
 		default:
-			if err := gen.Cleanup(); err != nil {
+			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(runCtx), 10*time.Second)
+			defer cancel()
+			if err := gen.Cleanup(cleanupCtx); err != nil {
 				cleanupResult = "error"
 				cleanupErrStr = err.Error()
-				if opts.Verbose {
-					fmt.Printf("[%s] cleanup error: %v\n", info.Name, err)
-				}
+				resultErr = errors.Join(resultErr, fmt.Errorf("[%s] cleanup: %w", info.Name, err))
+				fmt.Fprintf(os.Stderr, "[%s] cleanup error: %v\n", info.Name, err)
 			}
 		}
 		if opts.AuditLog != nil {
@@ -108,6 +116,9 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 	}()
 
 	generateErr = gen.Generate(runCtx, params, auditEmit)
+	if runCtx.Err() != nil {
+		generateErr = errors.Join(generateErr, runCtx.Err())
+	}
 	return generateErr
 }
 
@@ -132,6 +143,10 @@ func RunMany(ctx context.Context, gens []module.Generator, params module.Params,
 
 // RunScenario loads the YAML scenario at path and executes its steps in order.
 func RunScenario(ctx context.Context, path string, emit module.EventEmitter, opts Options) error {
+	registry := opts.Registry
+	if registry == nil {
+		registry = &module.DefaultRegistry
+	}
 	sc, err := LoadScenario(path)
 	if err != nil {
 		return err
@@ -169,7 +184,7 @@ stepLoop:
 		var stepErr error
 		switch {
 		case step.Module != "":
-			gen, ok := module.Get(step.Module)
+			gen, ok := registry.Get(step.Module)
 			if !ok {
 				stepErr = fmt.Errorf("scenario step %d: module %q not found", i+1, step.Module)
 			} else {
@@ -178,23 +193,35 @@ stepLoop:
 
 		case step.Category != "":
 			cat := module.Category(step.Category)
-			gens := module.ByCategory(cat)
+			gens := registry.ByCategory(cat)
 			if len(gens) == 0 {
 				stepErr = fmt.Errorf("scenario step %d: no modules found for category %q", i+1, step.Category)
-			} else {
+			} else if sc.OnError == "continue" {
 				stepErr = RunMany(ctx, gens, params, emit, opts)
+			} else {
+				for _, gen := range gens {
+					if stepErr = RunSingle(ctx, gen, params, emit, opts); stepErr != nil {
+						break
+					}
+				}
 			}
 
 		default:
 			stepErr = fmt.Errorf("scenario step %d: must specify either 'module' or 'category'", i+1)
 		}
 
+		if err := ctx.Err(); err != nil {
+			interruptErr = fmt.Errorf("scenario %q: interrupted during step %d of %d: %w",
+				sc.Name, i+1, len(sc.Steps), err)
+			break stepLoop
+		}
+
 		if stepErr != nil {
 			stepsFailed++
-			if opts.AuditLog == nil {
-				return stepErr
+			fmt.Fprintf(os.Stderr, "step %d error: %v\n", i+1, stepErr)
+			if sc.OnError != "continue" {
+				break stepLoop
 			}
-			fmt.Printf("step %d error: %v\n", i+1, stepErr)
 		} else {
 			stepsPassed++
 		}

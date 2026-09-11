@@ -45,7 +45,7 @@ func (p *procInject) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (p *procInject) CheckPrereqs() error { return nil }
+func (p *procInject) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // defaultTarget returns macnoise's own executable.
 //
@@ -143,8 +143,8 @@ func (p *procInject) DryRun(params module.Params) []string {
 	}
 }
 
-func (p *procInject) Cleanup() error { return nil }
+func (p *procInject) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&procInject{})
+	module.Register(func() module.Generator { return &procInject{} })
 }

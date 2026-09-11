@@ -41,7 +41,7 @@ func (f *fileArchive) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (f *fileArchive) CheckPrereqs() error { return nil }
+func (f *fileArchive) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
@@ -115,7 +115,7 @@ func (f *fileArchive) DryRun(params module.Params) []string {
 	}
 }
 
-func (f *fileArchive) Cleanup() error {
+func (f *fileArchive) Cleanup(ctx context.Context) error {
 	var lastErr error
 	if f.outputPath != "" {
 		if err := os.Remove(f.outputPath); err != nil && !os.IsNotExist(err) {
@@ -131,5 +131,5 @@ func (f *fileArchive) Cleanup() error {
 }
 
 func init() {
-	module.Register(&fileArchive{})
+	module.Register(func() module.Generator { return &fileArchive{} })
 }

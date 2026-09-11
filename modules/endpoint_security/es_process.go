@@ -33,7 +33,7 @@ func (e *esProcess) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (e *esProcess) CheckPrereqs() error { return nil }
+func (e *esProcess) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // buildExecChainArgs nests depth-1 levels of `sh -c '"$@"' sh <rest>` around
 // a final `echo es_exit`. The '"$@"' script just re-execs its own
@@ -94,8 +94,8 @@ func (e *esProcess) DryRun(params module.Params) []string {
 	}
 }
 
-func (e *esProcess) Cleanup() error { return nil }
+func (e *esProcess) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&esProcess{})
+	module.Register(func() module.Generator { return &esProcess{} })
 }

@@ -37,7 +37,7 @@ func (n *netListen) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netListen) CheckPrereqs() error { return nil }
+func (n *netListen) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netListen) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	port := params.Get("port", "8080")
@@ -110,7 +110,7 @@ func (n *netListen) DryRun(params module.Params) []string {
 	}
 }
 
-func (n *netListen) Cleanup() error {
+func (n *netListen) Cleanup(ctx context.Context) error {
 	if n.listener != nil {
 		return n.listener.Close()
 	}
@@ -118,5 +118,5 @@ func (n *netListen) Cleanup() error {
 }
 
 func init() {
-	module.Register(&netListen{})
+	module.Register(func() module.Generator { return &netListen{} })
 }

@@ -83,7 +83,7 @@ func TestRevShellGenerate_ConnectedExecution(t *testing.T) {
 			if events[0].Details["address"] != listener.Addr().String() {
 				t.Errorf("address = %v", events[0].Details["address"])
 			}
-			if err := g.Cleanup(); err != nil {
+			if err := g.Cleanup(context.Background()); err != nil {
 				t.Fatal(err)
 			}
 		})

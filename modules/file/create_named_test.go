@@ -39,7 +39,7 @@ func TestFileCreate_GenerateNamedFile(t *testing.T) {
 		t.Errorf("created %d files, want 1", len(entries))
 	}
 
-	if err := f.Cleanup(); err != nil {
+	if err := f.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {

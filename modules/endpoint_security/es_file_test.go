@@ -20,7 +20,7 @@ func TestESFile_GenerateEmitsFullFileEventCycle(t *testing.T) {
 	if err := e.Generate(context.Background(), module.Params{"work_dir": workDir}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	defer e.Cleanup() //nolint:errcheck
+	defer e.Cleanup(context.Background()) //nolint:errcheck
 
 	// Order is load-bearing, not incidental: setmode and rename have to happen
 	// while the file still exists, and rename has to precede the unlink that
@@ -73,7 +73,7 @@ func TestESFile_CleanupRemovesTrackedRenamedPath(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := e.Cleanup(); err != nil {
+	if err := e.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(renamed); !os.IsNotExist(err) {
@@ -89,7 +89,7 @@ func TestESFile_CleanupAfterSuccessfulUnlinkIsNoOp(t *testing.T) {
 	if err := e.Generate(context.Background(), module.Params{"work_dir": workDir}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	if err := e.Cleanup(); err != nil {
+	if err := e.Cleanup(context.Background()); err != nil {
 		t.Errorf("Cleanup after a successful unlink must not error, got %v", err)
 	}
 }

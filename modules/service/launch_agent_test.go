@@ -62,7 +62,7 @@ func TestSvcLaunchAgent_GenerateAndCleanup(t *testing.T) {
 	// session, which a CI runner has no guarantee of, and the module already
 	// treats a bootstrap failure as valid telemetry rather than an error.
 
-	if err := s.Cleanup(); err != nil {
+	if err := s.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(plistPath); !os.IsNotExist(err) {

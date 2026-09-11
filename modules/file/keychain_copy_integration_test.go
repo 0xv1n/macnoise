@@ -143,7 +143,7 @@ func TestKeychainCopy_CleanupRemovesStagedCopies(t *testing.T) {
 		t.Fatal("nothing was staged, so cleanup would pass vacuously")
 	}
 
-	if err := mod.Cleanup(); err != nil {
+	if err := mod.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(stageDir); !os.IsNotExist(err) {

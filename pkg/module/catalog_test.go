@@ -26,10 +26,10 @@ func (catalogTestGen) ParamSpecs() []ParamSpec {
 		{Name: "target", Description: "the target", Required: true, DefaultValue: "1.2.3.4", Example: "10.0.0.1"},
 	}
 }
-func (catalogTestGen) CheckPrereqs() error                                  { return nil }
-func (catalogTestGen) Generate(context.Context, Params, EventEmitter) error { return nil }
-func (catalogTestGen) DryRun(Params) []string                               { return nil }
-func (catalogTestGen) Cleanup() error                                       { return nil }
+func (catalogTestGen) CheckPrereqs(ctx context.Context, params Params) error { return nil }
+func (catalogTestGen) Generate(context.Context, Params, EventEmitter) error  { return nil }
+func (catalogTestGen) DryRun(Params) []string                                { return nil }
+func (catalogTestGen) Cleanup(ctx context.Context) error                     { return nil }
 
 func TestNewCatalogEntry(t *testing.T) {
 	e := NewCatalogEntry(catalogTestGen{})

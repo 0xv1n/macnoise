@@ -39,7 +39,7 @@ func (s *svcLoginItem) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (s *svcLoginItem) CheckPrereqs() error { return nil }
+func (s *svcLoginItem) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // The AppleScript builders are shared by Generate, Cleanup, and DryRun so the
 // advertised commands cannot drift from the executed ones.
@@ -185,11 +185,11 @@ func (s *svcLoginItem) DryRun(params module.Params) []string {
 // Cleanup removes the login item only if Generate actually added one. A run
 // that was refused or could not reach a GUI session added nothing, so issuing
 // the delete would report a failure for an item that never existed.
-func (s *svcLoginItem) Cleanup() error {
+func (s *svcLoginItem) Cleanup(ctx context.Context) error {
 	if !s.added || s.name == "" {
 		return nil
 	}
-	if out, err := exec.Command("osascript", "-e", deleteLoginItemScript(s.name)).CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "osascript", "-e", deleteLoginItemScript(s.name)).CombinedOutput(); err != nil {
 		return fmt.Errorf("delete login item %q: %v: %s", s.name, err, strings.TrimSpace(string(out)))
 	}
 	s.added = false
@@ -197,5 +197,5 @@ func (s *svcLoginItem) Cleanup() error {
 }
 
 func init() {
-	module.Register(&svcLoginItem{})
+	module.Register(func() module.Generator { return &svcLoginItem{} })
 }

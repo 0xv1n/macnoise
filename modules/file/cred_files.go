@@ -49,7 +49,7 @@ func (f *fileCredFiles) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (f *fileCredFiles) CheckPrereqs() error { return nil }
+func (f *fileCredFiles) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // sshKeyPaths lists the SSH private keys to probe. The well-known names are
 // always included so an absent key still produces telemetry, and a glob catches
@@ -197,8 +197,8 @@ func (f *fileCredFiles) DryRun(params module.Params) []string {
 	return lines
 }
 
-func (f *fileCredFiles) Cleanup() error { return nil }
+func (f *fileCredFiles) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&fileCredFiles{})
+	module.Register(func() module.Generator { return &fileCredFiles{} })
 }

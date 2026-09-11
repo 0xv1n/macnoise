@@ -53,7 +53,7 @@ func (e *esMount) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (e *esMount) CheckPrereqs() error { return nil }
+func (e *esMount) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 // attachResult is what hdiutil attach reports back about the image it mounted.
 type attachResult struct {
@@ -228,11 +228,11 @@ func (e *esMount) DryRun(params module.Params) []string {
 // Cleanup detaches the image only if Generate actually mounted one, so a run
 // that never got that far does not report a detach failure for a volume that
 // was never there.
-func (e *esMount) Cleanup() error {
+func (e *esMount) Cleanup(ctx context.Context) error {
 	var errs []error
 
 	if target := e.detachTarget(); target != "" {
-		if out, err := exec.Command("hdiutil", detachArgs(target)...).CombinedOutput(); err != nil {
+		if out, err := exec.CommandContext(ctx, "hdiutil", detachArgs(target)...).CombinedOutput(); err != nil {
 			errs = append(errs, fmt.Errorf("detach %s: %v: %s", target, err, strings.TrimSpace(string(out))))
 		} else {
 			e.mountPoint, e.device = "", ""
@@ -260,5 +260,5 @@ func (e *esMount) detachTarget() string {
 }
 
 func init() {
-	module.Register(&esMount{})
+	module.Register(func() module.Generator { return &esMount{} })
 }

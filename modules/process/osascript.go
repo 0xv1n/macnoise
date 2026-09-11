@@ -1,11 +1,10 @@
-//go:build darwin
-
 package process
 
 import (
 	"context"
 	"fmt"
 	"os/exec"
+	"runtime"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
@@ -73,7 +72,12 @@ func (p *procOsascript) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (p *procOsascript) CheckPrereqs() error { return nil }
+func (p *procOsascript) CheckPrereqs(ctx context.Context, params module.Params) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("proc_osascript is only supported on macOS")
+	}
+	return nil
+}
 
 // stampScript appends the run ID as a language-appropriate comment so it lands
 // in the osascript argv (what detection keys on) without altering execution.
@@ -121,8 +125,8 @@ func (p *procOsascript) DryRun(params module.Params) []string {
 	return []string{fmt.Sprintf("osascript -l %s -e %q", language, script)}
 }
 
-func (p *procOsascript) Cleanup() error { return nil }
+func (p *procOsascript) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&procOsascript{})
+	module.Register(func() module.Generator { return &procOsascript{} })
 }

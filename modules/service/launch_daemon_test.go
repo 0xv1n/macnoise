@@ -14,7 +14,7 @@ import (
 
 func TestSvcLaunchDaemon_PrereqRequiresRoot(t *testing.T) {
 	s := &svcLaunchDaemon{}
-	err := s.CheckPrereqs()
+	err := s.CheckPrereqs(context.Background(), nil)
 	if os.Getuid() == 0 {
 		if err != nil {
 			t.Errorf("CheckPrereqs as root: %v, want nil", err)
@@ -72,7 +72,7 @@ func TestSvcLaunchDaemon_GenerateAndCleanup(t *testing.T) {
 		t.Error("expected a successful launchdaemon_create event")
 	}
 
-	if err := s.Cleanup(); err != nil {
+	if err := s.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
 	if _, err := os.Stat(plistPath); !os.IsNotExist(err) {

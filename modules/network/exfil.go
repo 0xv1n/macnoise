@@ -38,7 +38,7 @@ func (n *netExfil) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netExfil) CheckPrereqs() error { return nil }
+func (n *netExfil) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
 func (n *netExfil) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	target := tagURL(params.Get("target", "http://127.0.0.1:8080/upload"), module.RunIDFromContext(ctx))
@@ -100,8 +100,8 @@ func (n *netExfil) DryRun(params module.Params) []string {
 	}
 }
 
-func (n *netExfil) Cleanup() error { return nil }
+func (n *netExfil) Cleanup(ctx context.Context) error { return nil }
 
 func init() {
-	module.Register(&netExfil{})
+	module.Register(func() module.Generator { return &netExfil{} })
 }

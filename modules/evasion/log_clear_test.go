@@ -1,6 +1,7 @@
 package evasion
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"testing"
@@ -77,7 +78,7 @@ func TestCleanupRemovesStagingDir(t *testing.T) {
 	}
 
 	mod := &evadeLogClear{stageDir: stageDir}
-	if err := mod.Cleanup(); err != nil {
+	if err := mod.Cleanup(context.Background()); err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
 	if _, err := os.Stat(stageDir); !os.IsNotExist(err) {

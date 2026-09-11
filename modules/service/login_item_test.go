@@ -1,6 +1,7 @@
 package service
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -139,10 +140,10 @@ func TestDryRunMatchesExecutedScripts(t *testing.T) {
 // Cleanup must be a no-op when nothing was added, or a refused run on a headless
 // host reports a delete failure for an item that never existed.
 func TestCleanupIsNoOpWhenNothingAdded(t *testing.T) {
-	if err := (&svcLoginItem{}).Cleanup(); err != nil {
+	if err := (&svcLoginItem{}).Cleanup(context.Background()); err != nil {
 		t.Errorf("Cleanup with nothing added returned %v", err)
 	}
-	if err := (&svcLoginItem{name: "X", added: false}).Cleanup(); err != nil {
+	if err := (&svcLoginItem{name: "X", added: false}).Cleanup(context.Background()); err != nil {
 		t.Errorf("Cleanup with added=false returned %v", err)
 	}
 }

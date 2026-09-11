@@ -16,6 +16,7 @@ type ScenarioStep struct {
 
 // Scenario is the top-level structure parsed from a scenario YAML file.
 type Scenario struct {
+	OnError     string         `yaml:"on_error,omitempty"`
 	Name        string         `yaml:"name"`
 	Description string         `yaml:"description"`
 	AuditLog    string         `yaml:"audit_log,omitempty"`
@@ -34,6 +35,9 @@ func LoadScenario(path string) (Scenario, error) {
 	}
 	if len(sc.Steps) == 0 {
 		return Scenario{}, fmt.Errorf("scenario: %s contains no steps", path)
+	}
+	if sc.OnError != "" && sc.OnError != "stop" && sc.OnError != "continue" {
+		return Scenario{}, fmt.Errorf("scenario: invalid on_error %q", sc.OnError)
 	}
 	return sc, nil
 }

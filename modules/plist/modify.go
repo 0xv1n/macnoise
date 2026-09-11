@@ -90,7 +90,7 @@ func (p *plistModify) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (p *plistModify) CheckPrereqs() error {
+func (p *plistModify) CheckPrereqs(ctx context.Context, params module.Params) error {
 	return prereqs.CheckCommand("defaults")
 }
 
@@ -150,18 +150,18 @@ func (p *plistModify) DryRun(params module.Params) []string {
 	}
 }
 
-func (p *plistModify) Cleanup() error {
+func (p *plistModify) Cleanup(ctx context.Context) error {
 	if p.domain == "" || p.key == "" {
 		return nil
 	}
 	if p.priorExisted {
-		out, err := exec.Command("defaults", "write", p.domain, p.key, "-string", p.priorValue).CombinedOutput()
+		out, err := exec.CommandContext(ctx, "defaults", "write", p.domain, p.key, "-string", p.priorValue).CombinedOutput()
 		if err != nil {
 			return fmt.Errorf("defaults write %s %s (restore prior value): %v: %s", p.domain, p.key, err, out)
 		}
 		return nil
 	}
-	out, err := exec.Command("defaults", "delete", p.domain, p.key).CombinedOutput()
+	out, err := exec.CommandContext(ctx, "defaults", "delete", p.domain, p.key).CombinedOutput()
 	if err != nil {
 		return fmt.Errorf("defaults delete %s %s: %v: %s", p.domain, p.key, err, out)
 	}
@@ -169,5 +169,5 @@ func (p *plistModify) Cleanup() error {
 }
 
 func init() {
-	module.Register(&plistModify{})
+	module.Register(func() module.Generator { return &plistModify{} })
 }
