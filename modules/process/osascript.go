@@ -3,11 +3,11 @@ package process
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"runtime"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/subprocess"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -102,11 +102,11 @@ func (p *procOsascript) Generate(ctx context.Context, params module.Params, emit
 	info := p.Info()
 
 	ev := output.NewEvent(info, "osascript_exec", module.OutcomeError, module.Process("osascript", "/usr/bin/osascript", script, 0), fmt.Sprintf("executing %s via osascript", language))
-	out, err := exec.CommandContext(ctx, "osascript", "-l", language, "-e", script).CombinedOutput()
+	result, err := subprocess.Run(ctx, "osascript", "-l", language, "-e", script)
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
-	safeOutput := sanitizeOsascriptOutput(script, string(out))
+	safeOutput := sanitizeOsascriptOutput(script, string(result.Output))
 	if err != nil {
 		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("osascript returned error (telemetry generated): %v", err)

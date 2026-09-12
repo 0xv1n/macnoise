@@ -1,0 +1,11 @@
+version: 1
+name: Network Discovery Recipe
+description: Collects interface configuration with direct argv execution
+on_error: continue
+
+steps:
+  # T1016 - System Network Configuration Discovery
+  - id: interfaces
+    module: proc_exec
+    params:
+      executable: /sbin/ifconfig

@@ -51,6 +51,7 @@ func TestClassify(t *testing.T) {
 		// process
 		{"process", "dylib_inject_attempt", 1007, 4},
 		{"process", "osascript_exec", 1007, 1},
+		{"process", "process_exec", 1007, 1},
 		{"process", "process_fork", 1007, 1},
 		{"process", "process_spawn", 1007, 1},
 		{"process", "signal_send", 1007, 99},

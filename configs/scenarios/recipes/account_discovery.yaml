@@ -1,0 +1,23 @@
+version: 1
+name: Account Discovery Recipe
+description: Collects the current user and local account list with direct argv execution
+on_error: continue
+
+steps:
+  # T1033 - System Owner/User Discovery
+  - id: current_user
+    module: proc_exec
+    params:
+      executable: /usr/bin/id
+      args:
+        - -un
+
+  # T1087.001 - Account Discovery: Local Account
+  - id: local_accounts
+    module: proc_exec
+    params:
+      executable: /usr/bin/dscl
+      args:
+        - .
+        - -list
+        - /Users

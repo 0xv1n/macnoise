@@ -1,0 +1,17 @@
+version: 1
+name: macOS Discovery
+description: Composes focused argv-based recipes for system, account, network, and security software discovery
+on_error: continue
+
+steps:
+  - id: system
+    include: recipes/system_discovery.yaml
+
+  - id: accounts
+    include: recipes/account_discovery.yaml
+
+  - id: network
+    include: recipes/network_discovery.yaml
+
+  - id: security_software
+    include: recipes/security_software_discovery.yaml

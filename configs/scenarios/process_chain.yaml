@@ -1,0 +1,21 @@
+version: 1
+name: Nested Process Chain
+description: Creates a three-process shell chain with an explicit argument vector
+on_error: stop
+
+steps:
+  # T1059.004 - Command and Scripting Interpreter: Unix Shell
+  - id: chain
+    module: proc_exec
+    params:
+      executable: /bin/sh
+      args:
+        - -c
+        - '"$@"'
+        - sh
+        - /bin/sh
+        - -c
+        - '"$@"'
+        - sh
+        - /usr/bin/printf
+        - "macnoise_process_chain\n"

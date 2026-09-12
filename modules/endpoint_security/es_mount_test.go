@@ -111,14 +111,14 @@ func TestCleanupIsNoOpWhenNothingWasMounted(t *testing.T) {
 	}
 }
 
-func TestDetachTargetPrefersMountPoint(t *testing.T) {
+func TestDetachTargetPrefersWholeDisk(t *testing.T) {
 	e := &esMount{device: "/dev/disk4", mountPoint: "/Volumes/MacNoiseDelivery"}
-	if got := e.detachTarget(); got != "/Volumes/MacNoiseDelivery" {
-		t.Errorf("detach target = %q, want the mount point", got)
+	if got := e.detachTarget(); got != "/dev/disk4" {
+		t.Errorf("detach target = %q, want the whole-disk device", got)
 	}
 
-	e = &esMount{device: "/dev/disk4"}
-	if got := e.detachTarget(); got != "/dev/disk4" {
-		t.Errorf("detach target = %q, want the device node as fallback", got)
+	e = &esMount{mountPoint: "/Volumes/MacNoiseDelivery"}
+	if got := e.detachTarget(); got != "/Volumes/MacNoiseDelivery" {
+		t.Errorf("detach target = %q, want the mount point as fallback", got)
 	}
 }

@@ -43,7 +43,7 @@ make build
 | Category | Description | Modules |
 |----------|-------------|---------|
 | `network` | Outbound connections, DNS, beaconing, listeners, reverse shells, TLS, exfiltration | net_connect, net_listen, net_beacon, net_revshell, net_dns, net_dns_exfil, net_tls, net_exfil |
-| `process` | Process spawning, signal delivery, dylib injection, discovery, Gatekeeper bypass, osascript | proc_spawn, proc_signal, proc_inject, proc_discovery, proc_gatekeeper, proc_osascript |
+| `process` | Process spawning, signal delivery, dylib injection, discovery, Gatekeeper bypass, osascript | proc_exec, proc_spawn, proc_signal, proc_inject, proc_discovery, proc_gatekeeper, proc_osascript |
 | `file` | File creation, modification, credential file and keychain reads, archiving, hiding, encryption | file_create, file_modify, file_browser_creds, file_cred_files, file_keychain_copy, file_archive, file_hide, file_encrypt |
 | `tcc` | TCC permission probes (FDA, Contacts, Keychain, Accessibility, Screen Recording) | tcc_fda, tcc_contacts, tcc_keychain, tcc_accessibility, tcc_screen_recording |
 | `endpoint_security` | ES framework event triggers, including .dmg mount and payload execution | es_file, es_process, es_mount |
@@ -180,6 +180,8 @@ Scenarios chain modules into ordered sequences - a single YAML file that replays
 | `amos_atomic_stealer.yaml` | AMOS / Atomic Stealer: MaaS infostealer, Gatekeeper bypass, keychain dump, ZIP exfil, backdoor persistence |
 | `clickfix.yaml` | ClickFix: obfuscated one-liner pasted into Terminal, base64 decode, second-stage fetch, LaunchAgent persistence |
 | `ransomware.yaml` | Ransomware impact: stage plaintext decoys, encrypt them, then drop a ransom note |
+| `discovery.yaml` | Composed argv-based system, account, network, and security software discovery recipes |
+| `process_chain.yaml` | Three-process shell chain built from an explicit argument vector |
 
 The two APT scenarios follow real documented intrusion sequences, technique by technique - each YAML file cites the actual threat intel it's built from and annotates every step with the MITRE technique it exercises, so start there for the full breakdown rather than a retelling here.
 
