@@ -33,6 +33,14 @@ type Options struct {
 	// retrieve it via module.RunIDFromContext so they can fold it into
 	// artifact names, DNS labels, and command arguments.
 	RunID string
+	// ScenarioInputs supplies typed values declared by a scenario. It is
+	// ignored by RunSingle and RunMany.
+	ScenarioInputs module.Params
+
+	workspace        string
+	deferCleanup     func(func() error)
+	cleanupResult    func(string, string)
+	invocationOutput *module.Params
 }
 
 // RunSingle executes one module through its full lifecycle (prereqs → generate → cleanup).
@@ -52,6 +60,9 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 	}
 
 	runCtx := module.ContextWithRunID(ctx, opts.RunID)
+	if opts.workspace != "" {
+		runCtx = module.ContextWithWorkspace(runCtx, opts.workspace)
+	}
 	if opts.Timeout > 0 {
 		var cancel context.CancelFunc
 		runCtx, cancel = context.WithTimeout(runCtx, opts.Timeout)
@@ -76,7 +87,7 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 
 	if opts.DryRun {
 		for _, action := range gen.DryRun(params) {
-			fmt.Printf("[dry-run] [%s] %s\n", info.Name, action)
+			fmt.Fprintf(os.Stderr, "[dry-run] [%s] %s\n", info.Name, action)
 		}
 		if opts.AuditLog != nil {
 			lifecycle.EndTime = time.Now()
@@ -107,42 +118,64 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 		return err
 	}
 
+	collector := newOutputCollector(gen)
+	runCtx = module.ContextWithOutputSink(runCtx, collector.publish)
+
 	var generateErr error
 	defer func() {
-		cleanupResult := "ok"
-		cleanupErrStr := ""
-		switch {
-		case opts.NoCleanup:
-			// Always announced, not gated behind --verbose: leaving real
-			// persistence installed is the kind of thing an operator must not
-			// discover later by accident.
-			cleanupResult = "skipped"
-			fmt.Printf("[%s] cleanup skipped (--no-cleanup); artifacts left in place, see 'macnoise info %s'\n", info.Name, info.Name)
-		default:
-			cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(runCtx), 10*time.Second)
-			defer cancel()
-			if err := gen.Cleanup(cleanupCtx); err != nil {
-				cleanupResult = "error"
-				cleanupErrStr = err.Error()
-				resultErr = errors.Join(resultErr, fmt.Errorf("[%s] cleanup: %w", info.Name, err))
-				fmt.Fprintf(os.Stderr, "[%s] cleanup error: %v\n", info.Name, err)
+		finish := func() error {
+			cleanupResult := "ok"
+			cleanupErrStr := ""
+			var finishErr error
+			switch {
+			case opts.NoCleanup:
+				// Always announced, not gated behind --verbose: leaving real
+				// persistence installed is the kind of thing an operator must not
+				// discover later by accident.
+				cleanupResult = "skipped"
+				fmt.Fprintf(os.Stderr, "[%s] cleanup skipped (--no-cleanup); artifacts left in place, see 'macnoise info %s'\n", info.Name, info.Name)
+			default:
+				cleanupCtx, cancel := context.WithTimeout(context.WithoutCancel(runCtx), 10*time.Second)
+				defer cancel()
+				if err := gen.Cleanup(cleanupCtx); err != nil {
+					cleanupResult = "error"
+					cleanupErrStr = err.Error()
+					finishErr = fmt.Errorf("[%s] cleanup: %w", info.Name, err)
+					fmt.Fprintf(os.Stderr, "[%s] cleanup error: %v\n", info.Name, err)
+				}
 			}
+			if opts.cleanupResult != nil {
+				opts.cleanupResult(cleanupResult, cleanupErrStr)
+			}
+			if opts.AuditLog != nil {
+				lifecycle.EndTime = time.Now()
+				lifecycle.EventsEmitted = eventsEmitted
+				lifecycle.CleanupResult = cleanupResult
+				lifecycle.CleanupError = cleanupErrStr
+				if generateErr != nil {
+					lifecycle.GenerateError = generateErr.Error()
+				}
+				finishErr = errors.Join(finishErr, opts.AuditLog.LogLifecycle("module_run", info, auditParams, lifecycle))
+			}
+			return finishErr
 		}
-		if opts.AuditLog != nil {
-			lifecycle.EndTime = time.Now()
-			lifecycle.EventsEmitted = eventsEmitted
-			lifecycle.CleanupResult = cleanupResult
-			lifecycle.CleanupError = cleanupErrStr
-			if generateErr != nil {
-				lifecycle.GenerateError = generateErr.Error()
-			}
-			if err := opts.AuditLog.LogLifecycle("module_run", info, auditParams, lifecycle); err != nil {
-				resultErr = errors.Join(resultErr, err)
-			}
+		if opts.deferCleanup != nil {
+			opts.deferCleanup(finish)
+			return
 		}
+		resultErr = errors.Join(resultErr, finish())
 	}()
 
 	generateErr = gen.Generate(runCtx, params, normalizedEmit)
+	if outputErr := collector.err(); outputErr != nil && !errors.Is(generateErr, outputErr) {
+		generateErr = errors.Join(generateErr, outputErr)
+	}
+	if generateErr == nil {
+		generateErr = collector.requireAll()
+	}
+	if opts.invocationOutput != nil {
+		*opts.invocationOutput = collector.values()
+	}
 	emitMu.Lock()
 	if emitErr != nil && !errors.Is(generateErr, emitErr) {
 		generateErr = errors.Join(generateErr, emitErr)
@@ -169,120 +202,6 @@ func RunMany(ctx context.Context, gens []module.Generator, params module.Params,
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("%d module(s) failed: %v", len(errs), errs)
-	}
-	return nil
-}
-
-// RunScenario loads the YAML scenario at path and executes its steps in order.
-func RunScenario(ctx context.Context, path string, emit module.EventEmitter, opts Options) error {
-	registry := opts.Registry
-	if registry == nil {
-		registry = &module.DefaultRegistry
-	}
-	sc, err := LoadScenario(path)
-	if err != nil {
-		return err
-	}
-
-	fmt.Printf("Running scenario: %s\n", sc.Name)
-	if sc.Description != "" {
-		fmt.Printf("  %s\n", sc.Description)
-	}
-
-	scenarioStart := time.Now()
-	stepsPassed := 0
-	stepsFailed := 0
-
-	var interruptErr error
-
-stepLoop:
-	for i, step := range sc.Steps {
-		// Stop on cancellation rather than fast-failing every remaining step.
-		// An interrupted scenario should end at the step it reached, and still
-		// record a scenario audit entry describing how far it got.
-		select {
-		case <-ctx.Done():
-			interruptErr = fmt.Errorf("scenario %q: interrupted after %d of %d step(s): %w",
-				sc.Name, i, len(sc.Steps), ctx.Err())
-			break stepLoop
-		default:
-		}
-
-		params := step.Params
-		if params == nil {
-			params = module.Params{}
-		}
-
-		var stepErr error
-		switch {
-		case step.Module != "":
-			gen, ok := registry.Get(step.Module)
-			if !ok {
-				stepErr = fmt.Errorf("scenario step %d: module %q not found", i+1, step.Module)
-			} else {
-				stepErr = RunSingle(ctx, gen, params, emit, opts)
-			}
-
-		case step.Category != "":
-			cat := module.Category(step.Category)
-			gens := registry.ByCategory(cat)
-			if len(gens) == 0 {
-				stepErr = fmt.Errorf("scenario step %d: no modules found for category %q", i+1, step.Category)
-			} else if sc.OnError == "continue" {
-				stepErr = RunMany(ctx, gens, params, emit, opts)
-			} else {
-				for _, gen := range gens {
-					if stepErr = RunSingle(ctx, gen, params, emit, opts); stepErr != nil {
-						break
-					}
-				}
-			}
-
-		default:
-			stepErr = fmt.Errorf("scenario step %d: must specify either 'module' or 'category'", i+1)
-		}
-
-		if err := ctx.Err(); err != nil {
-			interruptErr = fmt.Errorf("scenario %q: interrupted during step %d of %d: %w",
-				sc.Name, i+1, len(sc.Steps), err)
-			break stepLoop
-		}
-
-		if stepErr != nil {
-			stepsFailed++
-			fmt.Fprintf(os.Stderr, "step %d error: %v\n", i+1, stepErr)
-			if sc.OnError != "continue" {
-				break stepLoop
-			}
-		} else {
-			stepsPassed++
-		}
-	}
-
-	if opts.AuditLog != nil {
-		ld := audit.LifecycleData{
-			StartTime:   scenarioStart,
-			EndTime:     time.Now(),
-			StepsPassed: stepsPassed,
-			StepsFailed: stepsFailed,
-			TotalSteps:  len(sc.Steps),
-		}
-		switch {
-		case interruptErr != nil:
-			ld.GenerateError = interruptErr.Error()
-		case stepsFailed > 0:
-			ld.GenerateError = fmt.Sprintf("%d step(s) failed", stepsFailed)
-		}
-		if err := opts.AuditLog.LogScenario(sc.Name, path, ld); err != nil {
-			interruptErr = errors.Join(interruptErr, err)
-		}
-	}
-
-	if interruptErr != nil {
-		return interruptErr
-	}
-	if stepsFailed > 0 {
-		return fmt.Errorf("scenario %q: %d of %d step(s) failed", sc.Name, stepsFailed, len(sc.Steps))
 	}
 	return nil
 }

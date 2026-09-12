@@ -60,7 +60,8 @@ macnoise run --category <cat>                 Run all modules in a category
 macnoise run --all                            Run all modules
 macnoise list [--category <cat>]              List modules
 macnoise info <module>                        Show module details, params, MITRE
-macnoise scenario <file.yaml>                 Run a YAML scenario
+macnoise scenario <file.yaml> [--input key=val] [--report report.json]
+                                                Run a YAML scenario
 macnoise categories                           List categories with counts
 macnoise version                              Print version
 ```
@@ -77,6 +78,45 @@ macnoise version                              Print version
 | `--timeout` | `30` | Per-module timeout in seconds |
 | `--audit-log` | (none) | Write OCSF 1.7.0 audit records to a JSONL file |
 | `--config` | (none) | Load defaults from a YAML config file |
+
+### Scenario dataflow
+
+Scenario files use `version: 1`. Inputs and module outputs are typed, and a
+later step references them with explicit mappings rather than string
+interpolation:
+
+```yaml
+version: 1
+name: Archive one generated artifact
+on_error: stop
+inputs:
+  content:
+    type: string
+    required: true
+steps:
+  # Custom modules declare these outputs through OutputSpecs.
+  - id: create
+    module: custom_create
+    params:
+      content:
+        input: content
+  - id: archive
+    module: custom_archive
+    params:
+      source:
+        output: create.path
+outputs:
+  archive:
+    output: archive.path
+```
+
+Only outputs declared by a module can be referenced. Local scenarios can be
+reused with an `include` step; includes are relative, cannot traverse above
+the root scenario directory, are cycle-checked, and are limited to eight levels.
+MacNoise validates the complete graph before execution, gives the run one
+private workspace, and cleans invoked modules in reverse order. Use
+`--input content=value` to supply inputs and `--report report.json` for the
+versioned execution report.
 
 ## Leaving Artifacts In Place
 

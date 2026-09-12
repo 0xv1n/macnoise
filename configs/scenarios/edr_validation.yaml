@@ -1,3 +1,5 @@
+version: 1
+on_error: stop
 name: EDR Validation Suite
 description: Modules most relevant to EDR detection validation — covers process, network, file, persistence, and TCC telemetry
 

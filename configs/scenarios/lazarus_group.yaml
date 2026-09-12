@@ -1,3 +1,5 @@
+version: 1
+on_error: stop
 name: Lazarus Group Emulation
 description: |
   Emulates a representative Lazarus Group (G0032) intrusion sequence on macOS.

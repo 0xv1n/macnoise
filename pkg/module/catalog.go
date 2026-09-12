@@ -8,15 +8,16 @@ package module
 // rather than tagging those shared structs, so the telemetry event schema
 // (which already serialises ModuleInfo.MITRE) is left untouched.
 type CatalogEntry struct {
-	Name        string         `json:"name"`
-	Category    Category       `json:"category"`
-	Description string         `json:"description"`
-	Privileges  Privilege      `json:"privileges"`
-	MinMacOS    string         `json:"min_macos,omitempty"`
-	Tags        []string       `json:"tags,omitempty"`
-	EventTypes  []string       `json:"event_types,omitempty"`
-	MITRE       []CatalogMITRE `json:"mitre,omitempty"`
-	Params      []CatalogParam `json:"params,omitempty"`
+	Name        string          `json:"name"`
+	Category    Category        `json:"category"`
+	Description string          `json:"description"`
+	Privileges  Privilege       `json:"privileges"`
+	MinMacOS    string          `json:"min_macos,omitempty"`
+	Tags        []string        `json:"tags,omitempty"`
+	EventTypes  []string        `json:"event_types,omitempty"`
+	MITRE       []CatalogMITRE  `json:"mitre,omitempty"`
+	Params      []CatalogParam  `json:"params,omitempty"`
+	Outputs     []CatalogOutput `json:"outputs,omitempty"`
 }
 
 // CatalogMITRE is one ATT&CK reference in a CatalogEntry. SubTechnique is the
@@ -41,6 +42,14 @@ type CatalogParam struct {
 	Choices     []string      `json:"choices,omitempty"`
 }
 
+// CatalogOutput is one typed scenario value published by a module.
+type CatalogOutput struct {
+	Name        string    `json:"name"`
+	Description string    `json:"description"`
+	Type        ParamType `json:"type"`
+	Sensitive   bool      `json:"sensitive"`
+}
+
 // NewCatalogEntry builds the catalog view of a module from its Info and
 // parameter specs.
 func NewCatalogEntry(g Generator) CatalogEntry {
@@ -60,6 +69,12 @@ func NewCatalogEntry(g Generator) CatalogEntry {
 	for _, s := range specs {
 		params = append(params, CatalogParam(s))
 	}
+	var outputs []CatalogOutput
+	if provider, ok := g.(OutputProvider); ok {
+		for _, spec := range provider.OutputSpecs() {
+			outputs = append(outputs, CatalogOutput(spec))
+		}
+	}
 
 	return CatalogEntry{
 		Name:        info.Name,
@@ -71,5 +86,6 @@ func NewCatalogEntry(g Generator) CatalogEntry {
 		EventTypes:  info.EventTypes,
 		MITRE:       mitre,
 		Params:      params,
+		Outputs:     outputs,
 	}
 }

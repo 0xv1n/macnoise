@@ -76,6 +76,12 @@ fmt.Println("something happened")
 
 Every event requires exactly one typed subject. Use `module.File`, `module.Process`, `module.Network`, `module.Service`, or `module.Resource`. Mark secret-bearing parameter specs with `Sensitive: true` so managed audit output redacts their values.
 
+If later scenario steps need a value produced by the module, implement
+`module.OutputProvider`, declare it in `OutputSpecs()`, and call
+`module.PublishOutput(ctx, name, value)` from `Generate`. Mark secret-bearing
+outputs sensitive as well. Use `module.WorkspaceFromContext(ctx)` for temporary
+scenario artifacts that must remain available until reverse cleanup.
+
 ## Audit Logging (OCSF)
 
 MacNoise writes a second output stream alongside telemetry events: structured audit records in [OCSF 1.7.0](https://schema.ocsf.io/) JSONL format via `internal/audit/`. These records capture what MacNoise itself did - which modules ran, prereq and cleanup outcomes, timing, and MITRE mappings - rather than the telemetry events that modules produce for EDR consumption.

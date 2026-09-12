@@ -87,8 +87,13 @@ func TestXPCEnumerate_EmitsPerDomain(t *testing.T) {
 		if ev.EventType != "xpc_enumerate" {
 			t.Errorf("EventType = %q, want xpc_enumerate", ev.EventType)
 		}
-		if ev.Outcome != module.OutcomeExecuted {
-			t.Errorf("Success = false for domain %v; an unreadable domain is still valid telemetry", ev.Details["domain"])
+		accessible, ok := ev.Details["accessible"].(bool)
+		if !ok {
+			t.Errorf("accessible = %#v, want bool", ev.Details["accessible"])
+		} else if accessible && ev.Outcome != module.OutcomeExecuted {
+			t.Errorf("Outcome = %q for readable domain %v, want executed", ev.Outcome, ev.Details["domain"])
+		} else if !accessible && ev.Outcome != module.OutcomeDenied {
+			t.Errorf("Outcome = %q for unreadable domain %v, want denied", ev.Outcome, ev.Details["domain"])
 		}
 		if ev.Details["domain"] == "" {
 			t.Error("event is missing the domain it enumerated")

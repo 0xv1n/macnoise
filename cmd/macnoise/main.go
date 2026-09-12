@@ -4,6 +4,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"os/signal"
@@ -366,17 +367,34 @@ func buildInfo() *cobra.Command {
 					}
 				}
 			}
+			if provider, ok := gen.(module.OutputProvider); ok && len(provider.OutputSpecs()) > 0 {
+				fmt.Println("\nOutputs:")
+				for _, spec := range provider.OutputSpecs() {
+					fmt.Printf("  %-20s %s\n", spec.Name+" ("+string(spec.Type)+")", spec.Description)
+				}
+			}
 			return nil
 		},
 	}
 }
 
 func buildScenario() *cobra.Command {
-	return &cobra.Command{
+	var (
+		inputFlags []string
+		reportPath string
+	)
+	cmd := &cobra.Command{
 		Use:   "scenario <file.yaml>",
 		Short: "Run a YAML scenario file",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			inputs, err := parseParams(inputFlags)
+			if err != nil {
+				return fmt.Errorf("scenario input: %w", err)
+			}
+			if err := runner.ValidateScenario(args[0], inputs, nil); err != nil {
+				return err
+			}
 			em, closeEM, err := buildEmitter()
 			if err != nil {
 				return err
@@ -398,12 +416,28 @@ func buildScenario() *cobra.Command {
 			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
 
 			opts := buildRunOpts(auditLogger, runID)
+			opts.ScenarioInputs = inputs
 			ctx, stop := signalContext()
 			defer stop()
 
-			return runner.RunScenario(ctx, args[0], em.EmitFunc(), opts)
+			report, runErr := runner.RunScenario(ctx, args[0], em.EmitFunc(), opts)
+			if reportPath != "" {
+				data, err := json.MarshalIndent(report, "", "  ")
+				if err == nil {
+					data = append(data, '\n')
+					err = os.WriteFile(reportPath, data, 0o600)
+				}
+				if err != nil {
+					runErr = errors.Join(runErr, fmt.Errorf("write scenario report: %w", err))
+				}
+			}
+			fmt.Fprintf(os.Stderr, "scenario_status=%s\n", report.Status)
+			return runErr
 		},
 	}
+	cmd.Flags().StringArrayVar(&inputFlags, "input", nil, "Scenario input as key=value (repeatable)")
+	cmd.Flags().StringVar(&reportPath, "report", "", "Write the scenario execution report as JSON")
+	return cmd
 }
 
 func buildCategories() *cobra.Command {

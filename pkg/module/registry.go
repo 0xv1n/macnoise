@@ -28,6 +28,11 @@ func (r *Registry) Register(newGenerator Factory) {
 	if err := ValidateParamSpecs(gen.ParamSpecs()); err != nil {
 		panic(fmt.Sprintf("module: invalid parameters for %q: %v", name, err))
 	}
+	if provider, ok := gen.(OutputProvider); ok {
+		if err := ValidateOutputSpecs(provider.OutputSpecs()); err != nil {
+			panic(fmt.Sprintf("module: invalid outputs for %q: %v", name, err))
+		}
+	}
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	if name == "" {
