@@ -3,10 +3,10 @@ package process
 import (
 	"context"
 	"fmt"
-	"os/exec"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/subprocess"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -100,18 +100,18 @@ func (p *procDiscovery) Generate(ctx context.Context, params module.Params, emit
 		}
 
 		ev := output.NewEvent(info, "system_discovery", module.OutcomeError, module.Process("sh", "/bin/sh", cmd, 0), fmt.Sprintf("running: %s", cmd))
-		out, err := exec.CommandContext(ctx, "sh", "-c", cmd).CombinedOutput()
+		result, err := subprocess.Run(ctx, "sh", "-c", cmd)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		if err != nil {
 			ev.Outcome = module.OutcomeExecuted
 			ev.Message = fmt.Sprintf("discovery command returned error: %s", cmd)
-			ev = output.WithDetails(ev, map[string]any{"command": cmd, "output": string(out), "error": err.Error()})
+			ev = output.WithDetails(ev, map[string]any{"command": cmd, "output": string(result.Output), "error": err.Error()})
 		} else {
 			ev.Outcome = module.OutcomeExecuted
 			ev.Message = fmt.Sprintf("discovery command completed: %s", cmd)
-			ev = output.WithDetails(ev, map[string]any{"command": cmd, "output": string(out)})
+			ev = output.WithDetails(ev, map[string]any{"command": cmd, "output": string(result.Output)})
 		}
 		if err := emit(ev); err != nil {
 			return err

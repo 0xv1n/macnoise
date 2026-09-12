@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/subprocess"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -69,8 +69,7 @@ func (e *esProcess) Generate(ctx context.Context, params module.Params, emit mod
 		fmt.Sprintf("executing %d-deep process fork/exec chain", depth))
 
 	chainArgs := buildExecChainArgs(depth, module.RunIDFromContext(ctx))
-	cmd := exec.CommandContext(ctx, chainArgs[0], chainArgs[1:]...)
-	out, err := cmd.CombinedOutput()
+	result, err := subprocess.Run(ctx, chainArgs[0], chainArgs[1:]...)
 	if err != nil {
 		ev = output.WithError(ev, err)
 		return errors.Join(err, emit(ev))
@@ -79,7 +78,7 @@ func (e *esProcess) Generate(ctx context.Context, params module.Params, emit mod
 	ev.Message = fmt.Sprintf("%d-deep exec chain completed (ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT)", depth)
 	ev = output.WithDetails(ev, map[string]any{
 		"chain_depth": depth,
-		"output":      string(out),
+		"output":      string(result.Output),
 		"es_events":   []string{"ES_EVENT_TYPE_NOTIFY_EXEC", "ES_EVENT_TYPE_NOTIFY_FORK", "ES_EVENT_TYPE_NOTIFY_EXIT"},
 	})
 	return emit(ev)

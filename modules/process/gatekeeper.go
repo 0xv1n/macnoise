@@ -5,10 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/subprocess"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -65,9 +65,9 @@ func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emi
 		quarantineVal = "0081;00000000;macnoise-" + runID + ";"
 	}
 	setEv := output.NewEvent(info, "xattr_quarantine_set", module.OutcomeError, module.File(targetPath), fmt.Sprintf("setting quarantine xattr on %s", targetPath))
-	setOut, setErr := exec.CommandContext(ctx, "xattr", "-w", "com.apple.quarantine", quarantineVal, targetPath).CombinedOutput()
+	setResult, setErr := subprocess.Run(ctx, "xattr", "-w", "com.apple.quarantine", quarantineVal, targetPath)
 	if setErr != nil {
-		setEv = output.WithError(setEv, fmt.Errorf("%v: %s", setErr, setOut))
+		setEv = output.WithError(setEv, fmt.Errorf("%v: %s", setErr, setResult.Output))
 		if err := emit(setEv); err != nil {
 			return err
 		}
@@ -80,9 +80,9 @@ func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emi
 		}
 
 		rmEv := output.NewEvent(info, "xattr_quarantine_remove", module.OutcomeError, module.File(targetPath), fmt.Sprintf("removing quarantine xattr from %s", targetPath))
-		rmOut, rmErr := exec.CommandContext(ctx, "xattr", "-d", "com.apple.quarantine", targetPath).CombinedOutput()
+		rmResult, rmErr := subprocess.Run(ctx, "xattr", "-d", "com.apple.quarantine", targetPath)
 		if rmErr != nil {
-			rmEv = output.WithError(rmEv, fmt.Errorf("%v: %s", rmErr, rmOut))
+			rmEv = output.WithError(rmEv, fmt.Errorf("%v: %s", rmErr, rmResult.Output))
 		} else {
 			rmEv.Outcome = module.OutcomeExecuted
 			rmEv.Message = fmt.Sprintf("removed com.apple.quarantine from %s", targetPath)
@@ -94,15 +94,15 @@ func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emi
 	}
 
 	spctlEv := output.NewEvent(info, "spctl_status_check", module.OutcomeError, module.Process("spctl", "/usr/sbin/spctl", "spctl --status", 0), "checking Gatekeeper status via spctl --status")
-	spctlOut, spctlErr := exec.CommandContext(ctx, "spctl", "--status").CombinedOutput()
+	spctlResult, spctlErr := subprocess.Run(ctx, "spctl", "--status")
 	if spctlErr != nil {
 		spctlEv.Outcome = module.OutcomeExecuted
 		spctlEv.Message = "Gatekeeper status check returned error (expected on some configs)"
-		spctlEv = output.WithDetails(spctlEv, map[string]any{"output": string(spctlOut), "error": spctlErr.Error()})
+		spctlEv = output.WithDetails(spctlEv, map[string]any{"output": string(spctlResult.Output), "error": spctlErr.Error()})
 	} else {
 		spctlEv.Outcome = module.OutcomeExecuted
-		spctlEv.Message = fmt.Sprintf("Gatekeeper status: %s", strings.TrimSpace(string(spctlOut)))
-		spctlEv = output.WithDetails(spctlEv, map[string]any{"output": string(spctlOut)})
+		spctlEv.Message = fmt.Sprintf("Gatekeeper status: %s", strings.TrimSpace(string(spctlResult.Output)))
+		spctlEv = output.WithDetails(spctlEv, map[string]any{"output": string(spctlResult.Output)})
 	}
 	return emit(spctlEv)
 }

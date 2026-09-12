@@ -1,0 +1,46 @@
+version: 1
+name: Security Software Discovery Recipe
+description: Enumerates security controls, system extensions, firewall state, and running processes with direct argv execution
+on_error: continue
+
+steps:
+  # T1518.001 - Software Discovery: Security Software Discovery
+  - id: sip_status
+    module: proc_exec
+    params:
+      executable: /usr/bin/csrutil
+      args:
+        - status
+      accept_nonzero: true
+
+  - id: filevault_status
+    module: proc_exec
+    params:
+      executable: /usr/bin/fdesetup
+      args:
+        - status
+      accept_nonzero: true
+
+  - id: system_extensions
+    module: proc_exec
+    params:
+      executable: /usr/bin/systemextensionsctl
+      args:
+        - list
+      accept_nonzero: true
+
+  - id: application_firewall
+    module: proc_exec
+    params:
+      executable: /usr/libexec/ApplicationFirewall/socketfilterfw
+      args:
+        - --getglobalstate
+      accept_nonzero: true
+
+  - id: running_processes
+    module: proc_exec
+    params:
+      executable: /bin/ps
+      args:
+        - -axo
+        - comm=

@@ -120,8 +120,8 @@ func TestDiscoveryGenerate_CanceledDuringCommand(t *testing.T) {
 			var events []module.TelemetryEvent
 			done := make(chan error, 1)
 			go func() {
-				// exec leaves no descendant holding the output pipe after cancellation.
-				done <- (&procDiscovery{}).Generate(ctx, module.Params{"commands": fmt.Sprintf("printf started > '%s'; exec sleep 10", marker)}, func(ev module.TelemetryEvent) error {
+				// The shared lifecycle must terminate the shell and its child.
+				done <- (&procDiscovery{}).Generate(ctx, module.Params{"commands": fmt.Sprintf("printf started > '%s'; sleep 10", marker)}, func(ev module.TelemetryEvent) error {
 					events = append(events, ev)
 					return nil
 				})

@@ -61,19 +61,20 @@ func TestDocsListEveryRegisteredModule(t *testing.T) {
 // module they invoke.
 func TestStockScenariosHaveValidInputs(t *testing.T) {
 	dir := filepath.Join("..", "..", "configs", "scenarios")
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		t.Fatalf("read %s: %v", dir, err)
-	}
-
-	for _, e := range entries {
-		if !strings.HasSuffix(e.Name(), ".yaml") {
-			continue
+	err := filepath.WalkDir(dir, func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
 		}
-		path := filepath.Join(dir, e.Name())
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".yaml") {
+			return nil
+		}
 		if err := runner.ValidateScenario(path, nil, &module.DefaultRegistry); err != nil {
-			t.Errorf("%s: %v", e.Name(), err)
+			t.Errorf("%s: %v", path, err)
 		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk %s: %v", dir, err)
 	}
 }
 

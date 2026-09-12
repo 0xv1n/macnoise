@@ -1,0 +1,33 @@
+version: 1
+name: System Discovery Recipe
+description: Collects macOS version, hardware, application, and model information with direct argv execution
+on_error: continue
+
+steps:
+  # T1082 - System Information Discovery
+  - id: macos_version
+    module: proc_exec
+    params:
+      executable: /usr/bin/sw_vers
+
+  - id: hardware
+    module: proc_exec
+    params:
+      executable: /usr/sbin/system_profiler
+      args:
+        - SPHardwareDataType
+
+  # T1518 - Software Discovery
+  - id: applications
+    module: proc_exec
+    params:
+      executable: /bin/ls
+      args:
+        - /Applications
+
+  - id: model
+    module: proc_exec
+    params:
+      executable: /usr/sbin/sysctl
+      args:
+        - hw.model
