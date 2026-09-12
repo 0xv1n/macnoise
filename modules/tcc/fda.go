@@ -71,7 +71,7 @@ func (t *tccFDA) Generate(ctx context.Context, params module.Params, emit module
 	}
 	info := t.Info()
 
-	ev := output.NewEvent(info, "tcc_fda_probe", true, fmt.Sprintf("attempting to read %s", tccPath))
+	ev := output.NewEvent(info, "tcc_fda_probe", module.OutcomeExecuted, module.Resource("tcc_fda", "TCC.db", tccPath), fmt.Sprintf("attempting to read %s", tccPath))
 	details := map[string]any{"path": tccPath}
 
 	f, err := os.Open(tccPath)
@@ -95,8 +95,7 @@ func (t *tccFDA) Generate(ctx context.Context, params module.Params, emit module
 
 	ev = output.WithOutcome(ev, eventOutcome(outcome), err)
 	ev = output.WithDetails(ev, details)
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (t *tccFDA) DryRun(params module.Params) []string {

@@ -16,7 +16,7 @@ import (
 func TestRunSingle_CleanupRunsByDefault(t *testing.T) {
 	gen := &mockGen{name: "mock_default_cleanup"}
 
-	if err := runner.RunSingle(context.Background(), gen, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{}); err != nil {
+	if err := runner.RunSingle(context.Background(), gen, module.Params{}, discardEvent, runner.Options{}); err != nil {
 		t.Fatalf("RunSingle: %v", err)
 	}
 	if !gen.cleanedUp {
@@ -30,7 +30,7 @@ func TestRunSingle_NoCleanupLeavesArtifacts(t *testing.T) {
 	gen := &mockGen{name: "mock_no_cleanup"}
 
 	opts := runner.Options{NoCleanup: true}
-	if err := runner.RunSingle(context.Background(), gen, module.Params{}, func(module.TelemetryEvent) {}, opts); err != nil {
+	if err := runner.RunSingle(context.Background(), gen, module.Params{}, discardEvent, opts); err != nil {
 		t.Fatalf("RunSingle: %v", err)
 	}
 	if gen.cleanedUp {
@@ -61,7 +61,7 @@ func TestRunSingle_NoCleanupIsRecordedAsSkipped(t *testing.T) {
 
 			gen := &mockGen{name: "mock_audit_cleanup"}
 			opts := runner.Options{NoCleanup: tt.noCleanup, AuditLog: logger}
-			if err := runner.RunSingle(context.Background(), gen, module.Params{}, func(module.TelemetryEvent) {}, opts); err != nil {
+			if err := runner.RunSingle(context.Background(), gen, module.Params{}, discardEvent, opts); err != nil {
 				t.Fatalf("RunSingle: %v", err)
 			}
 			if err := logger.Close(); err != nil {

@@ -11,6 +11,13 @@ import (
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
+func captureProcessEvents(events *[]module.TelemetryEvent) module.EventEmitter {
+	return func(ev module.TelemetryEvent) error {
+		*events = append(*events, ev)
+		return nil
+	}
+}
+
 // Excluded on Windows for the same reason as es_process's exec test: Go's
 // os/exec there routes through an MSYS2/Cygwin sh that re-parses the command
 // line unlike real POSIX sh, which is not this module's target. CI runs this on
@@ -21,7 +28,7 @@ func TestSpawnGenerate_EmitsSuccess(t *testing.T) {
 	}
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureProcessEvents(&events)
 	err := (&procSpawn{}).Generate(context.Background(), module.Params{"command": "echo macnoise-spawn-test"}, emit)
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -30,7 +37,7 @@ func TestSpawnGenerate_EmitsSuccess(t *testing.T) {
 	if len(events) != 1 || events[0].EventType != "process_spawn" {
 		t.Fatalf("expected 1 process_spawn event, got %+v", events)
 	}
-	if !events[0].Success {
+	if events[0].Outcome != module.OutcomeExecuted {
 		t.Errorf("spawn of a plain echo should succeed: %s", events[0].Message)
 	}
 	if out, _ := events[0].Details["output"].(string); !strings.Contains(out, "macnoise-spawn-test") {
@@ -44,7 +51,7 @@ func TestSpawnGenerate_RunIDInCommand(t *testing.T) {
 	}
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureProcessEvents(&events)
 	ctx := module.ContextWithRunID(context.Background(), "spawnrun42")
 	if err := (&procSpawn{}).Generate(ctx, module.Params{"command": "echo hi"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)

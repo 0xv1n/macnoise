@@ -206,7 +206,7 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 			var ev module.TelemetryEvent
 			switch {
 			case os.IsNotExist(readErr) || errors.Is(readErr, errNotRegularFile):
-				ev = output.NewEvent(info, "browser_cred_probe", true,
+				ev = output.NewEvent(info, "browser_cred_probe", module.OutcomeIndeterminate, module.File(path),
 					fmt.Sprintf("%s credential path not present: %s", browser.name, path))
 				// An absent path means no read was attempted and no access
 				// decision was made, the same distinction the TCC probes draw.
@@ -222,7 +222,7 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 				// usually means TCC denied it. That refusal is the signal a
 				// detection is meant to see, so it is reported as a completed
 				// read attempt rather than a module failure.
-				ev = output.NewEvent(info, "browser_cred_read", true,
+				ev = output.NewEvent(info, "browser_cred_read", module.OutcomeDenied, module.File(path),
 					fmt.Sprintf("%s credential file read denied: %s", browser.name, path))
 				ev = output.WithOutcome(ev, module.OutcomeDenied, readErr)
 				ev = output.WithDetails(ev, map[string]any{
@@ -233,7 +233,7 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 				})
 
 			default:
-				ev = output.NewEvent(info, "browser_cred_read", true,
+				ev = output.NewEvent(info, "browser_cred_read", module.OutcomeExecuted, module.File(path),
 					fmt.Sprintf("%s credential file read: %s (%d bytes)", browser.name, path, n))
 				ev = output.WithDetails(ev, map[string]any{
 					"browser":    browser.name,
@@ -243,7 +243,9 @@ func (f *fileBrowserCreds) Generate(ctx context.Context, params module.Params, e
 					"bytes_read": n,
 				})
 			}
-			emit(ev)
+			if err := emit(ev); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

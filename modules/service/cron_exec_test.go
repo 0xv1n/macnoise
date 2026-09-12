@@ -88,8 +88,9 @@ func TestCronGenerate_InstallAndCleanup(t *testing.T) {
 			ctx = module.ContextWithRunID(ctx, runID)
 			var events []module.TelemetryEvent
 			params := module.Params{"schedule": "0 0 1 1 *", "command": "/usr/bin/true"}
-			if err := s.Generate(ctx, params, func(ev module.TelemetryEvent) {
+			if err := s.Generate(ctx, params, func(ev module.TelemetryEvent) error {
 				events = append(events, ev)
+				return nil
 			}); err != nil {
 				t.Fatalf("Generate: %v", err)
 			}
@@ -99,8 +100,8 @@ func TestCronGenerate_InstallAndCleanup(t *testing.T) {
 			if !exists || installed != want {
 				t.Fatalf("installed crontab = %q, want %q", installed, want)
 			}
-			if len(events) != 2 || events[0].EventType != "cron_job_list" || !events[0].Success ||
-				events[1].EventType != "cron_job_create" || !events[1].Success {
+			if len(events) != 2 || events[0].EventType != "cron_job_list" || events[0].Outcome != module.OutcomeExecuted ||
+				events[1].EventType != "cron_job_create" || events[1].Outcome != module.OutcomeExecuted {
 				t.Fatalf("events = %+v, want successful list then create", events)
 			}
 			if got := events[0].Details["entries"]; got != baseline {
@@ -139,15 +140,16 @@ func TestCronGenerate_InvalidSchedule(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var events []module.TelemetryEvent
-	err := s.Generate(ctx, module.Params{"schedule": "invalid", "command": "/usr/bin/true"}, func(ev module.TelemetryEvent) {
+	err := s.Generate(ctx, module.Params{"schedule": "invalid", "command": "/usr/bin/true"}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
+		return nil
 	})
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	if len(events) != 2 || events[0].EventType != "cron_job_list" || !events[0].Success ||
-		events[1].EventType != "cron_job_create" || events[1].Success ||
-		events[1].Outcome != module.OutcomeError || events[1].Error == "" {
+	if len(events) != 2 || events[0].EventType != "cron_job_list" || events[0].Outcome != module.OutcomeExecuted ||
+		events[1].EventType != "cron_job_create" || events[1].Outcome != module.OutcomeError ||
+		events[1].Error == "" {
 		t.Fatalf("events = %+v, want successful list then install error", events)
 	}
 	if got, _ := cronRead(t); got != baseline {

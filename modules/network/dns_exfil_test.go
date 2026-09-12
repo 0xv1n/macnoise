@@ -17,6 +17,18 @@ func TestEncodeExfilPayload_DNSSafe(t *testing.T) {
 	}
 }
 
+func TestDNSExfilPayloadIsSensitive(t *testing.T) {
+	for _, spec := range (&netDNSExfil{}).ParamSpecs() {
+		if spec.Name == "payload" {
+			if !spec.Sensitive {
+				t.Fatal("payload parameter is not marked sensitive")
+			}
+			return
+		}
+	}
+	t.Fatal("payload parameter spec not found")
+}
+
 func TestEncodeExfilPayload_NoPadding(t *testing.T) {
 	encoded := encodeExfilPayload("test")
 	if strings.Contains(encoded, "=") {

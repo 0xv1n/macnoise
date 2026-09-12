@@ -2,7 +2,9 @@ package audit
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -75,20 +77,29 @@ func (l *Logger) Close() error {
 
 // WrapEmitter returns an EventEmitter that forwards events to emit and also logs each one via LogEvent.
 func (l *Logger) WrapEmitter(emit module.EventEmitter, info module.ModuleInfo, params module.Params, count *int) module.EventEmitter {
-	return func(ev module.TelemetryEvent) {
-		emit(ev)
+	return func(ev module.TelemetryEvent) error {
+		emitErr := emit(ev)
 		*count++
-		l.LogEvent(ev, info, params)
+		auditErr := l.LogEvent(ev, info, params)
+		return errors.Join(emitErr, auditErr)
 	}
 }
 
 // LogEvent writes an OCSF audit record for a single telemetry event emitted by a module.
-func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, params module.Params) {
+func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, params module.Params) error {
+	if !ev.Outcome.Valid() {
+		return fmt.Errorf("audit: event %q has invalid outcome %q", ev.EventType, ev.Outcome)
+	}
+	if err := ev.Subject.Validate(); err != nil {
+		return fmt.Errorf("audit: event %q subject: %w", ev.EventType, err)
+	}
 	cl := Classify(ev.Category, ev.EventType)
-	now := epochMS(time.Now())
+	eventTime := ev.Timestamp
+	if eventTime.IsZero() {
+		eventTime = time.Now().UTC()
+	}
 
-	outcome := ev.ResolvedOutcome()
-	st := statusForOutcome(outcome)
+	st := statusForOutcome(ev.Outcome)
 
 	rec := Record{
 		ActivityID:   cl.ActivityID,
@@ -99,7 +110,7 @@ func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, para
 		ClassName:    cl.ClassName,
 		SeverityID:   st.SeverityID,
 		Severity:     st.Severity,
-		Time:         now,
+		Time:         epochMS(eventTime),
 		TypeUID:      cl.ClassUID*100 + cl.ActivityID,
 		TypeName:     fmt.Sprintf("%s: %s", cl.ClassName, cl.ActivityName),
 		Message:      ev.Message,
@@ -114,22 +125,22 @@ func (l *Logger) LogEvent(ev module.TelemetryEvent, info module.ModuleInfo, para
 			ModuleCategory: string(info.Category),
 			Params:         map[string]any(params),
 			Privileges:     string(info.Privileges),
-			Outcome:        string(outcome),
+			Outcome:        string(ev.Outcome),
 		},
 	}
 
 	switch cl.ClassUID {
 	case 1001:
-		rec.File = extractFile(ev.EventType, ev.Details)
+		rec.File = extractFile(ev.EventType, ev.Subject)
 	case 1007:
-		rec.Process = extractProcess(ev.Details, l.actor.Process)
+		rec.Process = extractProcess(ev.Subject, l.actor.Process)
 	}
 
-	l.write(rec)
+	return l.write(rec)
 }
 
 // LogLifecycle writes an OCSF audit record for a module lifecycle event (prereq, run, dry-run, cleanup).
-func (l *Logger) LogLifecycle(recordType string, info module.ModuleInfo, params module.Params, data LifecycleData) {
+func (l *Logger) LogLifecycle(recordType string, info module.ModuleInfo, params module.Params, data LifecycleData) error {
 	now := epochMS(time.Now())
 
 	severityID, severity := lifecycleSeverity(data)
@@ -187,11 +198,11 @@ func (l *Logger) LogLifecycle(recordType string, info module.ModuleInfo, params 
 		Unmapped:     unmapped,
 	}
 
-	l.write(rec)
+	return l.write(rec)
 }
 
 // LogScenario writes an OCSF audit record summarising the outcome of a full scenario run.
-func (l *Logger) LogScenario(name, path string, data LifecycleData) {
+func (l *Logger) LogScenario(name, path string, data LifecycleData) error {
 	now := epochMS(time.Now())
 
 	severityID := 1
@@ -252,21 +263,28 @@ func (l *Logger) LogScenario(name, path string, data LifecycleData) {
 		},
 	}
 
-	l.write(rec)
+	return l.write(rec)
 }
 
-func (l *Logger) write(rec Record) {
+func (l *Logger) write(rec Record) error {
 	b, err := json.Marshal(rec)
 	if err != nil {
-		return
+		return fmt.Errorf("audit: marshal record: %w", err)
 	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
 	if l.f == nil {
-		return
+		return fmt.Errorf("audit: logger is closed")
 	}
-	l.f.Write(b)            //nolint:errcheck
-	l.f.Write([]byte{'\n'}) //nolint:errcheck
+	b = append(b, '\n')
+	n, err := l.f.Write(b)
+	if err != nil {
+		return fmt.Errorf("audit: write record: %w", err)
+	}
+	if n != len(b) {
+		return fmt.Errorf("audit: write record: %w", io.ErrShortWrite)
+	}
+	return nil
 }
 
 func (l *Logger) metadata() OCSFMetadata {
@@ -292,12 +310,26 @@ func currentActor() *OCSFActor {
 	proc := &OCSFProcess{
 		PID:     os.Getpid(),
 		Name:    "MacNoise",
-		CmdLine: strings.Join(os.Args, " "),
+		CmdLine: redactedCommandLine(os.Args),
 	}
 	if u, err := user.Current(); err == nil {
 		proc.User = &OCSFUser{Name: u.Username}
 	}
 	return &OCSFActor{Process: proc}
+}
+
+func redactedCommandLine(args []string) string {
+	redacted := append([]string(nil), args...)
+	for i := 0; i < len(redacted); i++ {
+		switch {
+		case redacted[i] == "--param" && i+1 < len(redacted):
+			redacted[i+1] = module.RedactedValue
+			i++
+		case strings.HasPrefix(redacted[i], "--param="):
+			redacted[i] = "--param=" + module.RedactedValue
+		}
+	}
+	return strings.Join(redacted, " ")
 }
 
 // currentDevice identifies the local host. type_id is Unknown (0) rather
@@ -308,50 +340,49 @@ func currentDevice() *OCSFDevice {
 	return &OCSFDevice{TypeID: 0, Hostname: hostname}
 }
 
-// extractFile builds the file object a file_activity (1001) record requires
-// from whatever the emitting module put in ev.Details. Modules aren't
-// required to use a consistent key for this (most use "path"; file_archive
-// uses "output_path" for the archive it created), so this is deliberately
-// best-effort: if no known key is present, it still returns a non-nil File
-// (satisfying the required field) generic enough not to claim data that
-// isn't there.
-func extractFile(eventType string, details map[string]any) *OCSFFile {
-	path, _ := details["path"].(string)
-	if path == "" {
-		path, _ = details["output_path"].(string)
+// extractFile builds the file object required by OCSF file activity from the
+// event's typed subject.
+func extractFile(eventType string, subject module.Subject) *OCSFFile {
+	name := ""
+	path := ""
+	if subject.File != nil {
+		name = subject.File.Name
+		path = subject.File.Path
+	} else if subject.Resource != nil {
+		name = subject.Resource.Name
+		path = subject.Resource.Path
 	}
 	typeID := 1 // Regular File
 	if eventType == "dir_create" {
 		typeID = 2 // Folder
 	}
-	if path == "" {
-		return &OCSFFile{Name: eventType, TypeID: typeID}
+	if name == "" && path != "" {
+		name = filepath.Base(path)
 	}
-	return &OCSFFile{Name: filepath.Base(path), Path: path, TypeID: typeID}
+	if name == "" {
+		name = eventType
+	}
+	if path == "" {
+		return &OCSFFile{Name: name, TypeID: typeID}
+	}
+	return &OCSFFile{Name: name, Path: path, TypeID: typeID}
 }
 
-// extractProcess builds the process object a process_activity (1007) record
-// requires. A handful of modules record the actual target process's pid
-// and/or command in ev.Details (process_fork has both; process_spawn and
-// dylib_inject_attempt have a command/target with no pid, since those exec
-// synchronously rather than tracking a forked pid); everything else falls
-// back to macnoise's own process, since it performed the activity even when
-// it didn't hand off to a distinctly-tracked child.
-func extractProcess(details map[string]any, fallback *OCSFProcess) *OCSFProcess {
-	name, hasName := details["command"].(string)
-	if !hasName {
-		name, hasName = details["target"].(string)
-	}
-	pid, hasPID := details["pid"].(int)
-
-	if !hasName && !hasPID {
+// extractProcess builds the process object required by OCSF process activity
+// from the event's typed subject.
+func extractProcess(subject module.Subject, fallback *OCSFProcess) *OCSFProcess {
+	if subject.Process == nil {
 		return fallback
 	}
-	proc := &OCSFProcess{Name: name}
-	if hasPID {
-		proc.PID = pid
+	s := subject.Process
+	name := s.Name
+	if name == "" {
+		name = s.Executable
 	}
-	return proc
+	if name == "" {
+		name = s.Command
+	}
+	return &OCSFProcess{PID: s.PID, Name: name, CmdLine: s.Command}
 }
 
 func mitreToAttacks(mitre []module.MITRE) []OCSFAttack {

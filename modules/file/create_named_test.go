@@ -19,7 +19,7 @@ func TestFileCreate_GenerateNamedFile(t *testing.T) {
 		"count":    "99",
 		"prefix":   "ignored_",
 	}
-	if err := f.Generate(context.Background(), params, func(module.TelemetryEvent) {}); err != nil {
+	if err := f.Generate(context.Background(), params, noopEmit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
@@ -52,7 +52,7 @@ func TestFileCreate_RejectsNestedFilename(t *testing.T) {
 	err := f.Generate(context.Background(), module.Params{
 		"base_dir": t.TempDir(),
 		"filename": "nested/RECOVER_YOUR_FILES.txt",
-	}, func(module.TelemetryEvent) {})
+	}, noopEmit)
 	if err == nil {
 		t.Fatal("Generate succeeded with a nested filename")
 	}

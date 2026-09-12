@@ -21,7 +21,7 @@ func TestSvcShellProfile_CleanupRestoresOriginalContent(t *testing.T) {
 
 	s := &svcShellProfile{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureServiceEvents(&events)
 
 	params := module.Params{"target": target, "payload": "export MACNOISE_PERSIST=1"}
 	if err := s.Generate(context.Background(), params, emit); err != nil {
@@ -39,7 +39,7 @@ func TestSvcShellProfile_CleanupRestoresOriginalContent(t *testing.T) {
 		t.Error("Generate must append, not overwrite existing profile content")
 	}
 
-	if len(events) != 1 || events[0].EventType != "shell_profile_modify" || !events[0].Success {
+	if len(events) != 1 || events[0].EventType != "shell_profile_modify" || events[0].Outcome != module.OutcomeExecuted {
 		t.Errorf("expected one successful shell_profile_modify event, got %+v", events)
 	}
 
@@ -64,7 +64,7 @@ func TestSvcShellProfile_CleanupRemovesRepeatedBlocks(t *testing.T) {
 		t.Fatalf("seed profile: %v", err)
 	}
 
-	emit := func(module.TelemetryEvent) {}
+	emit := discardServiceEvent
 	params := module.Params{"target": target, "payload": "export MACNOISE_PERSIST=1"}
 
 	s := &svcShellProfile{}

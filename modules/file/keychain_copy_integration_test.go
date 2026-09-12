@@ -38,8 +38,8 @@ func TestKeychainCopy_UnreadableKeychainIsDenied(t *testing.T) {
 	if evs[0].Outcome != module.OutcomeDenied {
 		t.Errorf("outcome = %q, want denied", evs[0].Outcome)
 	}
-	if !evs[0].Success {
-		t.Error("Success = false: a permission denial is expected telemetry, not a macnoise fault")
+	if evs[0].Outcome != module.OutcomeDenied {
+		t.Errorf("Outcome = %q, want denied", evs[0].Outcome)
 	}
 	if _, err := os.Stat(dst); !os.IsNotExist(err) {
 		t.Error("a staged copy was created from a keychain that could not be read")
@@ -67,7 +67,7 @@ func TestKeychainCopy_GenerateStagesRealCopy(t *testing.T) {
 	mod := &fileKeychainCopy{}
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 	if err := mod.Generate(context.Background(), module.Params{"stage_dir": stageDir}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -131,7 +131,7 @@ func TestKeychainCopy_CleanupRemovesStagedCopies(t *testing.T) {
 
 	stageDir := filepath.Join(t.TempDir(), "stage")
 	mod := &fileKeychainCopy{}
-	if err := mod.Generate(context.Background(), module.Params{"stage_dir": stageDir}, func(module.TelemetryEvent) {}); err != nil {
+	if err := mod.Generate(context.Background(), module.Params{"stage_dir": stageDir}, noopEmit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 

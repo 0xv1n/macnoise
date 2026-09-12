@@ -11,6 +11,13 @@ import (
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
+func captureBrowserEvents(events *[]module.TelemetryEvent) module.EventEmitter {
+	return func(ev module.TelemetryEvent) error {
+		*events = append(*events, ev)
+		return nil
+	}
+}
+
 // writeCredFixture creates path and its parents with the given contents.
 func writeCredFixture(t *testing.T, path, contents string) {
 	t.Helper()
@@ -44,7 +51,7 @@ func TestBrowserCreds_ReadsRealFiles(t *testing.T) {
 
 	f := &fileBrowserCreds{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureBrowserEvents(&events)
 
 	if err := f.Generate(context.Background(), module.Params{"browsers": "chrome"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -71,7 +78,7 @@ func TestBrowserCreds_MissingPathIsProbeNotRead(t *testing.T) {
 
 	f := &fileBrowserCreds{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureBrowserEvents(&events)
 
 	if err := f.Generate(context.Background(), module.Params{"browsers": "chrome"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -107,7 +114,7 @@ func TestBrowserCreds_UnreadableFileIsDeniedRead(t *testing.T) {
 
 	f := &fileBrowserCreds{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureBrowserEvents(&events)
 
 	if err := f.Generate(context.Background(), module.Params{"browsers": "safari"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -126,8 +133,8 @@ func TestBrowserCreds_UnreadableFileIsDeniedRead(t *testing.T) {
 	if ev.Error == "" {
 		t.Error("expected the denial reason to be recorded in Error")
 	}
-	if !ev.Success {
-		t.Error("Success = false, want true: a denied read is expected telemetry, not a module failure")
+	if ev.Outcome != module.OutcomeDenied {
+		t.Errorf("Outcome = %q, want denied", ev.Outcome)
 	}
 }
 
@@ -149,7 +156,7 @@ func TestBrowserCreds_EnumeratesChromiumProfiles(t *testing.T) {
 
 	f := &fileBrowserCreds{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureBrowserEvents(&events)
 
 	if err := f.Generate(context.Background(), module.Params{"browsers": "chrome"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -178,10 +185,11 @@ func TestBrowserCreds_CoversAllChromiumFamilies(t *testing.T) {
 
 	f := &fileBrowserCreds{}
 	seen := map[string]bool{}
-	emit := func(ev module.TelemetryEvent) {
+	emit := func(ev module.TelemetryEvent) error {
 		if b, ok := ev.Details["browser"].(string); ok {
 			seen[b] = true
 		}
+		return nil
 	}
 
 	if err := f.Generate(context.Background(), module.Params{}, emit); err != nil {
@@ -208,7 +216,7 @@ func TestBrowserCreds_EnumeratesFirefoxProfiles(t *testing.T) {
 
 	f := &fileBrowserCreds{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureBrowserEvents(&events)
 
 	if err := f.Generate(context.Background(), module.Params{"browsers": "firefox"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -235,7 +243,7 @@ func TestBrowserCreds_AbsentFirefoxStillProbes(t *testing.T) {
 
 	f := &fileBrowserCreds{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureBrowserEvents(&events)
 
 	if err := f.Generate(context.Background(), module.Params{"browsers": "firefox"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -261,7 +269,7 @@ func TestBrowserCreds_DirectoryTargetIsProbe(t *testing.T) {
 
 	f := &fileBrowserCreds{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureBrowserEvents(&events)
 
 	if err := f.Generate(context.Background(), module.Params{"browsers": "chrome"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)

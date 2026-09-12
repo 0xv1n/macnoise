@@ -2,6 +2,7 @@ package plistmod
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -103,13 +104,15 @@ func (p *plistModify) Generate(ctx context.Context, params module.Params, emit m
 	value := params.String("value", "true")
 	info := p.Info()
 
-	readEv := output.NewEvent(info, "plist_read_prior", false, fmt.Sprintf("reading prior value of %s %s", domain, key))
+	readEv := output.NewEvent(info, "plist_read_prior", module.OutcomeError, module.Resource("preference", domain+":"+key, ""), fmt.Sprintf("reading prior value of %s %s", domain, key))
 	readOut, readErr := exec.CommandContext(ctx, "defaults", "read", domain, key).CombinedOutput()
 	outcome := classifyDefaultsRead(readOut, readErr)
 	if !outcome.safe {
 		readEv = output.WithError(readEv, fmt.Errorf("cannot safely determine prior value of %s %s, refusing to overwrite: %v: %s", domain, key, readErr, strings.TrimSpace(string(readOut))))
-		emit(readEv)
-		return fmt.Errorf("plist_modify: cannot safely determine prior value of %s %s, aborting rather than risk losing it: %w", domain, key, readErr)
+		return errors.Join(
+			fmt.Errorf("plist_modify: cannot safely determine prior value of %s %s, aborting rather than risk losing it: %w", domain, key, readErr),
+			emit(readEv),
+		)
 	}
 
 	p.domain = domain
@@ -117,27 +120,27 @@ func (p *plistModify) Generate(ctx context.Context, params module.Params, emit m
 	p.priorExisted = outcome.existed
 	p.priorValue = outcome.value
 
-	readEv.Success = true
+	readEv.Outcome = module.OutcomeExecuted
 	if outcome.existed {
 		readEv.Message = fmt.Sprintf("%s %s already set, prior value will be restored on cleanup", domain, key)
 	} else {
 		readEv.Message = fmt.Sprintf("%s %s not set, key will be removed on cleanup", domain, key)
 	}
-	emit(readEv)
+	if err := emit(readEv); err != nil {
+		return err
+	}
 
-	writeEv := output.NewEvent(info, "plist_modify", false, fmt.Sprintf("defaults write %s %s %s", domain, key, value))
+	writeEv := output.NewEvent(info, "plist_modify", module.OutcomeError, module.Resource("preference", domain+":"+key, ""), fmt.Sprintf("defaults write %s %s %s", domain, key, value))
 	cmd := exec.CommandContext(ctx, "defaults", "write", domain, key, "-string", value)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		writeEv = output.WithError(writeEv, fmt.Errorf("%v: %s", err, out))
-		emit(writeEv)
-		return err
+		return errors.Join(err, emit(writeEv))
 	}
-	writeEv.Success = true
+	writeEv.Outcome = module.OutcomeExecuted
 	writeEv.Message = fmt.Sprintf("defaults write %s %s = %q", domain, key, value)
 	writeEv = output.WithDetails(writeEv, map[string]any{"domain": domain, "key": key, "value": value})
-	emit(writeEv)
-	return nil
+	return emit(writeEv)
 }
 
 func (p *plistModify) DryRun(params module.Params) []string {

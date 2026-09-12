@@ -63,22 +63,26 @@ _ "github.com/0xv1n/macnoise/modules/mynewcategory"
 ## Emit Events Correctly
 
 ```go
-// Good — use output.NewEvent and the emit callback
-ev := output.NewEvent(info, "event_type", success, "message")
+// Good: declare the outcome and typed subject, then propagate write failures.
+ev := output.NewEvent(info, "event_type", module.OutcomeExecuted, module.File(path), "message")
 ev = output.WithDetails(ev, map[string]any{"key": "value"})
-emit(ev)
+if err := emit(ev); err != nil {
+    return err
+}
 
-// Bad — never write to stdout/stderr directly from a module
+// Bad: never write to stdout/stderr directly from a module.
 fmt.Println("something happened")
 ```
 
+Every event requires exactly one typed subject. Use `module.File`, `module.Process`, `module.Network`, `module.Service`, or `module.Resource`. Mark secret-bearing parameter specs with `Sensitive: true` so managed audit output redacts their values.
+
 ## Audit Logging (OCSF)
 
-MacNoise writes a second output stream alongside telemetry events: structured audit records in [OCSF 1.7.0](https://schema.ocsf.io/) JSONL format via `internal/audit/`. These records capture what MacNoise itself did — which modules ran, prereq and cleanup outcomes, timing, and MITRE mappings — rather than the telemetry events that modules produce for EDR consumption.
+MacNoise writes a second output stream alongside telemetry events: structured audit records in [OCSF 1.7.0](https://schema.ocsf.io/) JSONL format via `internal/audit/`. These records capture what MacNoise itself did - which modules ran, prereq and cleanup outcomes, timing, and MITRE mappings - rather than the telemetry events that modules produce for EDR consumption.
 
 ### Modules don't need to do anything
 
-The runner automatically wraps the `emit` callback with `Logger.WrapEmitter()` when `--audit-log` is active. Every `TelemetryEvent` emitted by your module is intercepted, classified, and written to the audit file without any change to module code. Lifecycle records (prereq check, cleanup, dry-run outcome) are also written by the runner — no module-level calls to `audit.Logger` are needed or appropriate.
+The runner automatically wraps the `emit` callback with `Logger.WrapEmitter()` when `--audit-log` is active. Every `TelemetryEvent` emitted by your module is normalized, classified, and written to the audit file without any audit-specific module code. Lifecycle records (prereq check, cleanup, dry-run outcome) are also written by the runner - no module-level calls to `audit.Logger` are needed or appropriate.
 
 ### Adding a new event type to the classifier
 
@@ -119,8 +123,8 @@ Each record is an `audit.Record` (`internal/audit/record.go`). Key fields and th
 | Field | Source |
 |-------|--------|
 | `class_uid` / `activity_id` | `Classify(ev.Category, ev.EventType)` |
-| `time` | Epoch milliseconds at write time |
-| `status_id` | `1` (success) or `2` (failure) from `ev.Success` |
+| `time` | Epoch milliseconds from the normalized event timestamp |
+| `status_id` | OCSF status derived from `ev.Outcome` |
 | `metadata.correlation_uid` | Shared run ID across all records in one execution |
 | `actor` | PID, executable path, and username of the macnoise process |
 | `attacks[]` | MITRE entries from `ModuleInfo.MITRE` |
@@ -129,7 +133,9 @@ Each record is an `audit.Record` (`internal/audit/record.go`). Key fields and th
 ### Checklist for audit-aware contributions
 
 - [ ] If your module emits a new `eventType` not handled by the existing category switch in `classify.go`, add a case
-- [ ] Do **not** call `audit.Logger` methods directly from module code — the runner owns the logger lifecycle
+- [ ] Give every event exactly one typed subject and propagate every `emit` error
+- [ ] Mark secret-bearing parameters with `Sensitive: true`
+- [ ] Do **not** call `audit.Logger` methods directly from module code - the runner owns the logger lifecycle
 - [ ] If you add a new `Category`, add a `case` in `Classify()` and update the class mapping table above
 - [ ] If you extend `LifecycleData` or `Record`, update the corresponding serialisation in `logger.go`
 - [ ] Verify audit records are valid OCSF by checking that `class_uid`, `category_uid`, `activity_id`, and `type_uid` are consistent (`type_uid = class_uid * 100 + activity_id`)

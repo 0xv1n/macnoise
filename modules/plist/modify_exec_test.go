@@ -49,8 +49,9 @@ func TestPlistModifyGenerate_WriteAndCleanup(t *testing.T) {
 			var events []module.TelemetryEvent
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			err := p.Generate(ctx, module.Params{"domain": domain, "key": key, "value": value}, func(ev module.TelemetryEvent) {
+			err := p.Generate(ctx, module.Params{"domain": domain, "key": key, "value": value}, func(ev module.TelemetryEvent) error {
 				events = append(events, ev)
+				return nil
 			})
 			if err != nil {
 				t.Fatalf("Generate: %v", err)
@@ -58,8 +59,8 @@ func TestPlistModifyGenerate_WriteAndCleanup(t *testing.T) {
 			if got := defaultsCommand(t, "read", domain, key); got != value {
 				t.Errorf("written value = %q, want %q", got, value)
 			}
-			if len(events) != 2 || events[0].EventType != "plist_read_prior" || !events[0].Success ||
-				events[1].EventType != "plist_modify" || !events[1].Success {
+			if len(events) != 2 || events[0].EventType != "plist_read_prior" || events[0].Outcome != module.OutcomeExecuted ||
+				events[1].EventType != "plist_modify" || events[1].Outcome != module.OutcomeExecuted {
 				t.Fatalf("events = %+v, want successful read then write", events)
 			}
 			for k, want := range map[string]string{"domain": domain, "key": key, "value": value} {
@@ -101,15 +102,16 @@ func TestPlistModifyGenerate_RunID(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	var events []module.TelemetryEvent
-	if err := p.Generate(module.ContextWithRunID(ctx, runID), module.Params{"domain": domain}, func(ev module.TelemetryEvent) {
+	if err := p.Generate(module.ContextWithRunID(ctx, runID), module.Params{"domain": domain}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
+		return nil
 	}); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 	if got := defaultsCommand(t, "read", stamped, "MacnoiseTest"); got != "true" {
 		t.Errorf("stamped default value = %q, want true", got)
 	}
-	if len(events) != 2 || events[1].Details["domain"] != stamped || !events[1].Success {
+	if len(events) != 2 || events[1].Details["domain"] != stamped || events[1].Outcome != module.OutcomeExecuted {
 		t.Errorf("events = %+v, want successful write to stamped domain", events)
 	}
 	if err := p.Cleanup(context.Background()); err != nil {
@@ -133,13 +135,14 @@ func TestPlistModifyGenerate_RefusesComplexValues(t *testing.T) {
 			var events []module.TelemetryEvent
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			err := p.Generate(ctx, module.Params{"domain": domain, "key": "Target"}, func(ev module.TelemetryEvent) {
+			err := p.Generate(ctx, module.Params{"domain": domain, "key": "Target"}, func(ev module.TelemetryEvent) error {
 				events = append(events, ev)
+				return nil
 			})
 			if err == nil {
 				t.Error("Generate succeeded, want refusal")
 			}
-			if len(events) != 1 || events[0].EventType != "plist_read_prior" || events[0].Success || events[0].Error == "" {
+			if len(events) != 1 || events[0].EventType != "plist_read_prior" || events[0].Outcome != module.OutcomeError || events[0].Error == "" {
 				t.Errorf("events = %+v, want failed prior read only", events)
 			}
 			if err := p.Cleanup(context.Background()); err != nil {

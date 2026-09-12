@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -53,10 +54,10 @@ func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit m
 	info := f.Info()
 
 	if !prereqs.HasCommand(tool) {
-		ev := output.NewEvent(info, "archive_create", false, fmt.Sprintf("required tool %q not found in PATH", tool))
-		ev = output.WithError(ev, fmt.Errorf("command not found: %s", tool))
-		emit(ev)
-		return fmt.Errorf("command not found: %s", tool)
+		err := fmt.Errorf("command not found: %s", tool)
+		ev := output.NewEvent(info, "archive_create", module.OutcomeError, module.File(outputPath), fmt.Sprintf("required tool %q not found in PATH", tool))
+		ev = output.WithError(ev, err)
+		return errors.Join(err, emit(ev))
 	}
 
 	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
@@ -80,12 +81,11 @@ func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit m
 		archiveCmd = exec.CommandContext(ctx, "zip", "-r", outputPath, sourceDir)
 	}
 
-	ev := output.NewEvent(info, "archive_create", false, fmt.Sprintf("archiving %s → %s via %s", sourceDir, outputPath, tool))
+	ev := output.NewEvent(info, "archive_create", module.OutcomeError, module.File(outputPath), fmt.Sprintf("archiving %s → %s via %s", sourceDir, outputPath, tool))
 	archiveOut, archiveErr := archiveCmd.CombinedOutput()
 	if archiveErr != nil {
 		ev = output.WithError(ev, fmt.Errorf("%v: %s", archiveErr, archiveOut))
-		emit(ev)
-		return archiveErr
+		return errors.Join(archiveErr, emit(ev))
 	}
 
 	var archiveSize int64
@@ -93,7 +93,7 @@ func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit m
 		archiveSize = fi.Size()
 	}
 
-	ev.Success = true
+	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("archive created: %s (%d bytes) via %s", outputPath, archiveSize, tool)
 	ev = output.WithDetails(ev, map[string]any{
 		"source_dir":   sourceDir,
@@ -101,8 +101,7 @@ func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit m
 		"tool":         tool,
 		"archive_size": archiveSize,
 	})
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (f *fileArchive) DryRun(params module.Params) []string {

@@ -80,7 +80,7 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 		default:
 		}
 
-		ev := output.NewEvent(info, "http_beacon", false, fmt.Sprintf("beacon %d/%d to %s", i, count, target))
+		ev := output.NewEvent(info, "http_beacon", module.OutcomeError, module.Network("", target, ""), fmt.Sprintf("beacon %d/%d to %s", i, count, target))
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 		var resp *http.Response
 		if err == nil {
@@ -94,11 +94,13 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 			ev.Message = fmt.Sprintf("beacon %d/%d to %s (no response — telemetry generated)", i, count, target)
 		} else {
 			_ = resp.Body.Close()
-			ev.Success = true
+			ev.Outcome = module.OutcomeExecuted
 			ev.Message = fmt.Sprintf("beacon %d/%d to %s returned %d", i, count, target, resp.StatusCode)
 			ev = output.WithDetails(ev, map[string]any{"attempt": i, "total": count, "url": target, "status": resp.StatusCode})
 		}
-		emit(ev)
+		if err := emit(ev); err != nil {
+			return err
+		}
 
 		if i < count {
 			select {

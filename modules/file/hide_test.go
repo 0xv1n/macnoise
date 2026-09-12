@@ -15,7 +15,7 @@ func TestFileHide_GenerateAndCleanup(t *testing.T) {
 	workDir := filepath.Join(t.TempDir(), "hide")
 	f := &fileHide{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
 	params := module.Params{"work_dir": workDir}
 	if err := f.Generate(context.Background(), params, emit); err != nil {
@@ -33,9 +33,9 @@ func TestFileHide_GenerateAndCleanup(t *testing.T) {
 	for _, ev := range events {
 		switch ev.EventType {
 		case "file_hide_chflags":
-			sawChflags = sawChflags || ev.Success
+			sawChflags = sawChflags || ev.Outcome == module.OutcomeExecuted
 		case "file_hide_dotfile":
-			sawDotfile = sawDotfile || ev.Success
+			sawDotfile = sawDotfile || ev.Outcome == module.OutcomeExecuted
 		}
 	}
 	if !sawChflags {

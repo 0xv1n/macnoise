@@ -12,6 +12,15 @@ import (
 	"howett.net/plist"
 )
 
+func captureServiceEvents(events *[]module.TelemetryEvent) module.EventEmitter {
+	return func(ev module.TelemetryEvent) error {
+		*events = append(*events, ev)
+		return nil
+	}
+}
+
+func discardServiceEvent(module.TelemetryEvent) error { return nil }
+
 func TestSvcLaunchDaemon_PrereqRequiresRoot(t *testing.T) {
 	s := &svcLaunchDaemon{}
 	err := s.CheckPrereqs(context.Background(), nil)
@@ -41,7 +50,7 @@ func TestSvcLaunchDaemon_GenerateAndCleanup(t *testing.T) {
 
 	s := &svcLaunchDaemon{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureServiceEvents(&events)
 
 	params := module.Params{"label": label, "program": "/usr/bin/true"}
 	if err := s.Generate(context.Background(), params, emit); err != nil {
@@ -64,7 +73,7 @@ func TestSvcLaunchDaemon_GenerateAndCleanup(t *testing.T) {
 
 	var sawCreate bool
 	for _, ev := range events {
-		if ev.EventType == "launchdaemon_create" && ev.Success {
+		if ev.EventType == "launchdaemon_create" && ev.Outcome == module.OutcomeExecuted {
 			sawCreate = true
 		}
 	}

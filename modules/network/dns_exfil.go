@@ -41,6 +41,7 @@ func (n *netDNSExfil) ParamSpecs() []module.ParamSpec {
 			Name:        "payload",
 			Description: "String to exfiltrate via DNS subdomain encoding",
 			Type:        module.ParamString,
+			Sensitive:   true,
 			Default:     "macnoise-exfil-test",
 			Example:     "stolen-secret-data",
 		},
@@ -113,14 +114,13 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 		default:
 		}
 
-		ev := output.NewEvent(info, "dns_exfil_query", false,
+		ev := output.NewEvent(info, "dns_exfil_query", module.OutcomeError, module.Network("", "", qname),
 			fmt.Sprintf("exfil query %d/%d: %s", i+1, len(queries), qname))
 		_, err := resolver.LookupHost(ctx, qname)
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		if err != nil {
-			ev.Success = true
 			ev.Message = fmt.Sprintf("exfil query %d/%d failed (telemetry generated): %s", i+1, len(queries), qname)
 			ev = output.WithDetails(ev, map[string]any{
 				"query":       qname,
@@ -130,7 +130,7 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 			})
 			ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		} else {
-			ev.Success = true
+			ev.Outcome = module.OutcomeExecuted
 			ev.Message = fmt.Sprintf("exfil query %d/%d resolved: %s", i+1, len(queries), qname)
 			ev = output.WithDetails(ev, map[string]any{
 				"query":       qname,
@@ -139,7 +139,9 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 				"base_domain": baseDomain,
 			})
 		}
-		emit(ev)
+		if err := emit(ev); err != nil {
+			return err
+		}
 	}
 	return nil
 }

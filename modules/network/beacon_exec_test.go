@@ -30,7 +30,7 @@ func TestBeaconGenerate_RequestsAndEvents(t *testing.T) {
 	ctx = module.ContextWithRunID(ctx, "beaconrun42")
 	var events []module.TelemetryEvent
 	params := module.Params{"target": ts.URL + "/beacon?existing=keep", "count": "3", "interval": "0"}
-	if err := (&c2Beacon{}).Generate(ctx, params, func(ev module.TelemetryEvent) { events = append(events, ev) }); err != nil {
+	if err := (&c2Beacon{}).Generate(ctx, params, captureNetworkEvents(&events)); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 	mu.Lock()
@@ -43,7 +43,7 @@ func TestBeaconGenerate_RequestsAndEvents(t *testing.T) {
 			t.Errorf("request %d = %+v", i, req)
 		}
 		ev := events[i]
-		if ev.Module != "net_beacon" || ev.EventType != "http_beacon" || !ev.Success || ev.ResolvedOutcome() != module.OutcomeExecuted {
+		if ev.Module != "net_beacon" || ev.EventType != "http_beacon" || ev.Outcome != module.OutcomeExecuted {
 			t.Errorf("event %d = %+v", i, ev)
 		}
 		// An HTTP error response still proves that the request executed.
@@ -66,14 +66,14 @@ func TestBeaconGenerate_RefusedIsDenied(t *testing.T) {
 		t.Fatal(err)
 	}
 	var events []module.TelemetryEvent
-	if err := (&c2Beacon{}).Generate(context.Background(), module.Params{"target": target, "count": "2", "interval": "0"}, func(ev module.TelemetryEvent) { events = append(events, ev) }); err != nil {
+	if err := (&c2Beacon{}).Generate(context.Background(), module.Params{"target": target, "count": "2", "interval": "0"}, captureNetworkEvents(&events)); err != nil {
 		t.Fatal(err)
 	}
 	if len(events) != 2 {
 		t.Fatalf("got %d events, want 2", len(events))
 	}
 	for _, ev := range events {
-		if ev.EventType != "http_beacon" || !ev.Success || ev.ResolvedOutcome() != module.OutcomeDenied || ev.Error == "" {
+		if ev.EventType != "http_beacon" || ev.Outcome != module.OutcomeDenied || ev.Error == "" {
 			t.Errorf("refused beacon = %+v", ev)
 		}
 	}
@@ -90,7 +90,7 @@ func TestBeaconGenerate_WaitsBetweenRequests(t *testing.T) {
 	defer ts.Close()
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	if err := (&c2Beacon{}).Generate(ctx, module.Params{"target": ts.URL, "count": "2", "interval": "1", "jitter": "0"}, func(module.TelemetryEvent) {}); err != nil {
+	if err := (&c2Beacon{}).Generate(ctx, module.Params{"target": ts.URL, "count": "2", "interval": "1", "jitter": "0"}, discardNetworkEvent); err != nil {
 		t.Fatal(err)
 	}
 	mu.Lock()
@@ -111,9 +111,10 @@ func TestBeaconGenerate_CancelBetweenRequests(t *testing.T) {
 	defer cancel()
 	var events []module.TelemetryEvent
 	start := time.Now()
-	err := (&c2Beacon{}).Generate(ctx, module.Params{"target": ts.URL, "count": "3", "interval": "3"}, func(ev module.TelemetryEvent) {
+	err := (&c2Beacon{}).Generate(ctx, module.Params{"target": ts.URL, "count": "3", "interval": "3"}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
 		cancel()
+		return nil
 	})
 	if !errors.Is(err, context.Canceled) || len(events) != 1 {
 		t.Fatalf("err = %v, events = %d; want canceled after one event", err, len(events))
@@ -140,7 +141,7 @@ func TestBeaconGenerate_CancelInFlight(t *testing.T) {
 	defer close(release)
 	var events []module.TelemetryEvent
 	start := time.Now()
-	err := (&c2Beacon{}).Generate(ctx, module.Params{"target": ts.URL, "count": "1"}, func(ev module.TelemetryEvent) { events = append(events, ev) })
+	err := (&c2Beacon{}).Generate(ctx, module.Params{"target": ts.URL, "count": "1"}, captureNetworkEvents(&events))
 	select {
 	case <-started:
 	default:

@@ -117,23 +117,23 @@ func (e *esMount) Generate(ctx context.Context, params module.Params, emit modul
 	}
 	dmgPath := path.Join(workDir, "macnoise_delivery.dmg")
 
-	createEv := output.NewEvent(info, "es_dmg_create", false, fmt.Sprintf("building disk image %s", dmgPath))
+	createEv := output.NewEvent(info, "es_dmg_create", module.OutcomeError, module.File(dmgPath), fmt.Sprintf("building disk image %s", dmgPath))
 	if out, err := exec.CommandContext(ctx, "hdiutil", createArgs(dmgPath)...).CombinedOutput(); err != nil {
 		createEv = output.WithError(createEv, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out))))
-		emit(createEv)
-		return fmt.Errorf("es_mount: hdiutil create: %w", err)
+		return errors.Join(fmt.Errorf("es_mount: hdiutil create: %w", err), emit(createEv))
 	}
 	e.dmgPath = dmgPath
-	createEv.Success = true
+	createEv.Outcome = module.OutcomeExecuted
 	createEv.Message = fmt.Sprintf("built disk image %s", dmgPath)
-	emit(output.WithDetails(createEv, map[string]any{"path": dmgPath, "volume_name": volumeName}))
+	if err := emit(output.WithDetails(createEv, map[string]any{"path": dmgPath, "volume_name": volumeName})); err != nil {
+		return err
+	}
 
-	mountEv := output.NewEvent(info, "es_notify_mount", false, fmt.Sprintf("mounting %s (triggers ES_EVENT_TYPE_NOTIFY_MOUNT)", dmgPath))
+	mountEv := output.NewEvent(info, "es_notify_mount", module.OutcomeError, module.File(dmgPath), fmt.Sprintf("mounting %s (triggers ES_EVENT_TYPE_NOTIFY_MOUNT)", dmgPath))
 	attachOut, err := exec.CommandContext(ctx, "hdiutil", attachArgs(dmgPath)...).CombinedOutput()
 	if err != nil {
 		mountEv = output.WithError(mountEv, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(attachOut))))
-		emit(mountEv)
-		return fmt.Errorf("es_mount: hdiutil attach: %w", err)
+		return errors.Join(fmt.Errorf("es_mount: hdiutil attach: %w", err), emit(mountEv))
 	}
 	res := parseAttachOutput(string(attachOut))
 	e.device, e.mountPoint = res.Device, res.MountPoint
@@ -150,39 +150,39 @@ func (e *esMount) Generate(ctx context.Context, params module.Params, emit modul
 		// here would be asserting telemetry that was never produced.
 		mountEv.Message = fmt.Sprintf("attached %s but no volume was mounted", dmgPath)
 		mountEv = output.WithOutcome(mountEv, module.OutcomeIndeterminate, nil)
-		emit(output.WithDetails(mountEv, mountDetails))
-		return nil
+		return emit(output.WithDetails(mountEv, mountDetails))
 	}
-	mountEv.Success = true
+	mountEv.Outcome = module.OutcomeExecuted
 	mountEv.Message = fmt.Sprintf("mounted %s at %s (ES_EVENT_TYPE_NOTIFY_MOUNT)", dmgPath, res.MountPoint)
-	emit(output.WithDetails(mountEv, mountDetails))
+	if err := emit(output.WithDetails(mountEv, mountDetails)); err != nil {
+		return err
+	}
 
-	e.emitVolumeExec(ctx, info, emit, runID)
+	if err := e.emitVolumeExec(ctx, info, emit, runID); err != nil {
+		return err
+	}
 
-	unmountEv := output.NewEvent(info, "es_notify_unmount", false, fmt.Sprintf("unmounting %s (triggers ES_EVENT_TYPE_NOTIFY_UNMOUNT)", res.MountPoint))
+	unmountEv := output.NewEvent(info, "es_notify_unmount", module.OutcomeError, module.File(res.MountPoint), fmt.Sprintf("unmounting %s (triggers ES_EVENT_TYPE_NOTIFY_UNMOUNT)", res.MountPoint))
 	if out, err := exec.CommandContext(ctx, "hdiutil", detachArgs(res.MountPoint)...).CombinedOutput(); err != nil {
 		unmountEv = output.WithError(unmountEv, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out))))
-		emit(unmountEv)
-		return nil
+		return emit(unmountEv)
 	}
 	e.mountPoint, e.device = "", ""
-	unmountEv.Success = true
+	unmountEv.Outcome = module.OutcomeExecuted
 	unmountEv.Message = fmt.Sprintf("unmounted %s (ES_EVENT_TYPE_NOTIFY_UNMOUNT)", res.MountPoint)
-	emit(output.WithDetails(unmountEv, map[string]any{
+	return emit(output.WithDetails(unmountEv, map[string]any{
 		"mount_point": res.MountPoint,
 		"es_event":    "ES_EVENT_TYPE_NOTIFY_UNMOUNT",
 	}))
-
-	return nil
 }
 
 // emitVolumeExec writes a payload into the mounted volume and runs it. This is
 // the half that makes T1204.002 accurate: a bare mount is weak signal, while a
 // process launched from a /Volumes path is what AMOS-style delivery actually
 // looks like on an endpoint.
-func (e *esMount) emitVolumeExec(ctx context.Context, info module.ModuleInfo, emit module.EventEmitter, runID string) {
+func (e *esMount) emitVolumeExec(ctx context.Context, info module.ModuleInfo, emit module.EventEmitter, runID string) error {
 	payload := path.Join(e.mountPoint, payloadName)
-	ev := output.NewEvent(info, "es_volume_exec", false, fmt.Sprintf("executing %s (triggers ES_EVENT_TYPE_NOTIFY_EXEC)", payload))
+	ev := output.NewEvent(info, "es_volume_exec", module.OutcomeError, module.Process(path.Base(payload), payload, payload, 0), fmt.Sprintf("executing %s (triggers ES_EVENT_TYPE_NOTIFY_EXEC)", payload))
 	details := map[string]any{"payload": payload, "mount_point": e.mountPoint, "es_event": "ES_EVENT_TYPE_NOTIFY_EXEC"}
 
 	echoArg := "macnoise_dmg_payload"
@@ -192,8 +192,7 @@ func (e *esMount) emitVolumeExec(ctx context.Context, info module.ModuleInfo, em
 	script := "#!/bin/sh\necho " + echoArg + "\n"
 	if err := os.WriteFile(payload, []byte(script), 0o755); err != nil {
 		ev = output.WithError(ev, err)
-		emit(output.WithDetails(ev, details))
-		return
+		return emit(output.WithDetails(ev, details))
 	}
 
 	out, err := exec.CommandContext(ctx, payload).CombinedOutput()
@@ -203,14 +202,13 @@ func (e *esMount) emitVolumeExec(ctx context.Context, info module.ModuleInfo, em
 		// because it means no EXEC event was generated to detect on.
 		ev.Message = fmt.Sprintf("%s could not be executed from the mounted volume", payload)
 		ev = output.WithOutcome(ev, module.OutcomeDenied, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out))))
-		emit(output.WithDetails(ev, details))
-		return
+		return emit(output.WithDetails(ev, details))
 	}
 
-	ev.Success = true
+	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("executed %s from mounted volume (ES_EVENT_TYPE_NOTIFY_EXEC)", payload)
 	details["stdout"] = strings.TrimSpace(string(out))
-	emit(output.WithDetails(ev, details))
+	return emit(output.WithDetails(ev, details))
 }
 
 func (e *esMount) DryRun(params module.Params) []string {

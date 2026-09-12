@@ -15,7 +15,7 @@ import (
 // the forked command's argv.
 func TestSignalGenerate_ForkThenSignals(t *testing.T) {
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureProcessEvents(&events)
 	ctx := module.ContextWithRunID(context.Background(), "sigrun3")
 	if err := (&procSignal{}).Generate(ctx, module.Params{"target_command": "sleep 2"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -24,7 +24,7 @@ func TestSignalGenerate_ForkThenSignals(t *testing.T) {
 	if len(events) == 0 || events[0].EventType != "process_fork" {
 		t.Fatalf("first event should be process_fork, got %+v", events)
 	}
-	if !events[0].Success {
+	if events[0].Outcome != module.OutcomeExecuted {
 		t.Fatalf("fork failed: %s", events[0].Message)
 	}
 

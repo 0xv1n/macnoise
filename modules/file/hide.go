@@ -56,30 +56,30 @@ func (f *fileHide) Generate(ctx context.Context, params module.Params, emit modu
 
 	chflagsTarget := filepath.Join(workDir, "visible_file.txt")
 	if err := os.WriteFile(chflagsTarget, []byte("macnoise chflags hidden test\n"), 0o644); err == nil {
-		chflagsEv := output.NewEvent(info, "file_hide_chflags", false, fmt.Sprintf("hiding %s via chflags", chflagsTarget))
+		chflagsEv := output.NewEvent(info, "file_hide_chflags", module.OutcomeError, module.File(chflagsTarget), fmt.Sprintf("hiding %s via chflags", chflagsTarget))
 		chflagsOut, chflagsErr := exec.CommandContext(ctx, "chflags", "hidden", chflagsTarget).CombinedOutput()
 		if chflagsErr != nil {
 			chflagsEv = output.WithError(chflagsEv, fmt.Errorf("%v: %s", chflagsErr, chflagsOut))
 		} else {
-			chflagsEv.Success = true
+			chflagsEv.Outcome = module.OutcomeExecuted
 			chflagsEv.Message = fmt.Sprintf("file hidden via chflags: %s", chflagsTarget)
 			chflagsEv = output.WithDetails(chflagsEv, map[string]any{"path": chflagsTarget, "method": "chflags hidden"})
 		}
-		emit(chflagsEv)
+		if err := emit(chflagsEv); err != nil {
+			return err
+		}
 	}
 
 	dotTarget := filepath.Join(workDir, ".macnoise_hidden")
-	dotEv := output.NewEvent(info, "file_hide_dotfile", false, fmt.Sprintf("creating dotfile: %s", dotTarget))
+	dotEv := output.NewEvent(info, "file_hide_dotfile", module.OutcomeError, module.File(dotTarget), fmt.Sprintf("creating dotfile: %s", dotTarget))
 	if err := os.WriteFile(dotTarget, []byte("macnoise dotfile hidden test\n"), 0o644); err != nil {
 		dotEv = output.WithError(dotEv, err)
 	} else {
-		dotEv.Success = true
+		dotEv.Outcome = module.OutcomeExecuted
 		dotEv.Message = fmt.Sprintf("dotfile created: %s", dotTarget)
 		dotEv = output.WithDetails(dotEv, map[string]any{"path": dotTarget, "method": "dotfile"})
 	}
-	emit(dotEv)
-
-	return nil
+	return emit(dotEv)
 }
 
 func (f *fileHide) DryRun(params module.Params) []string {

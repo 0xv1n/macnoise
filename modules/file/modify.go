@@ -2,6 +2,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -57,39 +58,35 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 	switch {
 	case os.IsNotExist(err):
 		if err2 := os.MkdirAll(filepath.Dir(targetPath), 0o755); err2 != nil {
-			ev := output.NewEvent(info, "file_modify", false, "failed to create parent directory")
+			ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), "failed to create parent directory")
 			ev = output.WithError(ev, err2)
-			emit(ev)
-			return err2
+			return errors.Join(err2, emit(ev))
 		}
 		orig = []byte{}
 		f.existed = false
 	case err != nil:
-		ev := output.NewEvent(info, "file_modify", false, fmt.Sprintf("failed to read %s", targetPath))
+		ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), fmt.Sprintf("failed to read %s", targetPath))
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	default:
 		f.existed = true
 	}
 	f.origContent = orig
 
 	newContent := append(orig, []byte(fmt.Sprintf("\n%s [%s]", content, time.Now().UTC()))...)
-	ev := output.NewEvent(info, "file_modify", false, fmt.Sprintf("modifying %s", targetPath))
+	ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), fmt.Sprintf("modifying %s", targetPath))
 	if err := os.WriteFile(targetPath, newContent, 0o644); err != nil {
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
-	ev.Success = true
+	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("modified %s (+%d bytes)", targetPath, len(newContent)-len(orig))
 	ev = output.WithDetails(ev, map[string]any{
 		"path":      targetPath,
 		"orig_size": len(orig),
 		"new_size":  len(newContent),
 	})
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (f *fileModify) DryRun(params module.Params) []string {

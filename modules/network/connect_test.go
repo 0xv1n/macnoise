@@ -28,7 +28,7 @@ func TestConnectGenerate_EmitsConnectThenGet(t *testing.T) {
 	host, port := hostPort(t, ts.URL)
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 	if err := (&netConnect{}).Generate(context.Background(), module.Params{"target": host, "port": port}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -39,7 +39,7 @@ func TestConnectGenerate_EmitsConnectThenGet(t *testing.T) {
 	if events[0].EventType != "tcp_connect" || events[1].EventType != "http_get" {
 		t.Errorf("event types = %q,%q; want tcp_connect,http_get", events[0].EventType, events[1].EventType)
 	}
-	if !events[0].Success || !events[1].Success {
+	if events[0].Outcome != module.OutcomeExecuted || events[1].Outcome != module.OutcomeExecuted {
 		t.Errorf("both events should succeed against a live server: %+v", events)
 	}
 }
@@ -54,15 +54,15 @@ func TestConnectGenerate_RefusedIsDenied(t *testing.T) {
 	_ = ln.Close()
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 	if err := (&netConnect{}).Generate(context.Background(), module.Params{"target": host, "port": port}, emit); err != nil {
 		t.Fatalf("Generate should not error on a refused connection: %v", err)
 	}
 	if len(events) != 2 {
 		t.Fatalf("emitted %d events, want 2 even when refused", len(events))
 	}
-	if events[0].ResolvedOutcome() != module.OutcomeDenied {
-		t.Errorf("refused tcp_connect outcome = %q, want denied", events[0].ResolvedOutcome())
+	if events[0].Outcome != module.OutcomeDenied {
+		t.Errorf("refused tcp_connect outcome = %q, want denied", events[0].Outcome)
 	}
 }
 
@@ -72,7 +72,7 @@ func TestConnectGenerate_RunIDInHTTPURL(t *testing.T) {
 	host, port := hostPort(t, ts.URL)
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 	ctx := module.ContextWithRunID(context.Background(), "runid1234")
 	if err := (&netConnect{}).Generate(ctx, module.Params{"target": host, "port": port}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)

@@ -19,7 +19,7 @@ func TestTimestomp_ChangesMtime(t *testing.T) {
 	if ev.EventType != "file_timestomp" {
 		t.Fatalf("event type = %q, want file_timestomp", ev.EventType)
 	}
-	if !ev.Success {
+	if ev.Outcome != module.OutcomeExecuted {
 		t.Fatalf("timestomp reported failure: %s", ev.Message)
 	}
 
@@ -36,7 +36,7 @@ func TestTimestomp_ChangesMtime(t *testing.T) {
 func TestTimestomp_BadPath(t *testing.T) {
 	info := (&evadeLogClear{}).Info()
 	ev := timestomp(info, filepath.Join(t.TempDir(), "no", "such", "dir", "file"))
-	if ev.Success {
+	if ev.Outcome != module.OutcomeError {
 		t.Error("expected failure for nonexistent parent dir")
 	}
 }
@@ -49,7 +49,7 @@ func TestClearHistory_RemovesFile(t *testing.T) {
 	if ev.EventType != "history_clear" {
 		t.Fatalf("event type = %q, want history_clear", ev.EventType)
 	}
-	if !ev.Success {
+	if ev.Outcome != module.OutcomeExecuted {
 		t.Fatalf("history clear reported failure: %s", ev.Message)
 	}
 

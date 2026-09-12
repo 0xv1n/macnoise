@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"net/http"
 	"time"
@@ -49,13 +50,12 @@ func (n *netExfil) Generate(ctx context.Context, params module.Params, emit modu
 	payload := make([]byte, payloadSize)
 	rand.Read(payload) //nolint:errcheck
 
-	ev := output.NewEvent(info, "http_post_exfil", false, fmt.Sprintf("POST %d bytes to %s", payloadSize, target))
+	ev := output.NewEvent(info, "http_post_exfil", module.OutcomeError, module.Network("", target, ""), fmt.Sprintf("POST %d bytes to %s", payloadSize, target))
 	client := &http.Client{Timeout: 10 * time.Second}
 	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target, bytes.NewReader(payload))
 	if err != nil {
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
 	req.Header.Set("Content-Type", contentType)
 
@@ -63,7 +63,7 @@ func (n *netExfil) Generate(ctx context.Context, params module.Params, emit modu
 	resp, err := client.Do(req)
 	elapsed := time.Since(start)
 	if err != nil {
-		ev.Success = true
+		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		ev.Message = fmt.Sprintf("POST to %s failed (no listener — telemetry generated)", target)
 		ev = output.WithDetails(ev, map[string]any{
 			"target":       target,
@@ -74,7 +74,7 @@ func (n *netExfil) Generate(ctx context.Context, params module.Params, emit modu
 		})
 	} else {
 		_ = resp.Body.Close()
-		ev.Success = true
+		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("POST %d bytes to %s returned %d", payloadSize, target, resp.StatusCode)
 		ev = output.WithDetails(ev, map[string]any{
 			"target":       target,
@@ -84,8 +84,7 @@ func (n *netExfil) Generate(ctx context.Context, params module.Params, emit modu
 			"elapsed_ms":   elapsed.Milliseconds(),
 		})
 	}
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (n *netExfil) DryRun(params module.Params) []string {

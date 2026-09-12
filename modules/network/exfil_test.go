@@ -19,7 +19,7 @@ func TestExfilGenerate_PostsToLiveServer(t *testing.T) {
 	defer ts.Close()
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 	if err := (&netExfil{}).Generate(context.Background(), module.Params{"target": ts.URL, "payload_size": "2048"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -27,7 +27,7 @@ func TestExfilGenerate_PostsToLiveServer(t *testing.T) {
 	if len(events) != 1 || events[0].EventType != "http_post_exfil" {
 		t.Fatalf("expected 1 http_post_exfil event, got %+v", events)
 	}
-	if !events[0].Success {
+	if events[0].Outcome != module.OutcomeExecuted {
 		t.Errorf("POST to a live server should succeed: %s", events[0].Message)
 	}
 	if events[0].Details["status"] != http.StatusOK {
@@ -38,7 +38,7 @@ func TestExfilGenerate_PostsToLiveServer(t *testing.T) {
 	}
 }
 
-func TestExfilGenerate_NoListenerStillSucceeds(t *testing.T) {
+func TestExfilGenerate_NoListenerIsDenied(t *testing.T) {
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
 		t.Fatal(err)
@@ -47,13 +47,13 @@ func TestExfilGenerate_NoListenerStillSucceeds(t *testing.T) {
 	_ = ln.Close()
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 	if err := (&netExfil{}).Generate(context.Background(), module.Params{"target": target}, emit); err != nil {
 		t.Fatalf("Generate should not error with no listener: %v", err)
 	}
-	// The outbound POST is the telemetry; a refused connection does not make it a failure.
-	if len(events) != 1 || !events[0].Success {
-		t.Fatalf("expected 1 successful event even with no listener, got %+v", events)
+	// The outbound POST is the telemetry, while the refusal describes its outcome.
+	if len(events) != 1 || events[0].Outcome != module.OutcomeDenied {
+		t.Fatalf("expected 1 denied event with no listener, got %+v", events)
 	}
 	if events[0].Details["error"] == nil {
 		t.Error("expected the connection error to be recorded in details")
@@ -67,7 +67,7 @@ func TestExfilGenerate_RunIDInRequestURL(t *testing.T) {
 	}))
 	defer ts.Close()
 
-	emit := func(module.TelemetryEvent) {}
+	emit := discardNetworkEvent
 	ctx := module.ContextWithRunID(context.Background(), "exfilrun99")
 	if err := (&netExfil{}).Generate(ctx, module.Params{"target": ts.URL}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)

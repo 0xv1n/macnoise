@@ -101,23 +101,22 @@ func (p *procOsascript) Generate(ctx context.Context, params module.Params, emit
 	script := stampScript(params.String("script", `display notification "macnoise telemetry" with title "MacNoise"`), language, module.RunIDFromContext(ctx))
 	info := p.Info()
 
-	ev := output.NewEvent(info, "osascript_exec", false, fmt.Sprintf("executing %s via osascript", language))
+	ev := output.NewEvent(info, "osascript_exec", module.OutcomeError, module.Process("osascript", "/usr/bin/osascript", script, 0), fmt.Sprintf("executing %s via osascript", language))
 	out, err := exec.CommandContext(ctx, "osascript", "-l", language, "-e", script).CombinedOutput()
 	if ctx.Err() != nil {
 		return ctx.Err()
 	}
 	safeOutput := sanitizeOsascriptOutput(script, string(out))
 	if err != nil {
-		ev.Success = true
+		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("osascript returned error (telemetry generated): %v", err)
 		ev = output.WithDetails(ev, map[string]any{"language": language, "script": script, "output": safeOutput, "error": err.Error()})
 	} else {
-		ev.Success = true
+		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("osascript executed %s successfully", language)
 		ev = output.WithDetails(ev, map[string]any{"language": language, "script": script, "output": safeOutput})
 	}
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (p *procOsascript) DryRun(params module.Params) []string {

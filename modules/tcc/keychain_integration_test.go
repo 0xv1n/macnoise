@@ -19,7 +19,7 @@ func TestKeychainGenerate_EmitsThreeProbes(t *testing.T) {
 	bogus := filepath.Join(t.TempDir(), "nope.keychain-db")
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureTCCEvents(&events)
 	if err := (&tccKeychain{}).Generate(context.Background(), module.Params{"keychain_path": bogus}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -36,8 +36,8 @@ func TestKeychainGenerate_EmitsThreeProbes(t *testing.T) {
 
 	// Unlock of a nonexistent keychain with no password is reliably refused.
 	unlock := events[1]
-	if unlock.ResolvedOutcome() != module.OutcomeDenied {
-		t.Errorf("unlock outcome = %q, want denied", unlock.ResolvedOutcome())
+	if unlock.Outcome != module.OutcomeDenied {
+		t.Errorf("unlock outcome = %q, want denied", unlock.Outcome)
 	}
 	if unlock.Details["result"] != "denied" {
 		t.Errorf("unlock result detail = %v, want denied", unlock.Details["result"])
@@ -46,7 +46,7 @@ func TestKeychainGenerate_EmitsThreeProbes(t *testing.T) {
 	// The dump attempt must at least run and be recorded as a real observation,
 	// never a macnoise error.
 	dump := events[2]
-	if o := dump.ResolvedOutcome(); o != module.OutcomeExecuted && o != module.OutcomeDenied {
+	if o := dump.Outcome; o != module.OutcomeExecuted && o != module.OutcomeDenied {
 		t.Errorf("dump outcome = %q, want executed or denied", o)
 	}
 }

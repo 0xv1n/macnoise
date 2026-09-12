@@ -41,6 +41,7 @@ func (t *tccKeychain) ParamSpecs() []module.ParamSpec {
 			Name:        "password",
 			Description: "Password for unlock attempt (empty causes expected failure telemetry)",
 			Type:        module.ParamString,
+			Sensitive:   true,
 			Default:     "",
 			Example:     "hunter2",
 		},
@@ -62,18 +63,20 @@ func (t *tccKeychain) Generate(ctx context.Context, params module.Params, emit m
 		keychainPath = filepath.Join(home, "Library", "Keychains", "login.keychain-db")
 	}
 
-	listEv := output.NewEvent(info, "keychain_list", false, "listing keychains via security list-keychains")
+	listEv := output.NewEvent(info, "keychain_list", module.OutcomeError, module.Resource("keychain", "configured keychains", keychainPath), "listing keychains via security list-keychains")
 	listOut, listErr := exec.CommandContext(ctx, "security", "list-keychains").CombinedOutput()
 	if listErr != nil {
 		listEv = output.WithError(listEv, listErr)
 	} else {
-		listEv.Success = true
+		listEv.Outcome = module.OutcomeExecuted
 		listEv.Message = "keychain list retrieved"
 		listEv = output.WithDetails(listEv, map[string]any{"keychains": string(listOut)})
 	}
-	emit(listEv)
+	if err := emit(listEv); err != nil {
+		return err
+	}
 
-	unlockEv := output.NewEvent(info, "keychain_unlock_attempt", false, fmt.Sprintf("attempting keychain unlock: %s", keychainPath))
+	unlockEv := output.NewEvent(info, "keychain_unlock_attempt", module.OutcomeError, module.Resource("keychain", "login keychain", keychainPath), fmt.Sprintf("attempting keychain unlock: %s", keychainPath))
 	unlockOut, unlockErr := exec.CommandContext(ctx, "security", "unlock-keychain", "-p", password, keychainPath).CombinedOutput()
 	if unlockErr != nil {
 		unlockEv = output.WithOutcome(unlockEv, module.OutcomeDenied, nil)
@@ -84,13 +87,15 @@ func (t *tccKeychain) Generate(ctx context.Context, params module.Params, emit m
 			"output": string(unlockOut),
 		})
 	} else {
-		unlockEv.Success = true
+		unlockEv.Outcome = module.OutcomeExecuted
 		unlockEv.Message = fmt.Sprintf("keychain unlocked: %s", keychainPath)
 		unlockEv = output.WithDetails(unlockEv, map[string]any{"path": keychainPath, "result": "granted"})
 	}
-	emit(unlockEv)
+	if err := emit(unlockEv); err != nil {
+		return err
+	}
 
-	dumpEv := output.NewEvent(info, "keychain_dump_attempt", false, fmt.Sprintf("probing keychain dump: %s", keychainPath))
+	dumpEv := output.NewEvent(info, "keychain_dump_attempt", module.OutcomeError, module.Resource("keychain", "login keychain", keychainPath), fmt.Sprintf("probing keychain dump: %s", keychainPath))
 	dumpOut, dumpErr := exec.CommandContext(ctx, "security", "dump-keychain", keychainPath).CombinedOutput()
 	if dumpErr != nil {
 		dumpEv = output.WithOutcome(dumpEv, module.OutcomeDenied, nil)
@@ -101,13 +106,11 @@ func (t *tccKeychain) Generate(ctx context.Context, params module.Params, emit m
 			"output": string(dumpOut),
 		})
 	} else {
-		dumpEv.Success = true
+		dumpEv.Outcome = module.OutcomeExecuted
 		dumpEv.Message = fmt.Sprintf("keychain dump succeeded for %s", keychainPath)
 		dumpEv = output.WithDetails(dumpEv, map[string]any{"path": keychainPath, "result": "granted"})
 	}
-	emit(dumpEv)
-
-	return nil
+	return emit(dumpEv)
 }
 
 func (t *tccKeychain) DryRun(params module.Params) []string {

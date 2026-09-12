@@ -73,7 +73,7 @@ func TestSystemDomain_PrivilegeRequirement(t *testing.T) {
 func TestXPCEnumerate_EmitsPerDomain(t *testing.T) {
 	x := &xpcEnumerate{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
 	if err := x.Generate(context.Background(), module.Params{"filter": ""}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -87,7 +87,7 @@ func TestXPCEnumerate_EmitsPerDomain(t *testing.T) {
 		if ev.EventType != "xpc_enumerate" {
 			t.Errorf("EventType = %q, want xpc_enumerate", ev.EventType)
 		}
-		if !ev.Success {
+		if ev.Outcome != module.OutcomeExecuted {
 			t.Errorf("Success = false for domain %v; an unreadable domain is still valid telemetry", ev.Details["domain"])
 		}
 		if ev.Details["domain"] == "" {

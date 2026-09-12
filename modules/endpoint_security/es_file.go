@@ -5,6 +5,7 @@ package endpointsecurity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -54,57 +55,70 @@ func (e *esFile) Generate(ctx context.Context, params module.Params, emit module
 	targetPath := filepath.Join(workDir, "es_notify_create.txt")
 	e.createdPath = targetPath
 
-	createEv := output.NewEvent(info, "es_notify_create", false, fmt.Sprintf("creating %s (triggers ES_EVENT_TYPE_NOTIFY_CREATE)", targetPath))
+	createEv := output.NewEvent(info, "es_notify_create", module.OutcomeError, module.File(targetPath), fmt.Sprintf("creating %s (triggers ES_EVENT_TYPE_NOTIFY_CREATE)", targetPath))
 	if err := os.WriteFile(targetPath, []byte("es_create\n"), 0o644); err != nil {
 		createEv = output.WithError(createEv, err)
-		emit(createEv)
-		return err
+		return errors.Join(err, emit(createEv))
 	}
-	createEv.Success = true
+	createEv.Outcome = module.OutcomeExecuted
 	createEv.Message = fmt.Sprintf("created %s (ES_EVENT_TYPE_NOTIFY_CREATE)", targetPath)
 	createEv = output.WithDetails(createEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_CREATE"})
-	emit(createEv)
+	if err := emit(createEv); err != nil {
+		return err
+	}
 
 	// Opening for read is a distinct ES event from the write below, which opens
 	// for append. NOTIFY_OPEN already fires incidentally from the credential
 	// modules, but this is the module an operator runs to exercise ES file
 	// coverage, so it names the event rather than leaving it implicit.
-	openEv := output.NewEvent(info, "es_notify_open", false, fmt.Sprintf("opening %s (triggers ES_EVENT_TYPE_NOTIFY_OPEN)", targetPath))
+	openEv := output.NewEvent(info, "es_notify_open", module.OutcomeError, module.File(targetPath), fmt.Sprintf("opening %s (triggers ES_EVENT_TYPE_NOTIFY_OPEN)", targetPath))
 	if rf, err := os.Open(targetPath); err != nil {
 		openEv = output.WithError(openEv, err)
-		emit(openEv)
+		if emitErr := emit(openEv); emitErr != nil {
+			return emitErr
+		}
 	} else {
 		n, _ := io.Copy(io.Discard, rf)
 		_ = rf.Close()
-		openEv.Success = true
+		openEv.Outcome = module.OutcomeExecuted
 		openEv.Message = fmt.Sprintf("opened %s (ES_EVENT_TYPE_NOTIFY_OPEN)", targetPath)
 		openEv = output.WithDetails(openEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_OPEN", "bytes_read": n})
-		emit(openEv)
+		if err := emit(openEv); err != nil {
+			return err
+		}
 	}
 
-	writeEv := output.NewEvent(info, "es_notify_write", false, fmt.Sprintf("writing %s (triggers ES_EVENT_TYPE_NOTIFY_WRITE)", targetPath))
+	writeEv := output.NewEvent(info, "es_notify_write", module.OutcomeError, module.File(targetPath), fmt.Sprintf("writing %s (triggers ES_EVENT_TYPE_NOTIFY_WRITE)", targetPath))
 	f, err := os.OpenFile(targetPath, os.O_APPEND|os.O_WRONLY, 0o644)
 	if err != nil {
 		writeEv = output.WithError(writeEv, err)
-		emit(writeEv)
+		if emitErr := emit(writeEv); emitErr != nil {
+			return emitErr
+		}
 	} else {
 		f.WriteString("es_write\n") //nolint:errcheck
 		_ = f.Close()
-		writeEv.Success = true
+		writeEv.Outcome = module.OutcomeExecuted
 		writeEv.Message = fmt.Sprintf("wrote to %s (ES_EVENT_TYPE_NOTIFY_WRITE)", targetPath)
 		writeEv = output.WithDetails(writeEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_WRITE"})
-		emit(writeEv)
+		if err := emit(writeEv); err != nil {
+			return err
+		}
 	}
 
-	setmodeEv := output.NewEvent(info, "es_notify_setmode", false, fmt.Sprintf("chmod %s (triggers ES_EVENT_TYPE_NOTIFY_SETMODE)", targetPath))
+	setmodeEv := output.NewEvent(info, "es_notify_setmode", module.OutcomeError, module.File(targetPath), fmt.Sprintf("chmod %s (triggers ES_EVENT_TYPE_NOTIFY_SETMODE)", targetPath))
 	if err := os.Chmod(targetPath, 0o600); err != nil {
 		setmodeEv = output.WithError(setmodeEv, err)
-		emit(setmodeEv)
+		if emitErr := emit(setmodeEv); emitErr != nil {
+			return emitErr
+		}
 	} else {
-		setmodeEv.Success = true
+		setmodeEv.Outcome = module.OutcomeExecuted
 		setmodeEv.Message = fmt.Sprintf("chmod 0600 on %s (ES_EVENT_TYPE_NOTIFY_SETMODE)", targetPath)
 		setmodeEv = output.WithDetails(setmodeEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_SETMODE", "mode": "0600"})
-		emit(setmodeEv)
+		if err := emit(setmodeEv); err != nil {
+			return err
+		}
 	}
 
 	// Rename moves the target, so the tracked path has to follow it or an
@@ -112,29 +126,37 @@ func (e *esFile) Generate(ctx context.Context, params module.Params, emit module
 	// for the original name.
 	renamedPath := filepath.Join(workDir, "es_notify_rename.txt")
 	previousPath := targetPath
-	renameEv := output.NewEvent(info, "es_notify_rename", false, fmt.Sprintf("renaming %s (triggers ES_EVENT_TYPE_NOTIFY_RENAME)", targetPath))
+	renameEv := output.NewEvent(info, "es_notify_rename", module.OutcomeError, module.File(renamedPath), fmt.Sprintf("renaming %s (triggers ES_EVENT_TYPE_NOTIFY_RENAME)", targetPath))
 	if err := os.Rename(targetPath, renamedPath); err != nil {
 		renameEv = output.WithError(renameEv, err)
-		emit(renameEv)
+		if emitErr := emit(renameEv); emitErr != nil {
+			return emitErr
+		}
 	} else {
 		targetPath = renamedPath
 		e.createdPath = renamedPath
-		renameEv.Success = true
+		renameEv.Outcome = module.OutcomeExecuted
 		renameEv.Message = fmt.Sprintf("renamed to %s (ES_EVENT_TYPE_NOTIFY_RENAME)", renamedPath)
 		renameEv = output.WithDetails(renameEv, map[string]any{"path": renamedPath, "es_event": "ES_EVENT_TYPE_NOTIFY_RENAME", "previous_path": previousPath})
-		emit(renameEv)
+		if err := emit(renameEv); err != nil {
+			return err
+		}
 	}
 
-	unlinkEv := output.NewEvent(info, "es_notify_unlink", false, fmt.Sprintf("deleting %s (triggers ES_EVENT_TYPE_NOTIFY_UNLINK)", targetPath))
+	unlinkEv := output.NewEvent(info, "es_notify_unlink", module.OutcomeError, module.File(targetPath), fmt.Sprintf("deleting %s (triggers ES_EVENT_TYPE_NOTIFY_UNLINK)", targetPath))
 	if err := os.Remove(targetPath); err != nil {
 		unlinkEv = output.WithError(unlinkEv, err)
-		emit(unlinkEv)
+		if emitErr := emit(unlinkEv); emitErr != nil {
+			return emitErr
+		}
 	} else {
 		e.createdPath = ""
-		unlinkEv.Success = true
+		unlinkEv.Outcome = module.OutcomeExecuted
 		unlinkEv.Message = fmt.Sprintf("deleted %s (ES_EVENT_TYPE_NOTIFY_UNLINK)", targetPath)
 		unlinkEv = output.WithDetails(unlinkEv, map[string]any{"path": targetPath, "es_event": "ES_EVENT_TYPE_NOTIFY_UNLINK"})
-		emit(unlinkEv)
+		if err := emit(unlinkEv); err != nil {
+			return err
+		}
 	}
 
 	return nil

@@ -82,7 +82,7 @@ func (t *tccAccessibility) Generate(ctx context.Context, params module.Params, e
 	combined := strings.TrimSpace(string(out))
 	outcome := accessibilityOutcome(err, combined)
 
-	ev := output.NewEvent(info, "tcc_accessibility_probe", true, "probing Accessibility via System Events")
+	ev := output.NewEvent(info, "tcc_accessibility_probe", outcome, module.Resource("tcc_accessibility", "System Events UI", ""), "probing Accessibility via System Events")
 	details := map[string]any{"result": string(outcome), "method": "osascript System Events UI read"}
 
 	switch outcome {
@@ -101,8 +101,7 @@ func (t *tccAccessibility) Generate(ctx context.Context, params module.Params, e
 		probeErr = fmt.Errorf("osascript: %v: %s", err, combined)
 	}
 	ev = output.WithOutcome(ev, outcome, probeErr)
-	emit(output.WithDetails(ev, details))
-	return nil
+	return emit(output.WithDetails(ev, details))
 }
 
 func (t *tccAccessibility) DryRun(params module.Params) []string {

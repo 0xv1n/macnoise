@@ -17,7 +17,7 @@ func runMount(t *testing.T, e *esMount, workDir string) []module.TelemetryEvent 
 	t.Helper()
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
 	// Registered before Generate so a panic or an assertion failure part-way
 	// through still detaches the image, rather than leaving a mounted volume
@@ -42,7 +42,7 @@ func TestESMount_GenerateEmitsFullMountExecUnmountCycle(t *testing.T) {
 		if events[i].EventType != evType {
 			t.Fatalf("event[%d] = %q, want %q", i, events[i].EventType, evType)
 		}
-		if !events[i].Success {
+		if events[i].Outcome != module.OutcomeExecuted {
 			t.Errorf("event %q did not succeed: %s", evType, events[i].Error)
 		}
 	}

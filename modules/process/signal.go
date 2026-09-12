@@ -4,6 +4,7 @@ package process
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -20,16 +21,23 @@ func (p *procSignal) Generate(ctx context.Context, params module.Params, emit mo
 
 	cmd := exec.CommandContext(ctx, "sh", "-c", targetCmd)
 	if err := cmd.Start(); err != nil {
-		ev := output.NewEvent(info, "process_fork", false, "failed to fork target process")
+		ev := output.NewEvent(info, "process_fork", module.OutcomeError, module.Process("sh", "/bin/sh", targetCmd, 0), "failed to fork target process")
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
+	defer func() {
+		if cmd.ProcessState == nil {
+			_ = cmd.Process.Kill()
+			_ = cmd.Wait()
+		}
+	}()
 
 	pid := cmd.Process.Pid
-	forkEv := output.NewEvent(info, "process_fork", true, fmt.Sprintf("forked %q as PID %d", targetCmd, pid))
+	forkEv := output.NewEvent(info, "process_fork", module.OutcomeExecuted, module.Process("sh", "/bin/sh", targetCmd, pid), fmt.Sprintf("forked %q as PID %d", targetCmd, pid))
 	forkEv = output.WithDetails(forkEv, map[string]any{"pid": pid, "command": targetCmd})
-	emit(forkEv)
+	if err := emit(forkEv); err != nil {
+		return err
+	}
 
 	time.Sleep(100 * time.Millisecond)
 
@@ -43,14 +51,16 @@ func (p *procSignal) Generate(ctx context.Context, params module.Params, emit mo
 	}
 
 	for _, s := range signals {
-		sigEv := output.NewEvent(info, "signal_send", false, fmt.Sprintf("sending %s to PID %d", s.name, pid))
+		sigEv := output.NewEvent(info, "signal_send", module.OutcomeError, module.Process("sh", "/bin/sh", targetCmd, pid), fmt.Sprintf("sending %s to PID %d", s.name, pid))
 		if err := cmd.Process.Signal(s.sig); err != nil {
 			sigEv = output.WithError(sigEv, err)
 		} else {
-			sigEv.Success = true
+			sigEv.Outcome = module.OutcomeExecuted
 			sigEv = output.WithDetails(sigEv, map[string]any{"signal": s.name, "pid": pid})
 		}
-		emit(sigEv)
+		if err := emit(sigEv); err != nil {
+			return err
+		}
 		time.Sleep(50 * time.Millisecond)
 	}
 

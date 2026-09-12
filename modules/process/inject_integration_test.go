@@ -15,7 +15,7 @@ import (
 func runInject(t *testing.T, params module.Params) module.TelemetryEvent {
 	t.Helper()
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureProcessEvents(&events)
 
 	if err := (&procInject{}).Generate(context.Background(), params, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -35,8 +35,8 @@ func TestProcInject_DefaultTargetIsHonouredByDyld(t *testing.T) {
 	if got := ev.Details["outcome"]; got != "honored" {
 		t.Errorf("outcome = %v, want honored; dyld did not act on DYLD_INSERT_LIBRARIES for the default target", got)
 	}
-	if !ev.Success {
-		t.Error("Success = false; dyld aborting the child is the successful injection path, not a failure")
+	if ev.Outcome != module.OutcomeExecuted {
+		t.Errorf("Outcome = %q, want executed", ev.Outcome)
 	}
 }
 

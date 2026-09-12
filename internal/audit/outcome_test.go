@@ -67,27 +67,21 @@ func TestLogEventRecordsOutcome(t *testing.T) {
 	}{
 		{
 			name:        "denial is not reported as a successful activity",
-			ev:          module.TelemetryEvent{Category: "tcc", EventType: "tcc_fda_probe", Success: true, Outcome: module.OutcomeDenied},
+			ev:          module.TelemetryEvent{Category: "tcc", EventType: "tcc_fda_probe", Outcome: module.OutcomeDenied, Subject: module.Resource("tcc", "fda", "/tmp/TCC.db")},
 			wantOutcome: "denied",
 			wantStatus:  "Failure",
 		},
 		{
 			name:        "probe error is not reported as a success",
-			ev:          module.TelemetryEvent{Category: "tcc", EventType: "tcc_fda_probe", Success: true, Outcome: module.OutcomeError},
+			ev:          module.TelemetryEvent{Category: "tcc", EventType: "tcc_fda_probe", Outcome: module.OutcomeError, Subject: module.Resource("tcc", "fda", "/tmp/TCC.db")},
 			wantOutcome: "error",
 			wantStatus:  "Failure",
 		},
 		{
 			name:        "absent target is unknown, not failed",
-			ev:          module.TelemetryEvent{Category: "tcc", EventType: "tcc_fda_probe", Success: true, Outcome: module.OutcomeIndeterminate},
+			ev:          module.TelemetryEvent{Category: "tcc", EventType: "tcc_fda_probe", Outcome: module.OutcomeIndeterminate, Subject: module.Resource("tcc", "fda", "/tmp/TCC.db")},
 			wantOutcome: "indeterminate",
 			wantStatus:  "Unknown",
-		},
-		{
-			name:        "an event with no outcome still records one",
-			ev:          module.TelemetryEvent{Category: "tcc", EventType: "tcc_fda_probe", Success: true},
-			wantOutcome: "executed",
-			wantStatus:  "Success",
 		},
 	}
 
@@ -116,7 +110,9 @@ func recordFor(t *testing.T, ev module.TelemetryEvent) Record {
 	t.Helper()
 
 	l, path := newTestLogger(t)
-	l.LogEvent(ev, module.ModuleInfo{Name: "tcc_fda", Category: module.CategoryTCC}, nil)
+	if err := l.LogEvent(ev, module.ModuleInfo{Name: "tcc_fda", Category: module.CategoryTCC}, nil); err != nil {
+		t.Fatalf("log event: %v", err)
+	}
 	if err := l.Close(); err != nil {
 		t.Fatalf("close logger: %v", err)
 	}

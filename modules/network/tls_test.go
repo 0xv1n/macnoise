@@ -72,7 +72,7 @@ func TestTLSConnect_Handshake(t *testing.T) {
 	if ev.EventType != "tls_connect" {
 		t.Fatalf("event type = %q, want tls_connect", ev.EventType)
 	}
-	if !ev.Success {
+	if ev.Outcome != module.OutcomeExecuted {
 		t.Fatalf("handshake failed: %s", ev.Message)
 	}
 	details := ev.Details
@@ -100,8 +100,8 @@ func TestTLSConnect_RefusedIsTelemetry(t *testing.T) {
 
 	info := (&netTLS{}).Info()
 	ev := tlsConnect(context.Background(), info, addr, true)
-	if !ev.Success {
-		t.Error("refused connection should still report success=true")
+	if ev.Outcome != module.OutcomeDenied {
+		t.Errorf("refused connection outcome = %q, want denied", ev.Outcome)
 	}
 	if ev.Details["tls_version"] != nil {
 		t.Error("refused connection should not have tls_version")

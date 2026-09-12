@@ -65,13 +65,12 @@ func tlsConnect(ctx context.Context, info module.ModuleInfo, target string, inse
 		InsecureSkipVerify: insecure,
 	}
 
-	ev := output.NewEvent(info, "tls_connect", false,
+	ev := output.NewEvent(info, "tls_connect", module.OutcomeError, module.Network(target, "", host),
 		fmt.Sprintf("TLS handshake %s (SNI: %s)", target, host))
 
 	tlsDialer := &tls.Dialer{NetDialer: dialer, Config: conf}
 	conn, err := tlsDialer.DialContext(ctx, "tcp", target)
 	if err != nil {
-		ev.Success = true
 		ev.Message = fmt.Sprintf("TLS handshake %s failed (telemetry generated)", target)
 		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		return output.WithDetails(ev, map[string]any{
@@ -96,7 +95,7 @@ func tlsConnect(ctx context.Context, info module.ModuleInfo, target string, inse
 		details["cert_issuer"] = leaf.Issuer.String()
 	}
 
-	ev.Success = true
+	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("TLS %s to %s, cipher %s",
 		tls.VersionName(state.Version), target, tls.CipherSuiteName(state.CipherSuite))
 	return output.WithDetails(ev, details)
@@ -121,7 +120,9 @@ func (n *netTLS) Generate(ctx context.Context, params module.Params, emit module
 		if err := ctx.Err(); err != nil {
 			return err
 		}
-		emit(ev)
+		if err := emit(ev); err != nil {
+			return err
+		}
 	}
 	return nil
 }

@@ -2,6 +2,7 @@ package endpointsecurity
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 
@@ -63,7 +64,8 @@ func (e *esProcess) Generate(ctx context.Context, params module.Params, emit mod
 
 	info := e.Info()
 
-	ev := output.NewEvent(info, "es_exec_chain", false,
+	ev := output.NewEvent(info, "es_exec_chain", module.OutcomeError,
+		module.Process("sh", "/bin/sh", "nested sh exec chain", 0),
 		fmt.Sprintf("executing %d-deep process fork/exec chain", depth))
 
 	chainArgs := buildExecChainArgs(depth, module.RunIDFromContext(ctx))
@@ -71,18 +73,16 @@ func (e *esProcess) Generate(ctx context.Context, params module.Params, emit mod
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
-	ev.Success = true
+	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("%d-deep exec chain completed (ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT)", depth)
 	ev = output.WithDetails(ev, map[string]any{
 		"chain_depth": depth,
 		"output":      string(out),
 		"es_events":   []string{"ES_EVENT_TYPE_NOTIFY_EXEC", "ES_EVENT_TYPE_NOTIFY_FORK", "ES_EVENT_TYPE_NOTIFY_EXIT"},
 	})
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (e *esProcess) DryRun(params module.Params) []string {

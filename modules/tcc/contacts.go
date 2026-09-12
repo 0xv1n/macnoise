@@ -52,7 +52,7 @@ func (t *tccContacts) Generate(ctx context.Context, params module.Params, emit m
 	}
 
 	info := t.Info()
-	ev := output.NewEvent(info, "tcc_contacts_probe", true, fmt.Sprintf("enumerating %s", abPath))
+	ev := output.NewEvent(info, "tcc_contacts_probe", module.OutcomeExecuted, module.Resource("tcc_contacts", "AddressBook", abPath), fmt.Sprintf("enumerating %s", abPath))
 	details := map[string]any{"path": abPath}
 
 	entries, err := os.ReadDir(abPath)
@@ -73,8 +73,7 @@ func (t *tccContacts) Generate(ctx context.Context, params module.Params, emit m
 
 	ev = output.WithOutcome(ev, eventOutcome(outcome), err)
 	ev = output.WithDetails(ev, details)
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (t *tccContacts) DryRun(params module.Params) []string {

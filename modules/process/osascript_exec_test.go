@@ -35,14 +35,15 @@ func TestOsascriptGenerate_Execution(t *testing.T) {
 			ctx = module.ContextWithRunID(ctx, "osascript-test")
 			var events []module.TelemetryEvent
 			p := &procOsascript{}
-			err := p.Generate(ctx, module.Params{"language": tt.language, "script": tt.script}, func(ev module.TelemetryEvent) {
+			err := p.Generate(ctx, module.Params{"language": tt.language, "script": tt.script}, func(ev module.TelemetryEvent) error {
 				events = append(events, ev)
+				return nil
 			})
 			if err != nil || len(events) != 1 {
 				t.Fatalf("Generate = %v, events: %+v", err, events)
 			}
 			ev := events[0]
-			if ev.Module != "proc_osascript" || ev.EventType != "osascript_exec" || !ev.Success || ev.Details["language"] != tt.language {
+			if ev.Module != "proc_osascript" || ev.EventType != "osascript_exec" || ev.Outcome != module.OutcomeExecuted || ev.Details["language"] != tt.language {
 				t.Errorf("unexpected event: %+v", ev)
 			}
 			comment := "-- mn:osascript-test"
@@ -70,8 +71,9 @@ func TestOsascriptGenerate_Execution(t *testing.T) {
 func TestOsascriptGenerate_CanceledBeforeExecution(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := (&procOsascript{}).Generate(ctx, module.Params{"script": `return "unexpected"`}, func(ev module.TelemetryEvent) {
+	err := (&procOsascript{}).Generate(ctx, module.Params{"script": `return "unexpected"`}, func(ev module.TelemetryEvent) error {
 		t.Errorf("canceled script emitted result: %+v", ev)
+		return nil
 	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Generate = %v, want context.Canceled", err)
@@ -95,8 +97,9 @@ func TestOsascriptGenerate_CanceledDuringExecution(t *testing.T) {
 			var events []module.TelemetryEvent
 			done := make(chan error, 1)
 			go func() {
-				done <- (&procOsascript{}).Generate(ctx, module.Params{"script": script}, func(ev module.TelemetryEvent) {
+				done <- (&procOsascript{}).Generate(ctx, module.Params{"script": script}, func(ev module.TelemetryEvent) error {
 					events = append(events, ev)
+					return nil
 				})
 			}()
 			defer func() { cancel(); <-done }()

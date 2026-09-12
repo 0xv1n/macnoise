@@ -84,7 +84,7 @@ func (t *tccScreenRecording) Generate(ctx context.Context, params module.Params,
 	}
 	outcome := screenCaptureOutcome(runErr, bytes)
 
-	ev := output.NewEvent(info, "screen_capture_attempt", true, "attempting screen capture via screencapture")
+	ev := output.NewEvent(info, "screen_capture_attempt", outcome, module.Resource("tcc_screen_recording", "main display", ""), "attempting screen capture via screencapture")
 	details := map[string]any{
 		"tool":            "screencapture",
 		"bytes_captured":  bytes,
@@ -104,8 +104,7 @@ func (t *tccScreenRecording) Generate(ctx context.Context, params module.Params,
 		probeErr = fmt.Errorf("screencapture: %v: %s", runErr, strings.TrimSpace(string(out)))
 	}
 	ev = output.WithOutcome(ev, outcome, probeErr)
-	emit(output.WithDetails(ev, details))
-	return nil
+	return emit(output.WithDetails(ev, details))
 }
 
 func (t *tccScreenRecording) DryRun(params module.Params) []string {

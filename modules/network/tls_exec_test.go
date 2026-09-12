@@ -44,7 +44,7 @@ func TestTLSGenerate_Handshakes(t *testing.T) {
 			defer cancel()
 			var events []module.TelemetryEvent
 			mod := &netTLS{}
-			if err := mod.Generate(ctx, params, func(ev module.TelemetryEvent) { events = append(events, ev) }); err != nil {
+			if err := mod.Generate(ctx, params, captureNetworkEvents(&events)); err != nil {
 				t.Fatal(err)
 			}
 			if len(events) != 2 || len(hellos) != 2 {
@@ -54,21 +54,21 @@ func TestTLSGenerate_Handshakes(t *testing.T) {
 				if sni := <-hellos; sni != "localhost" {
 					t.Errorf("server received SNI %q", sni)
 				}
-				if ev.Module != "net_tls" || ev.EventType != "tls_connect" || !ev.Success {
+				if ev.Module != "net_tls" || ev.EventType != "tls_connect" || ev.Outcome == module.OutcomeError {
 					t.Errorf("event = %+v", ev)
 				}
 				if ev.Details["target"] != target || ev.Details["sni"] != "localhost" || ev.Details["insecure"] != insecure {
 					t.Errorf("details = %+v", ev.Details)
 				}
 				if insecure {
-					if ev.ResolvedOutcome() != module.OutcomeExecuted || ev.Error != "" || ev.Details["tls_version"] != "TLS 1.2" {
+					if ev.Outcome != module.OutcomeExecuted || ev.Error != "" || ev.Details["tls_version"] != "TLS 1.2" {
 						t.Errorf("handshake result = %+v", ev)
 					}
 					cipher, _ := ev.Details["cipher_suite"].(string)
 					if !strings.HasPrefix(cipher, "TLS_") || ev.Details["cert_subject"] != ts.Certificate().Subject.String() || ev.Details["cert_issuer"] != ts.Certificate().Issuer.String() {
 						t.Errorf("handshake metadata = %+v", ev.Details)
 					}
-				} else if ev.ResolvedOutcome() != module.OutcomeDenied || ev.Error == "" || ev.Details["tls_version"] != nil {
+				} else if ev.Outcome != module.OutcomeDenied || ev.Error == "" || ev.Details["tls_version"] != nil {
 					t.Errorf("untrusted certificate result = %+v", ev)
 				}
 			}
@@ -108,7 +108,7 @@ func TestTLSGenerate_CancelInFlight(t *testing.T) {
 	}()
 	var events []module.TelemetryEvent
 	start := time.Now()
-	err = (&netTLS{}).Generate(ctx, module.Params{"targets": ln.Addr().String()}, func(ev module.TelemetryEvent) { events = append(events, ev) })
+	err = (&netTLS{}).Generate(ctx, module.Params{"targets": ln.Addr().String()}, captureNetworkEvents(&events))
 	if !errors.Is(err, context.Canceled) || len(events) != 0 {
 		t.Errorf("Generate = %v, events = %+v; want canceled with no completed event", err, events)
 	}
@@ -130,11 +130,12 @@ func TestTLSGenerate_CancelBetweenTargets(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var events []module.TelemetryEvent
-	err := (&netTLS{}).Generate(ctx, module.Params{"targets": addr + "," + addr, "insecure": "true"}, func(ev module.TelemetryEvent) {
+	err := (&netTLS{}).Generate(ctx, module.Params{"targets": addr + "," + addr, "insecure": "true"}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
 		cancel()
+		return nil
 	})
-	if !errors.Is(err, context.Canceled) || len(events) != 1 || events[0].ResolvedOutcome() != module.OutcomeExecuted {
+	if !errors.Is(err, context.Canceled) || len(events) != 1 || events[0].Outcome != module.OutcomeExecuted {
 		t.Fatalf("Generate = %v, events = %+v; want canceled after one handshake", err, events)
 	}
 }
@@ -149,14 +150,14 @@ func TestTLSGenerate_RefusedIsDenied(t *testing.T) {
 		t.Fatal(err)
 	}
 	var events []module.TelemetryEvent
-	if err := (&netTLS{}).Generate(context.Background(), module.Params{"targets": target}, func(ev module.TelemetryEvent) { events = append(events, ev) }); err != nil {
+	if err := (&netTLS{}).Generate(context.Background(), module.Params{"targets": target}, captureNetworkEvents(&events)); err != nil {
 		t.Fatal(err)
 	}
 	if len(events) != 1 {
 		t.Fatalf("got %d events, want 1", len(events))
 	}
 	ev := events[0]
-	if !ev.Success || ev.ResolvedOutcome() != module.OutcomeDenied || ev.Error == "" || ev.Details["target"] != target || ev.Details["tls_version"] != nil {
+	if ev.Outcome != module.OutcomeDenied || ev.Error == "" || ev.Details["target"] != target || ev.Details["tls_version"] != nil {
 		t.Errorf("refused connection = %+v", ev)
 	}
 }
@@ -164,8 +165,9 @@ func TestTLSGenerate_RefusedIsDenied(t *testing.T) {
 func TestTLSGenerate_AlreadyCanceled(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	err := (&netTLS{}).Generate(ctx, module.Params{"targets": "127.0.0.1:1"}, func(ev module.TelemetryEvent) {
+	err := (&netTLS{}).Generate(ctx, module.Params{"targets": "127.0.0.1:1"}, func(ev module.TelemetryEvent) error {
 		t.Errorf("already canceled run emitted %+v", ev)
+		return nil
 	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Generate = %v, want context.Canceled", err)

@@ -5,10 +5,10 @@ package output
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
-	"time"
 
 	"github.com/0xv1n/macnoise/pkg/module"
 )
@@ -38,32 +38,41 @@ func NewEmitter(format Format, writers ...io.Writer) *Emitter {
 }
 
 // Emit serialises ev and writes it to every configured writer.
-func (e *Emitter) Emit(ev module.TelemetryEvent) {
-	if ev.Timestamp.IsZero() {
-		ev.Timestamp = time.Now().UTC()
+func (e *Emitter) Emit(ev module.TelemetryEvent) error {
+	var err error
+	ev, err = prepareEvent(ev)
+	if err != nil {
+		return err
 	}
-	ev.Outcome = ev.ResolvedOutcome()
 
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	for _, w := range e.writers {
+	var errs []error
+	for i, w := range e.writers {
+		var writeErr error
 		switch e.format {
 		case FormatJSONL:
-			e.writeJSONL(w, ev)
+			writeErr = e.writeJSONL(w, ev)
 		default:
-			e.writeHuman(w, ev)
+			writeErr = e.writeHuman(w, ev)
+		}
+		if writeErr != nil {
+			errs = append(errs, fmt.Errorf("output writer %d: %w", i+1, writeErr))
 		}
 	}
+	return errors.Join(errs...)
 }
 
-func (e *Emitter) writeJSONL(w io.Writer, ev module.TelemetryEvent) {
+func (e *Emitter) writeJSONL(w io.Writer, ev module.TelemetryEvent) error {
 	b, err := json.Marshal(ev)
 	if err != nil {
-		_, _ = fmt.Fprintf(w, `{"error":"failed to marshal event: %s"}`+"\n", err)
-		return
+		return fmt.Errorf("marshal event: %w", err)
 	}
-	_, _ = fmt.Fprintln(w, string(b))
+	if _, err := fmt.Fprintln(w, string(b)); err != nil {
+		return fmt.Errorf("write JSONL event: %w", err)
+	}
+	return nil
 }
 
 // humanMarker distinguishes the four outcomes at a glance. A denial and an
@@ -82,21 +91,26 @@ func humanMarker(outcome module.Outcome) string {
 	}
 }
 
-func (e *Emitter) writeHuman(w io.Writer, ev module.TelemetryEvent) {
-	status := humanMarker(ev.ResolvedOutcome())
+func (e *Emitter) writeHuman(w io.Writer, ev module.TelemetryEvent) error {
+	status := humanMarker(ev.Outcome)
 	ts := ev.Timestamp.Format("15:04:05")
-	_, _ = fmt.Fprintf(w, "[%s] [%s] [%s/%s] %s\n", status, ts, ev.Category, ev.Module, ev.Message)
+	if _, err := fmt.Fprintf(w, "[%s] [%s] [%s/%s] %s\n", status, ts, ev.Category, ev.Module, ev.Message); err != nil {
+		return fmt.Errorf("write human event: %w", err)
+	}
 	if ev.Error != "" {
-		_, _ = fmt.Fprintf(w, "    error: %s\n", ev.Error)
+		if _, err := fmt.Fprintf(w, "    error: %s\n", ev.Error); err != nil {
+			return fmt.Errorf("write human error: %w", err)
+		}
 	}
 	for k, v := range ev.Details {
-		_, _ = fmt.Fprintf(w, "    %s: %v\n", k, v)
+		if _, err := fmt.Fprintf(w, "    %s: %v\n", k, v); err != nil {
+			return fmt.Errorf("write human detail: %w", err)
+		}
 	}
+	return nil
 }
 
 // EmitFunc returns an EventEmitter function backed by this Emitter.
 func (e *Emitter) EmitFunc() module.EventEmitter {
-	return func(ev module.TelemetryEvent) {
-		e.Emit(ev)
-	}
+	return e.Emit
 }

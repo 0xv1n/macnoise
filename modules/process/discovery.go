@@ -99,21 +99,23 @@ func (p *procDiscovery) Generate(ctx context.Context, params module.Params, emit
 		default:
 		}
 
-		ev := output.NewEvent(info, "system_discovery", false, fmt.Sprintf("running: %s", cmd))
+		ev := output.NewEvent(info, "system_discovery", module.OutcomeError, module.Process("sh", "/bin/sh", cmd, 0), fmt.Sprintf("running: %s", cmd))
 		out, err := exec.CommandContext(ctx, "sh", "-c", cmd).CombinedOutput()
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
 		if err != nil {
-			ev.Success = true
+			ev.Outcome = module.OutcomeExecuted
 			ev.Message = fmt.Sprintf("discovery command returned error: %s", cmd)
 			ev = output.WithDetails(ev, map[string]any{"command": cmd, "output": string(out), "error": err.Error()})
 		} else {
-			ev.Success = true
+			ev.Outcome = module.OutcomeExecuted
 			ev.Message = fmt.Sprintf("discovery command completed: %s", cmd)
 			ev = output.WithDetails(ev, map[string]any{"command": cmd, "output": string(out)})
 		}
-		emit(ev)
+		if err := emit(ev); err != nil {
+			return err
+		}
 	}
 	return nil
 }

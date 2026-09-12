@@ -1,6 +1,7 @@
 package output
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"os/user"
@@ -9,26 +10,55 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
 // SchemaVersion is the telemetry event schema version embedded in every event.
-// 1.1 added the outcome field.
-const SchemaVersion = "1.1"
+// 2.0 makes outcome authoritative and adds typed subjects.
+const SchemaVersion = "2.0"
 
 // NewEvent constructs a TelemetryEvent pre-populated with module metadata and process context.
-func NewEvent(mod module.ModuleInfo, eventType string, success bool, message string) module.TelemetryEvent {
+func NewEvent(mod module.ModuleInfo, eventType string, outcome module.Outcome, subject module.Subject, message string) module.TelemetryEvent {
 	return module.TelemetryEvent{
 		SchemaVersion:  SchemaVersion,
 		Module:         mod.Name,
 		Category:       string(mod.Category),
 		EventType:      eventType,
-		Success:        success,
+		Outcome:        outcome,
+		Subject:        subject,
 		Message:        message,
 		MITRE:          mod.MITRE,
 		ProcessContext: currentProcessContext(),
 	}
+}
+
+// NormalizeEvent applies the authoritative module identity and emission time,
+// then validates the event contract before it reaches any writer.
+func NormalizeEvent(info module.ModuleInfo, ev module.TelemetryEvent) (module.TelemetryEvent, error) {
+	ev.SchemaVersion = SchemaVersion
+	ev.Module = info.Name
+	ev.Category = string(info.Category)
+	ev.MITRE = append([]module.MITRE(nil), info.MITRE...)
+	ev.ProcessContext = currentProcessContext()
+	return prepareEvent(ev)
+}
+
+func prepareEvent(ev module.TelemetryEvent) (module.TelemetryEvent, error) {
+	ev.SchemaVersion = SchemaVersion
+	if !ev.Outcome.Valid() {
+		return module.TelemetryEvent{}, fmt.Errorf("event %q has invalid outcome %q", ev.EventType, ev.Outcome)
+	}
+	if err := ev.Subject.Validate(); err != nil {
+		return module.TelemetryEvent{}, fmt.Errorf("event %q subject: %w", ev.EventType, err)
+	}
+	if ev.Timestamp.IsZero() {
+		ev.Timestamp = time.Now().UTC()
+	} else {
+		ev.Timestamp = ev.Timestamp.UTC()
+	}
+	return ev, nil
 }
 
 // CurrentProcessContext returns the ProcessContext for the running macnoise process.
@@ -58,19 +88,23 @@ func parentProcessName() string {
 var (
 	parentNameOnce sync.Once
 	parentName     string
+	processOnce    sync.Once
+	processContext module.ProcessContext
 )
 
 func currentProcessContext() module.ProcessContext {
-	pc := module.ProcessContext{
-		PID:        os.Getpid(),
-		PPID:       os.Getppid(),
-		ParentName: parentProcessName(),
-		Executable: executablePath(),
-	}
-	if u, err := user.Current(); err == nil {
-		pc.Username = u.Username
-	}
-	return pc
+	processOnce.Do(func() {
+		processContext = module.ProcessContext{
+			PID:        os.Getpid(),
+			PPID:       os.Getppid(),
+			ParentName: parentProcessName(),
+			Executable: executablePath(),
+		}
+		if u, err := user.Current(); err == nil {
+			processContext.Username = u.Username
+		}
+	})
+	return processContext
 }
 
 func executablePath() string {
@@ -90,8 +124,8 @@ func WithDetails(ev module.TelemetryEvent, details map[string]any) module.Teleme
 	return ev
 }
 
-// WithError returns a copy of ev marked as a macnoise failure: Success false,
-// Outcome error, Error populated from err.
+// WithError returns a copy of ev marked as a macnoise failure with OutcomeError
+// and Error populated from err.
 //
 // Reach for WithOutcome instead when err describes the environment refusing or
 // not answering the action rather than macnoise breaking. A refused connection
@@ -99,18 +133,15 @@ func WithDetails(ev module.TelemetryEvent, details map[string]any) module.Teleme
 // and recording it here makes it indistinguishable from one.
 func WithError(ev module.TelemetryEvent, err error) module.TelemetryEvent {
 	ev.Error = err.Error()
-	ev.Success = false
 	ev.Outcome = module.OutcomeError
 	return ev
 }
 
-// WithOutcome returns a copy of ev with outcome set, keeping Success in sync so
-// the two fields can never disagree. Pass a non-nil err to record why the
-// action was refused or left undecided; unlike WithError that error does not
-// mark the event as a tool failure.
+// WithOutcome returns a copy of ev with outcome set. Pass a non-nil err to
+// record why the action was refused or left undecided; unlike WithError that
+// error does not mark the event as a tool failure.
 func WithOutcome(ev module.TelemetryEvent, outcome module.Outcome, err error) module.TelemetryEvent {
 	ev.Outcome = outcome
-	ev.Success = outcome != module.OutcomeError
 	if err != nil {
 		ev.Error = err.Error()
 	}

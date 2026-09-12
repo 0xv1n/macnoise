@@ -4,6 +4,7 @@ package file
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -65,10 +66,9 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 	info := f.Info()
 
 	if err := os.MkdirAll(baseDir, 0o755); err != nil {
-		ev := output.NewEvent(info, "dir_create", false, fmt.Sprintf("failed to create directory %s", baseDir))
+		ev := output.NewEvent(info, "dir_create", module.OutcomeError, module.File(baseDir), fmt.Sprintf("failed to create directory %s", baseDir))
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
 
 	if filename != "" {
@@ -95,17 +95,21 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 			fileContent = fmt.Sprintf("MacNoise telemetry file %d created at %s\n", i, time.Now().UTC())
 		}
 
-		ev := output.NewEvent(info, "file_create", false, fmt.Sprintf("creating %s", fpath))
+		ev := output.NewEvent(info, "file_create", module.OutcomeError, module.File(fpath), fmt.Sprintf("creating %s", fpath))
 		if err := os.WriteFile(fpath, []byte(fileContent), 0o644); err != nil {
 			ev = output.WithError(ev, err)
-			emit(ev)
+			if emitErr := emit(ev); emitErr != nil {
+				return emitErr
+			}
 			continue
 		}
 		f.createdPaths = append(f.createdPaths, fpath)
-		ev.Success = true
+		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("created %s (%d bytes)", fpath, len(fileContent))
 		ev = output.WithDetails(ev, map[string]any{"path": fpath, "size": len(fileContent)})
-		emit(ev)
+		if err := emit(ev); err != nil {
+			return err
+		}
 	}
 	return nil
 }

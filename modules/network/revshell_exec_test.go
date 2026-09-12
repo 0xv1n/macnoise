@@ -32,8 +32,9 @@ func TestRevShellGenerate_ConnectedExecution(t *testing.T) {
 			var events []module.TelemetryEvent
 			g := &netRevShell{}
 			go func() {
-				finished <- g.Generate(ctx, module.Params{"target": host, "port": port}, func(ev module.TelemetryEvent) {
+				finished <- g.Generate(ctx, module.Params{"target": host, "port": port}, func(ev module.TelemetryEvent) error {
 					events = append(events, ev)
+					return nil
 				})
 			}()
 			if err := listener.(*net.TCPListener).SetDeadline(time.Now().Add(3 * time.Second)); err != nil {
@@ -77,7 +78,7 @@ func TestRevShellGenerate_ConnectedExecution(t *testing.T) {
 			case <-time.After(time.Second):
 				t.Fatal("Generate did not finish while the peer remained connected")
 			}
-			if len(events) != 1 || events[0].EventType != "reverse_shell_attempt" || !events[0].Success {
+			if len(events) != 1 || events[0].EventType != "reverse_shell_attempt" || events[0].Outcome != module.OutcomeExecuted {
 				t.Fatalf("events = %+v", events)
 			}
 			if events[0].Details["address"] != listener.Addr().String() {
