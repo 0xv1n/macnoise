@@ -4,6 +4,13 @@ Process spawning, signal delivery, dylib injection, system discovery, Gatekeeper
 
 ## Modules
 
+### `proc_exec`
+Executes one executable with an exact argument list and no implicit shell. It publishes the combined output and exit code for scenario dataflow. Set `accept_nonzero=true` when a completed non-zero exit is valid telemetry rather than a MacNoise error.
+
+```bash
+macnoise run proc_exec --param executable=/usr/bin/id --param args=-un
+```
+
 ### `proc_spawn`
 Spawns a shell command chain. Maps to T1059.004.
 

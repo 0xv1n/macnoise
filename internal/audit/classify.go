@@ -105,7 +105,7 @@ func networkActivity(eventType string) (int, string) {
 
 func processActivity(eventType string) (int, string) {
 	switch eventType {
-	case "process_spawn", "process_fork", "osascript_exec", "system_discovery",
+	case "process_exec", "process_spawn", "process_fork", "osascript_exec", "system_discovery",
 		"xattr_quarantine_set", "xattr_quarantine_remove", "spctl_status_check":
 		return 1, "Launch"
 	case "dylib_inject_attempt":

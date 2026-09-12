@@ -7,9 +7,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os/exec"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/subprocess"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -54,15 +54,14 @@ func (p *procSpawn) Generate(ctx context.Context, params module.Params, emit mod
 	info := p.Info()
 
 	ev := output.NewEvent(info, "process_spawn", module.OutcomeError, module.Process("sh", "/bin/sh", command, 0), fmt.Sprintf("spawning: sh -c %q", command))
-	cmd := exec.CommandContext(ctx, "sh", "-c", command)
-	out, err := cmd.CombinedOutput()
+	result, err := subprocess.Run(ctx, "sh", "-c", command)
 	if err != nil {
 		ev = output.WithError(ev, err)
 		return errors.Join(err, emit(ev))
 	}
 	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("process exited 0: sh -c %q", command)
-	ev = output.WithDetails(ev, map[string]any{"command": command, "output": string(out)})
+	ev = output.WithDetails(ev, map[string]any{"command": command, "output": string(result.Output)})
 	return emit(ev)
 }
 
