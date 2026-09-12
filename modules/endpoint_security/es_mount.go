@@ -163,7 +163,7 @@ func (e *esMount) Generate(ctx context.Context, params module.Params, emit modul
 	}
 
 	unmountEv := output.NewEvent(info, "es_notify_unmount", module.OutcomeError, module.File(res.MountPoint), fmt.Sprintf("unmounting %s (triggers ES_EVENT_TYPE_NOTIFY_UNMOUNT)", res.MountPoint))
-	if out, err := exec.CommandContext(ctx, "hdiutil", detachArgs(res.MountPoint)...).CombinedOutput(); err != nil {
+	if out, err := exec.CommandContext(ctx, "hdiutil", detachArgs(e.detachTarget())...).CombinedOutput(); err != nil {
 		unmountEv = output.WithError(unmountEv, fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out))))
 		return emit(unmountEv)
 	}
@@ -248,13 +248,13 @@ func (e *esMount) Cleanup(ctx context.Context) error {
 	return errors.Join(errs...)
 }
 
-// detachTarget prefers the mount point, falling back to the device node for an
-// image that attached without mounting a volume.
+// detachTarget uses the whole-disk node so every slice is detached. The mount
+// point is a fallback for unusual attach output that omits the device.
 func (e *esMount) detachTarget() string {
-	if e.mountPoint != "" {
-		return e.mountPoint
+	if e.device != "" {
+		return e.device
 	}
-	return e.device
+	return e.mountPoint
 }
 
 func init() {
