@@ -5,6 +5,7 @@ package module
 
 import (
 	"context"
+	"fmt"
 	"time"
 )
 
@@ -49,6 +50,7 @@ type ParamSpec struct {
 	Description string
 	Type        ParamType
 	Required    bool
+	Sensitive   bool
 	Default     any
 	Example     any
 	Range       *IntegerRange
@@ -108,18 +110,139 @@ const (
 	OutcomeError Outcome = "error"
 )
 
+// Valid reports whether o is one of the supported event outcomes.
+func (o Outcome) Valid() bool {
+	switch o {
+	case OutcomeExecuted, OutcomeDenied, OutcomeIndeterminate, OutcomeError:
+		return true
+	default:
+		return false
+	}
+}
+
+// Subject identifies the concrete target of an event. Exactly one typed
+// subject must be present, which keeps consumers out of the untyped Details
+// map when correlating the action to a file, process, endpoint, or resource.
+type Subject struct {
+	File     *FileSubject     `json:"file,omitempty"`
+	Process  *ProcessSubject  `json:"process,omitempty"`
+	Network  *NetworkSubject  `json:"network,omitempty"`
+	Service  *ServiceSubject  `json:"service,omitempty"`
+	Resource *ResourceSubject `json:"resource,omitempty"`
+}
+
+// FileSubject identifies a file-system target.
+type FileSubject struct {
+	Name string `json:"name,omitempty"`
+	Path string `json:"path,omitempty"`
+}
+
+// ProcessSubject identifies a process target or command execution.
+type ProcessSubject struct {
+	PID        int    `json:"pid,omitempty"`
+	Name       string `json:"name,omitempty"`
+	Executable string `json:"executable,omitempty"`
+	Command    string `json:"command,omitempty"`
+}
+
+// NetworkSubject identifies a network endpoint.
+type NetworkSubject struct {
+	Address string `json:"address,omitempty"`
+	URL     string `json:"url,omitempty"`
+	Domain  string `json:"domain,omitempty"`
+}
+
+// ServiceSubject identifies a persistence or service target.
+type ServiceSubject struct {
+	Name   string `json:"name,omitempty"`
+	Domain string `json:"domain,omitempty"`
+	Path   string `json:"path,omitempty"`
+}
+
+// ResourceSubject identifies an API or operating-system resource that is not
+// a file, process, network endpoint, or service.
+type ResourceSubject struct {
+	Kind string `json:"kind"`
+	Name string `json:"name,omitempty"`
+	Path string `json:"path,omitempty"`
+}
+
+// File returns a typed file subject.
+func File(path string) Subject {
+	return Subject{File: &FileSubject{Path: path}}
+}
+
+// Process returns a typed process subject.
+func Process(name, executable, command string, pid int) Subject {
+	return Subject{Process: &ProcessSubject{PID: pid, Name: name, Executable: executable, Command: command}}
+}
+
+// Network returns a typed network subject.
+func Network(address, url, domain string) Subject {
+	return Subject{Network: &NetworkSubject{Address: address, URL: url, Domain: domain}}
+}
+
+// Service returns a typed service subject.
+func Service(name, domain, path string) Subject {
+	return Subject{Service: &ServiceSubject{Name: name, Domain: domain, Path: path}}
+}
+
+// Resource returns a typed generic resource subject.
+func Resource(kind, name, path string) Subject {
+	return Subject{Resource: &ResourceSubject{Kind: kind, Name: name, Path: path}}
+}
+
+// Validate requires exactly one typed subject with an identifying value.
+func (s Subject) Validate() error {
+	count := 0
+	if s.File != nil {
+		count++
+		if s.File.Name == "" && s.File.Path == "" {
+			return fmt.Errorf("file subject has no identity")
+		}
+	}
+	if s.Process != nil {
+		count++
+		if s.Process.PID == 0 && s.Process.Name == "" && s.Process.Executable == "" && s.Process.Command == "" {
+			return fmt.Errorf("process subject has no identity")
+		}
+	}
+	if s.Network != nil {
+		count++
+		if s.Network.Address == "" && s.Network.URL == "" && s.Network.Domain == "" {
+			return fmt.Errorf("network subject has no identity")
+		}
+	}
+	if s.Service != nil {
+		count++
+		if s.Service.Name == "" && s.Service.Domain == "" && s.Service.Path == "" {
+			return fmt.Errorf("service subject has no identity")
+		}
+	}
+	if s.Resource != nil {
+		count++
+		if s.Resource.Kind == "" {
+			return fmt.Errorf("resource subject has no kind")
+		}
+		if s.Resource.Name == "" && s.Resource.Path == "" {
+			return fmt.Errorf("resource subject has no identity")
+		}
+	}
+	if count != 1 {
+		return fmt.Errorf("event must have exactly one subject, got %d", count)
+	}
+	return nil
+}
+
 // TelemetryEvent is the structured record emitted by a module for each action it performs.
 type TelemetryEvent struct {
-	SchemaVersion string    `json:"schema_version"`
-	Timestamp     time.Time `json:"timestamp"`
-	Module        string    `json:"module"`
-	Category      string    `json:"category"`
-	EventType     string    `json:"event_type"`
-	Success       bool      `json:"success"`
-	// Outcome is left empty by NewEvent and set only by modules that need to
-	// say something Success cannot express. It is resolved to a concrete value
-	// at the output boundary, so emitted records always carry one.
+	SchemaVersion  string         `json:"schema_version"`
+	Timestamp      time.Time      `json:"timestamp"`
+	Module         string         `json:"module"`
+	Category       string         `json:"category"`
+	EventType      string         `json:"event_type"`
 	Outcome        Outcome        `json:"outcome"`
+	Subject        Subject        `json:"subject"`
 	Message        string         `json:"message"`
 	Details        map[string]any `json:"details,omitempty"`
 	Error          string         `json:"error,omitempty"`
@@ -127,22 +250,8 @@ type TelemetryEvent struct {
 	ProcessContext ProcessContext `json:"process_context"`
 }
 
-// ResolvedOutcome returns ev.Outcome, falling back to Success for the majority
-// of events that never set one. It is the single definition of how the two
-// fields relate, so an outcome-aware consumer and a Success-only consumer can
-// never read the same event differently.
-func (ev TelemetryEvent) ResolvedOutcome() Outcome {
-	if ev.Outcome != "" {
-		return ev.Outcome
-	}
-	if ev.Success {
-		return OutcomeExecuted
-	}
-	return OutcomeError
-}
-
 // EventEmitter is a callback that receives a telemetry event from a module.
-type EventEmitter func(TelemetryEvent)
+type EventEmitter func(TelemetryEvent) error
 
 // Generator is implemented by every MacNoise module and drives the runner lifecycle.
 type Generator interface {

@@ -105,7 +105,7 @@ func TestGenerate_StagesThenEncryptsAll(t *testing.T) {
 	stage := filepath.Join(t.TempDir(), "enc")
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 	f := &fileEncrypt{}
 	if err := f.Generate(context.Background(), module.Params{"stage_dir": stage, "file_count": "4"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -116,7 +116,7 @@ func TestGenerate_StagesThenEncryptsAll(t *testing.T) {
 		switch ev.EventType {
 		case "file_encrypt":
 			encEvents++
-			if !ev.Success {
+			if ev.Outcome != module.OutcomeExecuted {
 				t.Errorf("file_encrypt failed: %s", ev.Message)
 			}
 			original, _ := ev.Details["original"].(string)

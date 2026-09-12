@@ -17,7 +17,7 @@ func TestMasqueradeGenerate_CopiesAndExecutes(t *testing.T) {
 	stage := filepath.Join(t.TempDir(), "mq")
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 	e := &evadeMasquerade{}
 	ctx := module.ContextWithRunID(context.Background(), "mqrun5")
 	params := module.Params{"stage_dir": stage, "masquerade_name": "com.apple.WindowServer"}
@@ -32,11 +32,11 @@ func TestMasqueradeGenerate_CopiesAndExecutes(t *testing.T) {
 	if events[0].EventType != "masquerade_copy" || events[1].EventType != "masquerade_exec" {
 		t.Fatalf("event types = %q,%q; want masquerade_copy,masquerade_exec", events[0].EventType, events[1].EventType)
 	}
-	if !events[0].Success {
+	if events[0].Outcome != module.OutcomeExecuted {
 		t.Fatalf("copy failed: %s", events[0].Message)
 	}
 	// A copy of /usr/bin/true exits 0, so the masqueraded exec should succeed.
-	if !events[1].Success {
+	if events[1].Outcome != module.OutcomeExecuted {
 		t.Errorf("masqueraded exec failed: %s", events[1].Message)
 	}
 	if events[1].Details["masqueraded_as"] != "com.apple.WindowServer" {

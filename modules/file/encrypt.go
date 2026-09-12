@@ -149,21 +149,25 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 			return ctx.Err()
 		default:
 		}
-		ev := output.NewEvent(info, "file_encrypt", false, fmt.Sprintf("encrypting %s", p))
+		ev := output.NewEvent(info, "file_encrypt", module.OutcomeError, module.File(p+extension), fmt.Sprintf("encrypting %s", p))
 		encPath, encErr := encryptFile(p, extension, key)
 		if encErr != nil {
 			ev = output.WithError(ev, encErr)
-			emit(ev)
+			if emitErr := emit(ev); emitErr != nil {
+				return emitErr
+			}
 			continue
 		}
-		ev.Success = true
+		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("encrypted %s -> %s", p, encPath)
 		ev = output.WithDetails(ev, map[string]any{
 			"original":  p,
 			"encrypted": encPath,
 			"cipher":    "AES-256-GCM",
 		})
-		emit(ev)
+		if err := emit(ev); err != nil {
+			return err
+		}
 	}
 	return nil
 }

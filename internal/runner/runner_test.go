@@ -35,6 +35,8 @@ type mockGen struct {
 	generateCalls int
 }
 
+func discardEvent(module.TelemetryEvent) error { return nil }
+
 func (m *mockGen) Info() module.ModuleInfo {
 	category := m.category
 	if category == "" {
@@ -54,7 +56,9 @@ func (m *mockGen) Generate(_ context.Context, params module.Params, emit module.
 		m.onGenerate()
 	}
 	for _, ev := range m.events {
-		emit(ev)
+		if err := emit(ev); err != nil {
+			return errors.Join(m.generateErr, err)
+		}
 	}
 	return m.generateErr
 }
@@ -77,7 +81,7 @@ func TestRunSingleRejectsInvalidParamsBeforePreviewOrExecution(t *testing.T) {
 				paramSpecs: []module.ParamSpec{{Name: "count", Type: module.ParamInteger}},
 			}
 
-			err := runner.RunSingle(context.Background(), gen, module.Params{"count": "many"}, func(module.TelemetryEvent) {}, runner.Options{DryRun: dryRun})
+			err := runner.RunSingle(context.Background(), gen, module.Params{"count": "many"}, discardEvent, runner.Options{DryRun: dryRun})
 			if err == nil || !strings.Contains(err.Error(), `parameter "count" must be an integer`) {
 				t.Fatalf("RunSingle error = %v", err)
 			}
@@ -96,7 +100,7 @@ func TestRunSingleUsesSameNormalizationForPreviewAndExecution(t *testing.T) {
 				paramSpecs: []module.ParamSpec{{Name: "count", Type: module.ParamInteger, Default: 3}},
 			}
 
-			if err := runner.RunSingle(context.Background(), gen, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{DryRun: dryRun}); err != nil {
+			if err := runner.RunSingle(context.Background(), gen, module.Params{}, discardEvent, runner.Options{DryRun: dryRun}); err != nil {
 				t.Fatal(err)
 			}
 			if got := gen.params.Int("count", 0); got != 3 {
@@ -107,7 +111,7 @@ func TestRunSingleUsesSameNormalizationForPreviewAndExecution(t *testing.T) {
 }
 
 func TestRunSingleSuccess(t *testing.T) {
-	ev := module.TelemetryEvent{Module: "mock", Success: true, Message: "ok"}
+	ev := module.TelemetryEvent{Module: "mock", Outcome: module.OutcomeExecuted, Subject: module.Resource("test", "mock", ""), Message: "ok"}
 	gen := &mockGen{
 		name:        "mock_success",
 		events:      []module.TelemetryEvent{ev},
@@ -115,7 +119,10 @@ func TestRunSingleSuccess(t *testing.T) {
 	}
 
 	var received []module.TelemetryEvent
-	emit := func(e module.TelemetryEvent) { received = append(received, e) }
+	emit := func(e module.TelemetryEvent) error {
+		received = append(received, e)
+		return nil
+	}
 
 	err := runner.RunSingle(context.Background(), gen, module.Params{}, emit, runner.Options{})
 	if err != nil {
@@ -129,10 +136,70 @@ func TestRunSingleSuccess(t *testing.T) {
 	}
 }
 
+type ignoresEmitterFailureGen struct {
+	mockGen
+}
+
+func (g *ignoresEmitterFailureGen) Generate(_ context.Context, _ module.Params, emit module.EventEmitter) error {
+	g.generateCalls++
+	_ = emit(module.TelemetryEvent{
+		Outcome: module.OutcomeExecuted,
+		Subject: module.Resource("test", "event", ""),
+	})
+	return nil
+}
+
+func TestRunSingleReturnsIgnoredEmitterFailure(t *testing.T) {
+	want := errors.New("telemetry write failed")
+	gen := &ignoresEmitterFailureGen{mockGen: mockGen{name: "writer_failure"}}
+
+	err := runner.RunSingle(context.Background(), gen, nil, func(module.TelemetryEvent) error {
+		return want
+	}, runner.Options{})
+	if !errors.Is(err, want) {
+		t.Fatalf("RunSingle = %v, want telemetry write failure", err)
+	}
+	if !gen.cleanedUp {
+		t.Fatal("cleanup did not run after telemetry write failure")
+	}
+}
+
+func TestRunSingleRedactsSensitiveAuditParams(t *testing.T) {
+	const secret = "correct-horse-battery-staple"
+	auditPath := filepath.Join(t.TempDir(), "audit.jsonl")
+	logger, err := audit.NewLogger(auditPath, "test", "run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gen := &mockGen{
+		name: "sensitive_params",
+		paramSpecs: []module.ParamSpec{
+			{Name: "password", Type: module.ParamString, Sensitive: true},
+		},
+	}
+
+	if err := runner.RunSingle(context.Background(), gen, module.Params{"password": secret}, discardEvent, runner.Options{AuditLog: logger}); err != nil {
+		t.Fatal(err)
+	}
+	if err := logger.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), secret) {
+		t.Fatal("audit log contains sensitive parameter value")
+	}
+	if !strings.Contains(string(data), module.RedactedValue) {
+		t.Fatal("audit log does not contain redaction marker")
+	}
+}
+
 func TestRunSingleReturnsCleanupError(t *testing.T) {
 	want := errors.New("cleanup failed")
 	gen := &mockGen{name: "cleanup_error", cleanupErr: want}
-	err := runner.RunSingle(context.Background(), gen, nil, func(module.TelemetryEvent) {}, runner.Options{})
+	err := runner.RunSingle(context.Background(), gen, nil, discardEvent, runner.Options{})
 	if !errors.Is(err, want) {
 		t.Fatalf("RunSingle = %v, want cleanup failure", err)
 	}
@@ -142,7 +209,7 @@ func TestRunSingleJoinsGenerateAndCleanupErrors(t *testing.T) {
 	generateErr := errors.New("generation failed")
 	cleanupErr := errors.New("cleanup failed")
 	gen := &mockGen{name: "joined_errors", generateErr: generateErr, cleanupErr: cleanupErr}
-	err := runner.RunSingle(context.Background(), gen, nil, func(module.TelemetryEvent) {}, runner.Options{})
+	err := runner.RunSingle(context.Background(), gen, nil, discardEvent, runner.Options{})
 	if !errors.Is(err, generateErr) || !errors.Is(err, cleanupErr) {
 		t.Fatalf("RunSingle = %v, want both generation and cleanup failures", err)
 	}
@@ -157,7 +224,7 @@ func TestRunScenarioAuditDoesNotChangeFailurePolicy(t *testing.T) {
 				return &mockGen{
 					name:        name,
 					generateErr: errors.New("execution failed"),
-					events:      []module.TelemetryEvent{{Success: true}},
+					events:      []module.TelemetryEvent{{Outcome: module.OutcomeExecuted, Subject: module.Resource("test", "event", "")}},
 				}
 			})
 			var logger *audit.Logger
@@ -171,7 +238,10 @@ func TestRunScenarioAuditDoesNotChangeFailurePolicy(t *testing.T) {
 			}
 			path := writeScenario(t, name, 2, "")
 			calls := 0
-			err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) { calls++ }, runner.Options{
+			err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) error {
+				calls++
+				return nil
+			}, runner.Options{
 				Registry: &registry,
 				AuditLog: logger,
 			})
@@ -187,7 +257,7 @@ func TestRunSinglePrereqFails(t *testing.T) {
 		name:      "mock_prereq_fail",
 		prereqErr: errors.New("not root"),
 	}
-	err := runner.RunSingle(context.Background(), gen, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{})
+	err := runner.RunSingle(context.Background(), gen, module.Params{}, discardEvent, runner.Options{})
 	if err == nil {
 		t.Error("expected error when prereqs fail")
 	}
@@ -200,7 +270,7 @@ func TestRunSingleDryRun(t *testing.T) {
 		dryRunLines: []string{"action one", "action two"},
 		generateErr: errors.New("should not run"),
 	}
-	err := runner.RunSingle(context.Background(), gen, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{DryRun: true})
+	err := runner.RunSingle(context.Background(), gen, module.Params{}, discardEvent, runner.Options{DryRun: true})
 	if err != nil {
 		t.Fatalf("dry-run should not fail: %v", err)
 	}
@@ -212,7 +282,7 @@ func TestRunSingleDryRun(t *testing.T) {
 func TestRunSingleTimeout(t *testing.T) {
 	slowGen := &slowMockGen{name: "mock_slow", delay: 2 * time.Second}
 
-	err := runner.RunSingle(context.Background(), slowGen, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{Timeout: 50 * time.Millisecond})
+	err := runner.RunSingle(context.Background(), slowGen, module.Params{}, discardEvent, runner.Options{Timeout: 50 * time.Millisecond})
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("RunSingle = %v, want context deadline exceeded", err)
 	}
@@ -226,7 +296,7 @@ func TestRunManyCollectsErrors(t *testing.T) {
 		&mockGen{name: "mock_ok"},
 		&mockGen{name: "mock_fail", generateErr: errors.New("boom")},
 	}
-	err := runner.RunMany(context.Background(), gens, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{})
+	err := runner.RunMany(context.Background(), gens, module.Params{}, discardEvent, runner.Options{})
 	if err == nil {
 		t.Error("expected combined error")
 	}
@@ -269,7 +339,7 @@ func TestRunSingleCleansUpOnCancel(t *testing.T) {
 	}()
 	defer cancel()
 
-	err := runner.RunSingle(ctx, gen, module.Params{}, func(module.TelemetryEvent) {}, runner.Options{})
+	err := runner.RunSingle(ctx, gen, module.Params{}, discardEvent, runner.Options{})
 	if !errors.Is(err, context.Canceled) {
 		t.Errorf("expected context.Canceled, got %v", err)
 	}
@@ -343,7 +413,7 @@ func TestRunScenarioStopsOnCancel(t *testing.T) {
 			})
 
 			path := writeScenario(t, name, 4, tc.onError)
-			err := runner.RunScenario(ctx, path, func(module.TelemetryEvent) {}, runner.Options{Registry: &registry})
+			err := runner.RunScenario(ctx, path, discardEvent, runner.Options{Registry: &registry})
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("expected context.Canceled, got %v", err)
 			}
@@ -373,7 +443,7 @@ func TestRunScenarioAuditsInterrupt(t *testing.T) {
 	}
 
 	path := writeScenario(t, name, 5, "")
-	runErr := runner.RunScenario(ctx, path, func(module.TelemetryEvent) {}, runner.Options{
+	runErr := runner.RunScenario(ctx, path, discardEvent, runner.Options{
 		Registry: &registry,
 		AuditLog: logger,
 	})
@@ -438,11 +508,11 @@ func TestRunSingle_RunIDInContext(t *testing.T) {
 	gen := &ctxCapturingGen{
 		mockGen: mockGen{
 			name:   "ctx_test",
-			events: []module.TelemetryEvent{{Success: true, Category: "test", EventType: "test"}},
+			events: []module.TelemetryEvent{{Outcome: module.OutcomeExecuted, Subject: module.Resource("test", "event", ""), Category: "test", EventType: "test"}},
 		},
 	}
 
-	emit := func(module.TelemetryEvent) {}
+	emit := discardEvent
 	opts := runner.Options{RunID: "test_run_id_1234"}
 	if err := runner.RunSingle(context.Background(), gen, module.Params{}, emit, opts); err != nil {
 		t.Fatal(err)
@@ -495,7 +565,7 @@ func TestRunScenarioCategoryHonorsOnErrorPerInvocation(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) {}, runner.Options{Registry: &registry})
+			err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry})
 			if err == nil {
 				t.Fatal("expected scenario failure")
 			}
@@ -544,7 +614,7 @@ func TestRunScenarioNormalizesPathList(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) {}, runner.Options{Registry: &registry}); err != nil {
+	if err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry}); err != nil {
 		t.Fatal(err)
 	}
 	if got := invocation.params.Paths("paths", nil); !reflect.DeepEqual(got, []string{"/tmp/one", "/tmp/two"}) {
@@ -570,7 +640,7 @@ func TestRunScenarioRejectsUnknownParamBeforeExecution(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) {}, runner.Options{Registry: &registry})
+	err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry})
 	if err == nil || invocation.generateCalls != 0 || invocation.cleanedUp {
 		t.Fatalf("RunScenario error = %v, invocation = %+v", err, invocation)
 	}

@@ -48,7 +48,7 @@ func TestNegativePayloadSizeIsRejectedBeforeExecution(t *testing.T) {
 		t.Fatal("net_exfil is not registered")
 	}
 
-	err := runner.RunSingle(context.Background(), gen, module.Params{"payload_size": "-1"}, func(module.TelemetryEvent) {}, runner.Options{})
+	err := runner.RunSingle(context.Background(), gen, module.Params{"payload_size": "-1"}, func(module.TelemetryEvent) error { return nil }, runner.Options{})
 	if err == nil || !strings.Contains(err.Error(), `parameter "payload_size" must be at least 0`) {
 		t.Fatalf("RunSingle error = %v", err)
 	}

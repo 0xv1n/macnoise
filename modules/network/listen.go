@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -48,16 +49,17 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 
 	l, err := net.Listen("tcp", address)
 	if err != nil {
-		ev := output.NewEvent(info, "tcp_listen", false, fmt.Sprintf("failed to bind %s", address))
+		ev := output.NewEvent(info, "tcp_listen", module.OutcomeError, module.Network(address, "", ""), fmt.Sprintf("failed to bind %s", address))
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
 	n.listener = l
 
-	ev := output.NewEvent(info, "tcp_listen", true, fmt.Sprintf("listening on %s", address))
+	ev := output.NewEvent(info, "tcp_listen", module.OutcomeExecuted, module.Network(address, "", ""), fmt.Sprintf("listening on %s", address))
 	ev = output.WithDetails(ev, map[string]any{"address": address})
-	emit(ev)
+	if err := emit(ev); err != nil {
+		return err
+	}
 
 	payload := "TELEMETRY_PING"
 	if runID := module.RunIDFromContext(ctx); runID != "" {
@@ -95,10 +97,9 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 		}
 		defer func() { _ = res.conn.Close() }()
 
-		accepted := output.NewEvent(info, "tcp_accept", true, fmt.Sprintf("accepted connection from %s", res.conn.RemoteAddr()))
+		accepted := output.NewEvent(info, "tcp_accept", module.OutcomeExecuted, module.Network(res.conn.RemoteAddr().String(), "", ""), fmt.Sprintf("accepted connection from %s", res.conn.RemoteAddr()))
 		accepted = output.WithDetails(accepted, map[string]any{"remote_addr": res.conn.RemoteAddr().String()})
-		emit(accepted)
-		return nil
+		return emit(accepted)
 	}
 }
 

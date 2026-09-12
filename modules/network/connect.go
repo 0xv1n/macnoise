@@ -49,24 +49,25 @@ func (n *netConnect) Generate(ctx context.Context, params module.Params, emit mo
 
 	info := n.Info()
 
-	ev := output.NewEvent(info, "tcp_connect", false, fmt.Sprintf("dialing TCP %s", address))
+	ev := output.NewEvent(info, "tcp_connect", module.OutcomeError, module.Network(address, "", ""), fmt.Sprintf("dialing TCP %s", address))
 	conn, err := net.DialTimeout("tcp", address, 3*time.Second)
 	if err != nil {
 		// A refused dial is the environment declining, not macnoise breaking,
 		// and the SYN that went out is the telemetry this module exists for.
 		// net_revshell already treats the identical case this way.
 		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
-		emit(ev)
 	} else {
 		_ = conn.Close()
-		ev.Success = true
+		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("TCP connection established to %s", address)
 		ev = output.WithDetails(ev, map[string]any{"address": address, "protocol": "tcp"})
-		emit(ev)
+	}
+	if err := emit(ev); err != nil {
+		return err
 	}
 
 	url := tagURL(fmt.Sprintf("http://%s", address), module.RunIDFromContext(ctx))
-	httpEv := output.NewEvent(info, "http_get", false, fmt.Sprintf("HTTP GET %s", url))
+	httpEv := output.NewEvent(info, "http_get", module.OutcomeError, module.Network("", url, ""), fmt.Sprintf("HTTP GET %s", url))
 	client := http.Client{Timeout: 3 * time.Second}
 	resp, err := client.Get(url)
 	if err != nil {
@@ -74,13 +75,11 @@ func (n *netConnect) Generate(ctx context.Context, params module.Params, emit mo
 		httpEv.Message = fmt.Sprintf("HTTP GET %s generated telemetry (connection refused expected)", url)
 	} else {
 		_ = resp.Body.Close()
-		httpEv.Success = true
+		httpEv.Outcome = module.OutcomeExecuted
 		httpEv.Message = fmt.Sprintf("HTTP GET %s returned %d", url, resp.StatusCode)
 		httpEv = output.WithDetails(httpEv, map[string]any{"url": url, "status_code": resp.StatusCode})
 	}
-	emit(httpEv)
-
-	return nil
+	return emit(httpEv)
 }
 
 func (n *netConnect) DryRun(params module.Params) []string {

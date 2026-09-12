@@ -5,6 +5,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -76,6 +77,7 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 	plistPath := filepath.Join(agentDir, label+".plist")
 	s.plistPath = plistPath
 	s.label = label
+	domain := guiDomain()
 
 	plistData := map[string]any{
 		"Label":            label,
@@ -84,44 +86,40 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 		"KeepAlive":        false,
 	}
 
-	createEv := output.NewEvent(info, "launchagent_create", false, fmt.Sprintf("creating plist at %s", plistPath))
+	createEv := output.NewEvent(info, "launchagent_create", module.OutcomeError, module.Service(label, domain, plistPath), fmt.Sprintf("creating plist at %s", plistPath))
 	f, err := os.Create(plistPath)
 	if err != nil {
 		createEv = output.WithError(createEv, err)
-		emit(createEv)
-		return err
+		return errors.Join(err, emit(createEv))
 	}
 	enc := plist.NewEncoder(f)
 	enc.Indent("\t")
 	if err := enc.Encode(plistData); err != nil {
 		_ = f.Close()
 		createEv = output.WithError(createEv, err)
-		emit(createEv)
-		return err
+		return errors.Join(err, emit(createEv))
 	}
 	_ = f.Close()
 
-	createEv.Success = true
+	createEv.Outcome = module.OutcomeExecuted
 	createEv.Message = fmt.Sprintf("created LaunchAgent plist at %s", plistPath)
 	createEv = output.WithDetails(createEv, map[string]any{"path": plistPath, "label": label, "program": program})
-	emit(createEv)
+	if err := emit(createEv); err != nil {
+		return err
+	}
 
-	domain := guiDomain()
-	loadEv := output.NewEvent(info, "launchagent_load", false, fmt.Sprintf("bootstrapping %s into %s", label, domain))
+	loadEv := output.NewEvent(info, "launchagent_load", module.OutcomeError, module.Service(label, domain, plistPath), fmt.Sprintf("bootstrapping %s into %s", label, domain))
 	loadCmd := exec.CommandContext(ctx, "launchctl", bootstrapArgs(domain, plistPath)...)
 	out, err := loadCmd.CombinedOutput()
 	if err != nil {
 		loadEv = output.WithError(loadEv, fmt.Errorf("%v: %s", err, out))
-		emit(loadEv)
-		return nil
+		return emit(loadEv)
 	}
 	s.loaded = true
-	loadEv.Success = true
+	loadEv.Outcome = module.OutcomeExecuted
 	loadEv.Message = fmt.Sprintf("bootstrapped LaunchAgent %s into %s", label, domain)
 	loadEv = output.WithDetails(loadEv, map[string]any{"label": label, "plist": plistPath, "domain": domain})
-	emit(loadEv)
-
-	return nil
+	return emit(loadEv)
 }
 
 func (s *svcLaunchAgent) DryRun(params module.Params) []string {

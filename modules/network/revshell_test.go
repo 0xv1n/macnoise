@@ -13,7 +13,7 @@ import (
 func TestNetRevShell_DialRespectsContext(t *testing.T) {
 	n := &netRevShell{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -24,10 +24,10 @@ func TestNetRevShell_DialRespectsContext(t *testing.T) {
 	}
 }
 
-func TestNetRevShell_ConnectionRefusedIsReportedAsSuccess(t *testing.T) {
+func TestNetRevShell_ConnectionRefusedIsReportedAsDenied(t *testing.T) {
 	n := &netRevShell{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 
 	err := n.Generate(context.Background(), module.Params{"target": "127.0.0.1", "port": "1"}, emit)
 	if err != nil {
@@ -36,8 +36,8 @@ func TestNetRevShell_ConnectionRefusedIsReportedAsSuccess(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("expected 1 event, got %d", len(events))
 	}
-	if !events[0].Success {
-		t.Errorf("event.Success = false, want true (connection refused is expected telemetry)")
+	if events[0].Outcome != module.OutcomeDenied {
+		t.Errorf("event.Outcome = %q, want denied", events[0].Outcome)
 	}
 	if !strings.Contains(events[0].Error, "refused") {
 		t.Errorf("event.Error = %q, want it to mention connection refused", events[0].Error)

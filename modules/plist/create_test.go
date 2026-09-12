@@ -16,7 +16,7 @@ func TestPlistCreate_GenerateAndCleanup(t *testing.T) {
 	outPath := filepath.Join(t.TempDir(), "test.plist")
 	p := &plistCreate{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
 	params := module.Params{"output_path": outPath, "bundle_id": "com.macnoise.integrationtest"}
 	if err := p.Generate(context.Background(), params, emit); err != nil {
@@ -38,7 +38,7 @@ func TestPlistCreate_GenerateAndCleanup(t *testing.T) {
 
 	var sawSuccess bool
 	for _, ev := range events {
-		if ev.EventType == "plist_create" && ev.Success {
+		if ev.EventType == "plist_create" && ev.Outcome == module.OutcomeExecuted {
 			sawSuccess = true
 		}
 	}
@@ -57,7 +57,7 @@ func TestPlistCreate_GenerateAndCleanup(t *testing.T) {
 func TestPlistCreate_LaunchAgentMode(t *testing.T) {
 	outPath := filepath.Join(t.TempDir(), "agent.plist")
 	p := &plistCreate{}
-	emit := func(module.TelemetryEvent) {}
+	emit := func(module.TelemetryEvent) error { return nil }
 
 	params := module.Params{
 		"output_path": outPath,

@@ -87,23 +87,25 @@ func (e *evadeMasquerade) Generate(ctx context.Context, params module.Params, em
 	e.stageDir = stageDir
 	destPath := filepath.Join(stageDir, masqName)
 
-	copyEv := output.NewEvent(info, "masquerade_copy", false,
+	copyEv := output.NewEvent(info, "masquerade_copy", module.OutcomeError, module.File(destPath),
 		fmt.Sprintf("copying %s to %s (masquerading as %q)", source, destPath, masqName))
 	if err := copyExecutable(source, destPath); err != nil {
 		copyEv = output.WithError(copyEv, err)
-		emit(copyEv)
-		return nil
+		return emit(copyEv)
 	}
-	copyEv.Success = true
+	copyEv.Outcome = module.OutcomeExecuted
 	copyEv.Message = fmt.Sprintf("staged %s as %s", source, destPath)
 	copyEv = output.WithDetails(copyEv, map[string]any{
 		"source":         source,
 		"path":           destPath,
 		"masqueraded_as": masqName,
 	})
-	emit(copyEv)
+	if err := emit(copyEv); err != nil {
+		return err
+	}
 
-	execEv := output.NewEvent(info, "masquerade_exec", false,
+	execEv := output.NewEvent(info, "masquerade_exec", module.OutcomeError,
+		module.Process(filepath.Base(destPath), destPath, destPath, 0),
 		fmt.Sprintf("executing %s under masquerading name %q", destPath, masqName))
 	out, err := exec.CommandContext(ctx, destPath).CombinedOutput()
 	if err != nil {
@@ -118,7 +120,7 @@ func (e *evadeMasquerade) Generate(ctx context.Context, params module.Params, em
 			"output":         strings.TrimSpace(string(out)),
 		})
 	} else {
-		execEv.Success = true
+		execEv.Outcome = module.OutcomeExecuted
 		execEv.Message = fmt.Sprintf("ran %s as %q (real binary: %s)", destPath, masqName, source)
 		execEv = output.WithDetails(execEv, map[string]any{
 			"path":           destPath,
@@ -126,8 +128,7 @@ func (e *evadeMasquerade) Generate(ctx context.Context, params module.Params, em
 			"real_source":    source,
 		})
 	}
-	emit(execEv)
-	return nil
+	return emit(execEv)
 }
 
 func (e *evadeMasquerade) DryRun(params module.Params) []string {

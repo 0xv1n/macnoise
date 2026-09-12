@@ -10,9 +10,11 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 
 	"github.com/0xv1n/macnoise/internal/audit"
+	"github.com/0xv1n/macnoise/internal/output"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -41,6 +43,7 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 		return fmt.Errorf("[%s] params: %w", info.Name, err)
 	}
 	params = normalized
+	auditParams := module.RedactParams(gen.ParamSpecs(), params)
 	startTime := time.Now()
 
 	lifecycle := audit.LifecycleData{
@@ -63,7 +66,8 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 			lifecycle.PrereqError = err.Error()
 			if opts.AuditLog != nil {
 				lifecycle.EndTime = time.Now()
-				opts.AuditLog.LogLifecycle("module_prereq_fail", info, params, lifecycle)
+				auditErr := opts.AuditLog.LogLifecycle("module_prereq_fail", info, auditParams, lifecycle)
+				return errors.Join(fmt.Errorf("[%s] prereqs: %w", info.Name, err), auditErr)
 			}
 			return fmt.Errorf("[%s] prereqs: %w", info.Name, err)
 		}
@@ -76,15 +80,31 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 		}
 		if opts.AuditLog != nil {
 			lifecycle.EndTime = time.Now()
-			opts.AuditLog.LogLifecycle("module_dry_run", info, params, lifecycle)
+			if err := opts.AuditLog.LogLifecycle("module_dry_run", info, auditParams, lifecycle); err != nil {
+				return err
+			}
 		}
 		return nil
 	}
 
 	var eventsEmitted int
-	auditEmit := emit
+	eventEmit := emit
 	if opts.AuditLog != nil {
-		auditEmit = opts.AuditLog.WrapEmitter(emit, info, params, &eventsEmitted)
+		eventEmit = opts.AuditLog.WrapEmitter(emit, info, auditParams, &eventsEmitted)
+	}
+	var emitMu sync.Mutex
+	var emitErr error
+	normalizedEmit := func(ev module.TelemetryEvent) error {
+		ev, err := output.NormalizeEvent(info, ev)
+		if err == nil {
+			err = eventEmit(ev)
+		}
+		if err != nil {
+			emitMu.Lock()
+			emitErr = errors.Join(emitErr, err)
+			emitMu.Unlock()
+		}
+		return err
 	}
 
 	var generateErr error
@@ -116,11 +136,18 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 			if generateErr != nil {
 				lifecycle.GenerateError = generateErr.Error()
 			}
-			opts.AuditLog.LogLifecycle("module_run", info, params, lifecycle)
+			if err := opts.AuditLog.LogLifecycle("module_run", info, auditParams, lifecycle); err != nil {
+				resultErr = errors.Join(resultErr, err)
+			}
 		}
 	}()
 
-	generateErr = gen.Generate(runCtx, params, auditEmit)
+	generateErr = gen.Generate(runCtx, params, normalizedEmit)
+	emitMu.Lock()
+	if emitErr != nil && !errors.Is(generateErr, emitErr) {
+		generateErr = errors.Join(generateErr, emitErr)
+	}
+	emitMu.Unlock()
 	if runCtx.Err() != nil {
 		generateErr = errors.Join(generateErr, runCtx.Err())
 	}
@@ -246,7 +273,9 @@ stepLoop:
 		case stepsFailed > 0:
 			ld.GenerateError = fmt.Sprintf("%d step(s) failed", stepsFailed)
 		}
-		opts.AuditLog.LogScenario(sc.Name, path, ld)
+		if err := opts.AuditLog.LogScenario(sc.Name, path, ld); err != nil {
+			interruptErr = errors.Join(interruptErr, err)
+		}
 	}
 
 	if interruptErr != nil {

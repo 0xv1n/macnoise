@@ -28,8 +28,9 @@ func TestDiscoveryGenerate_Commands(t *testing.T) {
 	}
 	var events []module.TelemetryEvent
 	p := &procDiscovery{}
-	err := p.Generate(ctx, module.Params{"commands": " , " + strings.Join(commands, " , , ") + ", "}, func(ev module.TelemetryEvent) {
+	err := p.Generate(ctx, module.Params{"commands": " , " + strings.Join(commands, " , , ") + ", "}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
+		return nil
 	})
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -38,7 +39,7 @@ func TestDiscoveryGenerate_Commands(t *testing.T) {
 		t.Fatalf("got %d events, want %d: %+v", len(events), len(commands), events)
 	}
 	for i, ev := range events {
-		if ev.Module != "proc_discovery" || ev.EventType != "system_discovery" || !ev.Success {
+		if ev.Module != "proc_discovery" || ev.EventType != "system_discovery" || ev.Outcome != module.OutcomeExecuted {
 			t.Errorf("event %d: %+v", i, ev)
 		}
 		if ev.Details["command"] != commands[i] {
@@ -71,8 +72,9 @@ func TestDiscoveryGenerate_CanceledBeforeCommand(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	marker := filepath.Join(t.TempDir(), "unexpected")
-	err := (&procDiscovery{}).Generate(ctx, module.Params{"commands": fmt.Sprintf("touch '%s'", marker)}, func(ev module.TelemetryEvent) {
+	err := (&procDiscovery{}).Generate(ctx, module.Params{"commands": fmt.Sprintf("touch '%s'", marker)}, func(ev module.TelemetryEvent) error {
 		t.Errorf("unexpected event: %+v", ev)
+		return nil
 	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Generate = %v, want context.Canceled", err)
@@ -87,9 +89,10 @@ func TestDiscoveryGenerate_CanceledBetweenCommands(t *testing.T) {
 	defer cancel()
 	marker := filepath.Join(t.TempDir(), "unexpected")
 	var events []module.TelemetryEvent
-	err := (&procDiscovery{}).Generate(ctx, module.Params{"commands": fmt.Sprintf("printf first,touch '%s'", marker)}, func(ev module.TelemetryEvent) {
+	err := (&procDiscovery{}).Generate(ctx, module.Params{"commands": fmt.Sprintf("printf first,touch '%s'", marker)}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
 		cancel()
+		return nil
 	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Generate = %v, want context.Canceled", err)
@@ -118,8 +121,9 @@ func TestDiscoveryGenerate_CanceledDuringCommand(t *testing.T) {
 			done := make(chan error, 1)
 			go func() {
 				// exec leaves no descendant holding the output pipe after cancellation.
-				done <- (&procDiscovery{}).Generate(ctx, module.Params{"commands": fmt.Sprintf("printf started > '%s'; exec sleep 10", marker)}, func(ev module.TelemetryEvent) {
+				done <- (&procDiscovery{}).Generate(ctx, module.Params{"commands": fmt.Sprintf("printf started > '%s'; exec sleep 10", marker)}, func(ev module.TelemetryEvent) error {
 					events = append(events, ev)
+					return nil
 				})
 			}()
 			// Always reap the command before inspecting events or removing its directory.

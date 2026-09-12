@@ -34,6 +34,7 @@ type CatalogParam struct {
 	Description string        `json:"description"`
 	Type        ParamType     `json:"type"`
 	Required    bool          `json:"required"`
+	Sensitive   bool          `json:"sensitive"`
 	Default     any           `json:"default,omitempty"`
 	Example     any           `json:"example,omitempty"`
 	Range       *IntegerRange `json:"range,omitempty"`

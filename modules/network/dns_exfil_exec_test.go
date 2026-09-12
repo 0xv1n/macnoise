@@ -113,8 +113,9 @@ func TestDNSExfilGenerate_QueriesAndOutcomes(t *testing.T) {
 			ctx = module.ContextWithRunID(ctx, runID)
 			var events []module.TelemetryEvent
 			mod := &netDNSExfil{}
-			err := mod.Generate(ctx, module.Params{"payload": payload, "base_domain": "exfil.test."}, func(ev module.TelemetryEvent) {
+			err := mod.Generate(ctx, module.Params{"payload": payload, "base_domain": "exfil.test."}, func(ev module.TelemetryEvent) error {
 				events = append(events, ev)
+				return nil
 			})
 			if err != nil {
 				t.Fatal(err)
@@ -141,7 +142,7 @@ func TestDNSExfilGenerate_QueriesAndOutcomes(t *testing.T) {
 				if i == 1 {
 					outcome = module.OutcomeDenied
 				}
-				if ev.Module != "net_dns_exfil" || ev.EventType != "dns_exfil_query" || !ev.Success || ev.ResolvedOutcome() != outcome || (ev.Error != "") != (i == 1) {
+				if ev.Module != "net_dns_exfil" || ev.EventType != "dns_exfil_query" || ev.Outcome != outcome || (ev.Error != "") != (i == 1) {
 					t.Errorf("event %d = %+v", i, ev)
 				}
 				if ev.Details["query"] != want[i]+"." || ev.Details["chunk_index"] != i || ev.Details["total"] != len(want) || ev.Details["base_domain"] != "exfil.test." {
@@ -168,8 +169,9 @@ func TestDNSExfilGenerate_CancelInFlight(t *testing.T) {
 		return -1
 	})
 	var events []module.TelemetryEvent
-	err := (&netDNSExfil{}).Generate(ctx, module.Params{"payload": "test", "base_domain": "exfil.test."}, func(ev module.TelemetryEvent) {
+	err := (&netDNSExfil{}).Generate(ctx, module.Params{"payload": "test", "base_domain": "exfil.test."}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
+		return nil
 	})
 	select {
 	case <-started:
@@ -194,9 +196,10 @@ func TestDNSExfilGenerate_CancelBetweenChunks(t *testing.T) {
 		return 0
 	})
 	var events []module.TelemetryEvent
-	err := (&netDNSExfil{}).Generate(ctx, module.Params{"payload": strings.Repeat("test", 40), "base_domain": "exfil.test."}, func(ev module.TelemetryEvent) {
+	err := (&netDNSExfil{}).Generate(ctx, module.Params{"payload": strings.Repeat("test", 40), "base_domain": "exfil.test."}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
 		cancel()
+		return nil
 	})
 	if !errors.Is(err, context.Canceled) || len(events) != 1 {
 		t.Fatalf("err = %v, events = %d; want canceled after one event", err, len(events))

@@ -91,9 +91,9 @@ func parseServices(out, filter string, max int) []string {
 
 // enumerateDomain runs launchctl print against one domain and emits an event
 // describing what it found or why it could not look.
-func (x *xpcEnumerate) enumerateDomain(ctx context.Context, domain, filter string, max int, emit module.EventEmitter) {
+func (x *xpcEnumerate) enumerateDomain(ctx context.Context, domain, filter string, max int, emit module.EventEmitter) error {
 	info := x.Info()
-	ev := output.NewEvent(info, "xpc_enumerate", true, fmt.Sprintf("enumerating services in domain %s", domain))
+	ev := output.NewEvent(info, "xpc_enumerate", module.OutcomeExecuted, module.Resource("xpc_domain", domain, ""), fmt.Sprintf("enumerating services in domain %s", domain))
 	details := map[string]any{"domain": domain, "filter": filter}
 
 	out, err := exec.CommandContext(ctx, "launchctl", "print", domain).CombinedOutput()
@@ -102,8 +102,7 @@ func (x *xpcEnumerate) enumerateDomain(ctx context.Context, domain, filter strin
 			fmt.Errorf("launchctl print %s: %v: %s", domain, err, out))
 		ev.Message = fmt.Sprintf("could not enumerate domain %s", domain)
 		details["accessible"] = false
-		emit(output.WithDetails(ev, details))
-		return
+		return emit(output.WithDetails(ev, details))
 	}
 
 	services := parseServices(string(out), filter, max)
@@ -111,7 +110,7 @@ func (x *xpcEnumerate) enumerateDomain(ctx context.Context, domain, filter strin
 	details["accessible"] = true
 	details["service_count"] = len(services)
 	details["services"] = services
-	emit(output.WithDetails(ev, details))
+	return emit(output.WithDetails(ev, details))
 }
 
 func (x *xpcEnumerate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
@@ -123,9 +122,10 @@ func (x *xpcEnumerate) Generate(ctx context.Context, params module.Params, emit 
 	// as uid 501), so gating it behind root would drop most of what this
 	// module can see. A domain that does refuse is reported as inaccessible
 	// rather than skipped.
-	x.enumerateDomain(ctx, guiDomain(), filter, max, emit)
-	x.enumerateDomain(ctx, "system", filter, max, emit)
-	return nil
+	if err := x.enumerateDomain(ctx, guiDomain(), filter, max, emit); err != nil {
+		return err
+	}
+	return x.enumerateDomain(ctx, "system", filter, max, emit)
 }
 
 // guiDomain is the launchd domain holding the current user's services.

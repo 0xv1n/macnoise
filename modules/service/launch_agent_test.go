@@ -27,7 +27,7 @@ func TestSvcLaunchAgent_GenerateAndCleanup(t *testing.T) {
 
 	s := &svcLaunchAgent{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureServiceEvents(&events)
 
 	params := module.Params{"label": label, "program": "/usr/bin/true"}
 	if err := s.Generate(context.Background(), params, emit); err != nil {
@@ -50,7 +50,7 @@ func TestSvcLaunchAgent_GenerateAndCleanup(t *testing.T) {
 
 	var sawCreate bool
 	for _, ev := range events {
-		if ev.EventType == "launchagent_create" && ev.Success {
+		if ev.EventType == "launchagent_create" && ev.Outcome == module.OutcomeExecuted {
 			sawCreate = true
 		}
 	}

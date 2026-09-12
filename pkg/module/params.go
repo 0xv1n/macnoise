@@ -7,6 +7,9 @@ import (
 	"strings"
 )
 
+// RedactedValue replaces sensitive values in managed logs.
+const RedactedValue = "[REDACTED]"
+
 // NormalizeParams validates input against specs, applies defaults only to
 // omitted values, and returns values using the declared runtime types.
 func NormalizeParams(specs []ParamSpec, input Params) (Params, error) {
@@ -85,6 +88,23 @@ func ValidateParamSpecs(specs []ParamSpec) error {
 		}
 	}
 	return nil
+}
+
+// RedactParams returns a copy of params with values declared sensitive by the
+// module contract replaced before they reach managed logs.
+func RedactParams(specs []ParamSpec, params Params) Params {
+	redacted := make(Params, len(params))
+	for name, value := range params {
+		redacted[name] = value
+	}
+	for _, spec := range specs {
+		if spec.Sensitive {
+			if _, ok := redacted[spec.Name]; ok {
+				redacted[spec.Name] = RedactedValue
+			}
+		}
+	}
+	return redacted
 }
 
 func validParamType(paramType ParamType) bool {

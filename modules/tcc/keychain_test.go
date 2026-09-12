@@ -19,3 +19,15 @@ func TestKeychainDryRun(t *testing.T) {
 		}
 	}
 }
+
+func TestKeychainPasswordIsSensitive(t *testing.T) {
+	for _, spec := range (&tccKeychain{}).ParamSpecs() {
+		if spec.Name == "password" {
+			if !spec.Sensitive {
+				t.Fatal("password parameter is not marked sensitive")
+			}
+			return
+		}
+	}
+	t.Fatal("password parameter spec not found")
+}

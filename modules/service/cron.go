@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 	"strings"
@@ -84,28 +85,32 @@ func (s *svcCron) Generate(ctx context.Context, params module.Params, emit modul
 	marker := cronMarker(module.RunIDFromContext(ctx))
 	entry := fmt.Sprintf("%s %s %s", schedule, command, marker)
 
-	listEv := output.NewEvent(info, "cron_job_list", false, "listing current crontab entries")
+	listEv := output.NewEvent(info, "cron_job_list", module.OutcomeError, module.Service("crontab", "user", ""), "listing current crontab entries")
 	listOut, listErr := exec.CommandContext(ctx, "crontab", "-l").CombinedOutput()
 	existing, safe := classifyCrontabList(listOut, listErr)
 	if !safe {
 		listEv = output.WithError(listEv, fmt.Errorf("crontab -l failed without reporting an empty crontab, refusing to overwrite: %v: %s", listErr, strings.TrimSpace(string(listOut))))
-		emit(listEv)
-		return fmt.Errorf("svc_cron: cannot safely determine existing crontab contents, aborting rather than risk overwriting it: %w", listErr)
+		return errors.Join(
+			fmt.Errorf("svc_cron: cannot safely determine existing crontab contents, aborting rather than risk overwriting it: %w", listErr),
+			emit(listEv),
+		)
 	}
 
 	if listErr != nil {
-		listEv.Success = true
+		listEv.Outcome = module.OutcomeExecuted
 		listEv.Message = "no existing crontab (empty crontab)"
 		listEv = output.WithDetails(listEv, map[string]any{"entries": ""})
 	} else {
 		lineCount := len(strings.Split(strings.TrimSpace(existing), "\n"))
-		listEv.Success = true
+		listEv.Outcome = module.OutcomeExecuted
 		listEv.Message = fmt.Sprintf("retrieved crontab (%d lines)", lineCount)
 		listEv = output.WithDetails(listEv, map[string]any{"entries": existing})
 	}
-	emit(listEv)
+	if err := emit(listEv); err != nil {
+		return err
+	}
 
-	createEv := output.NewEvent(info, "cron_job_create", false, fmt.Sprintf("adding cron entry: %s", entry))
+	createEv := output.NewEvent(info, "cron_job_create", module.OutcomeError, module.Service("crontab", "user", ""), fmt.Sprintf("adding cron entry: %s", entry))
 	newCrontab := strings.TrimRight(existing, "\n") + "\n" + entry + "\n"
 	installCmd := exec.CommandContext(ctx, "crontab", "-")
 	installCmd.Stdin = strings.NewReader(newCrontab)
@@ -113,7 +118,7 @@ func (s *svcCron) Generate(ctx context.Context, params module.Params, emit modul
 		createEv = output.WithError(createEv, fmt.Errorf("%v: %s", err, out))
 	} else {
 		s.addedEntry = entry
-		createEv.Success = true
+		createEv.Outcome = module.OutcomeExecuted
 		createEv.Message = fmt.Sprintf("cron job installed: %s", entry)
 		createEv = output.WithDetails(createEv, map[string]any{
 			"schedule": schedule,
@@ -121,9 +126,7 @@ func (s *svcCron) Generate(ctx context.Context, params module.Params, emit modul
 			"entry":    entry,
 		})
 	}
-	emit(createEv)
-
-	return nil
+	return emit(createEv)
 }
 
 func (s *svcCron) DryRun(params module.Params) []string {

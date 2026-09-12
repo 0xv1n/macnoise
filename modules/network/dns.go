@@ -52,17 +52,19 @@ func (n *netDNS) Generate(ctx context.Context, params module.Params, emit module
 		if domain == "" {
 			continue
 		}
-		ev := output.NewEvent(info, "dns_lookup", false, fmt.Sprintf("resolving %s", domain))
+		ev := output.NewEvent(info, "dns_lookup", module.OutcomeError, module.Network("", "", domain), fmt.Sprintf("resolving %s", domain))
 		addrs, err := resolver.LookupHost(ctx, domain)
 		if err != nil {
 			ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 			ev.Message = fmt.Sprintf("DNS lookup %s failed (telemetry generated)", domain)
 		} else {
-			ev.Success = true
+			ev.Outcome = module.OutcomeExecuted
 			ev.Message = fmt.Sprintf("DNS lookup %s resolved to %s", domain, strings.Join(addrs, ", "))
 			ev = output.WithDetails(ev, map[string]any{"domain": domain, "addresses": addrs})
 		}
-		emit(ev)
+		if err := emit(ev); err != nil {
+			return err
+		}
 	}
 	return nil
 }

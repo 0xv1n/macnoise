@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
@@ -106,7 +107,8 @@ func (p *procInject) Generate(ctx context.Context, params module.Params, emit mo
 	_, statErr := os.Stat(dylibPath)
 	outcome := classifyInjection(statErr == nil, stderr.String())
 
-	ev := output.NewEvent(info, "dylib_inject_attempt", true,
+	ev := output.NewEvent(info, "dylib_inject_attempt", module.OutcomeExecuted,
+		module.Process(filepath.Base(targetBin), targetBin, targetBin, 0),
 		fmt.Sprintf("spawned %s with DYLD_INSERT_LIBRARIES=%s", targetBin, dylibPath))
 	details := map[string]any{
 		"target":           targetBin,
@@ -128,8 +130,7 @@ func (p *procInject) Generate(ctx context.Context, params module.Params, emit mo
 		details["exit_error"] = runErr.Error()
 	}
 
-	emit(output.WithDetails(ev, details))
-	return nil
+	return emit(output.WithDetails(ev, details))
 }
 
 func (p *procInject) DryRun(params module.Params) []string {

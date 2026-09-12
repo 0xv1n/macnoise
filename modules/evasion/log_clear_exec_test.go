@@ -26,7 +26,7 @@ func TestLogClearGenerate_RealExecution(t *testing.T) {
 	ctx = module.ContextWithRunID(ctx, "execution")
 	g := &evadeLogClear{}
 	var events []module.TelemetryEvent
-	err := g.Generate(ctx, module.Params{"stage_dir": base}, func(ev module.TelemetryEvent) {
+	err := g.Generate(ctx, module.Params{"stage_dir": base}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
 		if ev.EventType == "file_timestomp" {
 			stat, err := os.Stat(filepath.Join(stage, "timestomp_target"))
@@ -37,6 +37,7 @@ func TestLogClearGenerate_RealExecution(t *testing.T) {
 				t.Errorf("mtime = %v, want %v", stat.ModTime(), want)
 			}
 		}
+		return nil
 	})
 	if err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -45,11 +46,11 @@ func TestLogClearGenerate_RealExecution(t *testing.T) {
 		t.Fatalf("events = %+v, want three operations", events)
 	}
 	for i, kind := range []string{"file_timestomp", "log_erase_attempt", "history_clear"} {
-		if events[i].EventType != kind || !events[i].Success {
+		if events[i].EventType != kind || events[i].Outcome == module.OutcomeError {
 			t.Errorf("event %d = %+v", i, events[i])
 		}
 	}
-	if events[1].ResolvedOutcome() != module.OutcomeDenied || events[1].Error == "" {
+	if events[1].Outcome != module.OutcomeDenied || events[1].Error == "" {
 		t.Errorf("log erase = %+v, want denied", events[1])
 	}
 	out, _ := events[1].Details["output"].(string)
@@ -79,9 +80,10 @@ func TestLogClearGenerate_CancelBetweenOperations(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	var events []module.TelemetryEvent
-	err := g.Generate(ctx, module.Params{"stage_dir": stage}, func(ev module.TelemetryEvent) {
+	err := g.Generate(ctx, module.Params{"stage_dir": stage}, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
 		cancel()
+		return nil
 	})
 	if !errors.Is(err, context.Canceled) || len(events) != 1 || events[0].EventType != "file_timestomp" {
 		t.Fatalf("Generate = %v, events = %+v", err, events)

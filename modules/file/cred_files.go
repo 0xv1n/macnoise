@@ -118,7 +118,9 @@ func (f *fileCredFiles) Generate(ctx context.Context, params module.Params, emit
 			return ctx.Err()
 		default:
 		}
-		emit(credEvent(info, target))
+		if err := emit(credEvent(info, target)); err != nil {
+			return err
+		}
 	}
 	return nil
 }
@@ -132,7 +134,7 @@ func credEvent(info module.ModuleInfo, target credTarget) module.TelemetryEvent 
 
 	switch {
 	case os.IsNotExist(readErr) || errors.Is(readErr, errNotRegularFile):
-		ev := output.NewEvent(info, "cred_file_probe", true,
+		ev := output.NewEvent(info, "cred_file_probe", module.OutcomeIndeterminate, module.File(target.path),
 			fmt.Sprintf("%s not present: %s", target.kind, target.path))
 		// Absent target: nothing was read and no access decision was made, the
 		// same distinction the TCC probes and browser_creds draw.
@@ -148,7 +150,7 @@ func credEvent(info module.ModuleInfo, target credTarget) module.TelemetryEvent 
 		// signal a detection wants, not a module failure, so it is reported as
 		// a completed, refused read attempt. os.Open, not os.Stat, is what
 		// draws this line: Stat succeeds on a file the caller cannot open.
-		ev := output.NewEvent(info, "cred_file_read", true,
+		ev := output.NewEvent(info, "cred_file_read", module.OutcomeDenied, module.File(target.path),
 			fmt.Sprintf("%s read denied: %s", target.kind, target.path))
 		ev = output.WithOutcome(ev, module.OutcomeDenied, readErr)
 		return output.WithDetails(ev, map[string]any{
@@ -159,7 +161,7 @@ func credEvent(info module.ModuleInfo, target credTarget) module.TelemetryEvent 
 		})
 
 	default:
-		ev := output.NewEvent(info, "cred_file_read", true,
+		ev := output.NewEvent(info, "cred_file_read", module.OutcomeExecuted, module.File(target.path),
 			fmt.Sprintf("%s read: %s (%d bytes)", target.kind, target.path, n))
 		return output.WithDetails(ev, map[string]any{
 			"kind":       target.kind,

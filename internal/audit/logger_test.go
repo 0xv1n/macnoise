@@ -69,16 +69,23 @@ func TestLogEvent_WritesValidOCSFRecord(t *testing.T) {
 		},
 	}
 	params := module.Params{"target": "127.0.0.1", "port": "8080"}
+	eventTime := time.Date(2026, time.September, 11, 12, 34, 56, 789000000, time.FixedZone("test", -7*60*60))
 
 	ev := module.TelemetryEvent{
+		Timestamp: eventTime,
 		Module:    "net_connect",
 		Category:  "network",
 		EventType: "tcp_connect",
-		Success:   true,
+		Outcome:   module.OutcomeExecuted,
+		Subject:   module.Network("127.0.0.1:8080", "", ""),
 		Message:   "TCP connection established",
 	}
-	l.LogEvent(ev, info, params)
-	l.Close()
+	if err := l.LogEvent(ev, info, params); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
 
 	records := readRecords(t, path)
 	if len(records) != 1 {
@@ -103,8 +110,8 @@ func TestLogEvent_WritesValidOCSFRecord(t *testing.T) {
 	if rec.SeverityID != 1 {
 		t.Errorf("severity_id: expected 1, got %d", rec.SeverityID)
 	}
-	if rec.Time == 0 {
-		t.Error("time should be non-zero")
+	if rec.Time != epochMS(eventTime) {
+		t.Errorf("time = %d, want event time %d", rec.Time, epochMS(eventTime))
 	}
 	if rec.Metadata.Version != "1.7.0" {
 		t.Errorf("metadata.version: expected 1.7.0, got %q", rec.Metadata.Version)
@@ -149,7 +156,8 @@ func TestLogEvent_FailureEvent(t *testing.T) {
 	ev := module.TelemetryEvent{
 		Category:  "network",
 		EventType: "tcp_connect",
-		Success:   false,
+		Outcome:   module.OutcomeError,
+		Subject:   module.Network("127.0.0.1:1", "", ""),
 		Message:   "connection refused",
 	}
 
@@ -274,17 +282,22 @@ func TestWrapEmitter_DelegatesAndCounts(t *testing.T) {
 	params := module.Params{}
 
 	var received []module.TelemetryEvent
-	original := func(ev module.TelemetryEvent) {
+	original := func(ev module.TelemetryEvent) error {
 		received = append(received, ev)
+		return nil
 	}
 
 	var count int
 	wrapped := l.WrapEmitter(original, info, params, &count)
 
-	ev1 := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Success: true, Message: "ok1"}
-	ev2 := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Success: true, Message: "ok2"}
-	wrapped(ev1)
-	wrapped(ev2)
+	ev1 := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Outcome: module.OutcomeExecuted, Subject: module.Network("one:1", "", ""), Message: "ok1"}
+	ev2 := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Outcome: module.OutcomeExecuted, Subject: module.Network("two:2", "", ""), Message: "ok2"}
+	if err := wrapped(ev1); err != nil {
+		t.Fatal(err)
+	}
+	if err := wrapped(ev2); err != nil {
+		t.Fatal(err)
+	}
 	l.Close()
 
 	// Original emitter received both events.
@@ -336,7 +349,7 @@ func TestCorrelationUID_SameAcrossRecords(t *testing.T) {
 	info := module.ModuleInfo{Name: "mod_a", Category: "network", Privileges: module.PrivilegeNone}
 	params := module.Params{}
 
-	ev := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Success: true}
+	ev := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Outcome: module.OutcomeExecuted, Subject: module.Network("example:1", "", "")}
 	l.LogEvent(ev, info, params)
 	l.LogEvent(ev, info, params)
 	l.Close()
@@ -363,7 +376,7 @@ func TestNewLogger_ExternalRunID(t *testing.T) {
 	defer l.Close()
 
 	info := module.ModuleInfo{Name: "test", Category: "network", Privileges: module.PrivilegeNone}
-	ev := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Success: true}
+	ev := module.TelemetryEvent{Category: "network", EventType: "tcp_connect", Outcome: module.OutcomeExecuted, Subject: module.Network("example:1", "", "")}
 	l.LogEvent(ev, info, module.Params{})
 	l.Close()
 
@@ -382,6 +395,31 @@ func TestGenerateRunID_Format(t *testing.T) {
 		if (c < '0' || c > '9') && (c < 'a' || c > 'f') {
 			t.Fatalf("RunID contains non-hex char %q: %s", c, id)
 		}
+	}
+}
+
+func TestRedactedCommandLine(t *testing.T) {
+	const secret = "correct-horse-battery-staple"
+	got := redactedCommandLine([]string{
+		"macnoise", "run", "tcc_keychain",
+		"--param", "password=" + secret,
+		"--param=payload=" + secret,
+	})
+	if strings.Contains(got, secret) {
+		t.Fatalf("redacted command line contains sensitive value: %q", got)
+	}
+	if count := strings.Count(got, module.RedactedValue); count != 2 {
+		t.Fatalf("redaction markers = %d, want 2 in %q", count, got)
+	}
+}
+
+func TestLogScenarioReturnsWriteFailure(t *testing.T) {
+	l, _ := newTestLogger(t)
+	if err := l.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := l.LogScenario("closed", "scenario.yaml", LifecycleData{}); err == nil {
+		t.Fatal("LogScenario succeeded after logger was closed")
 	}
 }
 

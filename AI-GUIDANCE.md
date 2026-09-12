@@ -80,7 +80,7 @@ MacNoise is structured in five distinct layers. When reasoning about where a cha
 | File | Purpose |
 |------|---------|
 | `internal/output/emitter.go` | `Emitter` — wraps one or more `io.Writer` targets; `Format` type (`human` / `jsonl`); `NewEmitter`, `Emit`, `EmitFunc` |
-| `internal/output/event.go` | `NewEvent` — constructs a `TelemetryEvent` pre-populated with module metadata and `ProcessContext`; `WithDetails`, `WithError`, `WithOutcome`, `DetailStr`, `DetailInt` helpers; `SchemaVersion = "1.1"`; `CurrentProcessContext` |
+| `internal/output/event.go` | `NewEvent` constructs a `TelemetryEvent` with an explicit outcome and typed subject; `NormalizeEvent` applies authoritative identity and UTC time; `WithDetails`, `WithError`, `WithOutcome`, `DetailStr`, `DetailInt` helpers; `SchemaVersion = "2.0"`; `CurrentProcessContext` |
 
 ### Runner
 
@@ -175,28 +175,29 @@ Modules **never** write to stdout directly. All output flows through the `emit` 
 
 ```go
 // Construct
-ev := output.NewEvent(info, "event_type", false, "initial message")
+ev := output.NewEvent(info, "event_type", module.OutcomeExecuted, module.File(path), "initial message")
 
-// Decorate — success path
-ev.Success = true
+// Decorate the event.
 ev.Message = "final message"
 ev = output.WithDetails(ev, map[string]any{"key": "value"})
 
-// Decorate — macnoise itself failed
+// MacNoise itself failed.
 ev = output.WithError(ev, err)
 
-// Decorate — the action ran but the environment refused or did not answer it
+// The action ran but the environment refused or did not answer it.
 ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 
-// Emit
-emit(ev)
+// Propagate output and audit failures.
+if err := emit(ev); err != nil {
+    return err
+}
 ```
 
-`output.NewEvent` populates `SchemaVersion`, `Module`, `Category`, `EventType`, `MITRE`, and `ProcessContext` automatically. Modules only set `Success`, `Message`, `Details`, `Error`, and where it matters `Outcome`.
+`output.NewEvent` requires an explicit `Outcome` and exactly one typed `Subject`. Use `module.File`, `module.Process`, `module.Network`, `module.Service`, or `module.Resource`. The runner normalizes schema version, module identity, MITRE data, process context, and one UTC timestamp before telemetry and audit writers receive the event.
 
-**Picking between `WithError` and `WithOutcome`.** `Success` answers "did macnoise work"; `Outcome` answers "what happened to the action". A refused TCC probe, a connection to a closed port, and a missing target are all telemetry this tool exists to produce, not faults, and `WithError` would file them alongside a broken module. Reach for `WithOutcome` with `OutcomeDenied` when the environment refused, `OutcomeIndeterminate` when nothing can be concluded, and keep `WithError` for macnoise itself failing.
+**Picking between `WithError` and `WithOutcome`.** A refused TCC probe, a connection to a closed port, and a missing target are all telemetry this tool exists to produce, not faults. Use `OutcomeDenied` when the environment refused, `OutcomeIndeterminate` when nothing can be concluded, and `WithError` only when MacNoise itself failed.
 
-Most events set no outcome at all. The field is resolved from `Success` at the output boundary the same way `Timestamp` is, so emitted records always carry one and the two fields can never disagree - see `TelemetryEvent.ResolvedOutcome`.
+Every event must set one of the four valid outcomes. Missing outcomes and subjects fail at the runner boundary before any writer receives the event.
 
 ---
 

@@ -161,7 +161,7 @@ func keychainEvents(info module.ModuleInfo, t keychainTarget, dst string) []modu
 		// macnoise could not write the copy. Nothing about the host's handling
 		// of the keychain can be concluded from that, so it is reported as the
 		// tool fault it is rather than as a read result.
-		ev := output.NewEvent(info, "keychain_copy", false,
+		ev := output.NewEvent(info, "keychain_copy", module.OutcomeError, module.File(dst),
 			fmt.Sprintf("staging %s to %s failed", t.kind, dst))
 		ev = output.WithDetails(ev, map[string]any{
 			"kind":        t.kind,
@@ -173,7 +173,7 @@ func keychainEvents(info module.ModuleInfo, t keychainTarget, dst string) []modu
 	case os.IsNotExist(err):
 		// Absent store: nothing was read and no access decision was made, the
 		// same distinction cred_files and the TCC probes draw.
-		ev := output.NewEvent(info, "keychain_read", true,
+		ev := output.NewEvent(info, "keychain_read", module.OutcomeIndeterminate, module.File(t.path),
 			fmt.Sprintf("%s not present: %s", t.kind, t.path))
 		ev = output.WithOutcome(ev, module.OutcomeIndeterminate, nil)
 		return []module.TelemetryEvent{output.WithDetails(ev, map[string]any{
@@ -186,7 +186,7 @@ func keychainEvents(info module.ModuleInfo, t keychainTarget, dst string) []modu
 		// The store exists but could not be opened. That refusal is the signal a
 		// detection keys on, not a module failure, so it is a completed and
 		// refused read rather than an error.
-		ev := output.NewEvent(info, "keychain_read", true,
+		ev := output.NewEvent(info, "keychain_read", module.OutcomeDenied, module.File(t.path),
 			fmt.Sprintf("%s read denied: %s", t.kind, t.path))
 		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		return []module.TelemetryEvent{output.WithDetails(ev, map[string]any{
@@ -202,7 +202,7 @@ func keychainEvents(info module.ModuleInfo, t keychainTarget, dst string) []modu
 		// what it actually was. Both matter to a consumer: the read of a
 		// keychain is the credential access, and a keychain-shaped file
 		// appearing in a staging directory is the collection.
-		readEv := output.NewEvent(info, "keychain_read", true,
+		readEv := output.NewEvent(info, "keychain_read", module.OutcomeExecuted, module.File(t.path),
 			fmt.Sprintf("%s read: %s (%d bytes)", t.kind, t.path, n))
 		readEv = output.WithDetails(readEv, map[string]any{
 			"kind":       t.kind,
@@ -212,7 +212,7 @@ func keychainEvents(info module.ModuleInfo, t keychainTarget, dst string) []modu
 			"bytes_read": n,
 		})
 
-		copyEv := output.NewEvent(info, "keychain_copy", true,
+		copyEv := output.NewEvent(info, "keychain_copy", module.OutcomeExecuted, module.File(dst),
 			fmt.Sprintf("%s staged to %s (%d bytes)", t.kind, dst, n))
 		copyEv = output.WithDetails(copyEv, map[string]any{
 			"kind":         t.kind,
@@ -248,7 +248,9 @@ func (f *fileKeychainCopy) Generate(ctx context.Context, params module.Params, e
 		default:
 		}
 		for _, ev := range keychainEvents(info, target, filepath.Join(stageDir, names[i])) {
-			emit(ev)
+			if err := emit(ev); err != nil {
+				return err
+			}
 		}
 	}
 	return nil

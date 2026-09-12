@@ -2,6 +2,7 @@ package process
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -52,10 +53,9 @@ func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emi
 	info := p.Info()
 
 	if err := os.WriteFile(targetPath, []byte("macnoise gatekeeper test\n"), 0o644); err != nil {
-		ev := output.NewEvent(info, "test_file_create_fail", false, fmt.Sprintf("failed to create test file %s", targetPath))
+		ev := output.NewEvent(info, "test_file_create_fail", module.OutcomeError, module.File(targetPath), fmt.Sprintf("failed to create test file %s", targetPath))
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
 
 	// The quarantine value's agent field carries the run ID so a consumer can
@@ -64,43 +64,47 @@ func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emi
 	if runID != "" {
 		quarantineVal = "0081;00000000;macnoise-" + runID + ";"
 	}
-	setEv := output.NewEvent(info, "xattr_quarantine_set", false, fmt.Sprintf("setting quarantine xattr on %s", targetPath))
+	setEv := output.NewEvent(info, "xattr_quarantine_set", module.OutcomeError, module.File(targetPath), fmt.Sprintf("setting quarantine xattr on %s", targetPath))
 	setOut, setErr := exec.CommandContext(ctx, "xattr", "-w", "com.apple.quarantine", quarantineVal, targetPath).CombinedOutput()
 	if setErr != nil {
 		setEv = output.WithError(setEv, fmt.Errorf("%v: %s", setErr, setOut))
-		emit(setEv)
+		if err := emit(setEv); err != nil {
+			return err
+		}
 	} else {
-		setEv.Success = true
+		setEv.Outcome = module.OutcomeExecuted
 		setEv.Message = fmt.Sprintf("set com.apple.quarantine on %s", targetPath)
 		setEv = output.WithDetails(setEv, map[string]any{"path": targetPath, "action": "set", "xattr": "com.apple.quarantine"})
-		emit(setEv)
+		if err := emit(setEv); err != nil {
+			return err
+		}
 
-		rmEv := output.NewEvent(info, "xattr_quarantine_remove", false, fmt.Sprintf("removing quarantine xattr from %s", targetPath))
+		rmEv := output.NewEvent(info, "xattr_quarantine_remove", module.OutcomeError, module.File(targetPath), fmt.Sprintf("removing quarantine xattr from %s", targetPath))
 		rmOut, rmErr := exec.CommandContext(ctx, "xattr", "-d", "com.apple.quarantine", targetPath).CombinedOutput()
 		if rmErr != nil {
 			rmEv = output.WithError(rmEv, fmt.Errorf("%v: %s", rmErr, rmOut))
 		} else {
-			rmEv.Success = true
+			rmEv.Outcome = module.OutcomeExecuted
 			rmEv.Message = fmt.Sprintf("removed com.apple.quarantine from %s", targetPath)
 			rmEv = output.WithDetails(rmEv, map[string]any{"path": targetPath, "action": "remove", "xattr": "com.apple.quarantine"})
 		}
-		emit(rmEv)
+		if err := emit(rmEv); err != nil {
+			return err
+		}
 	}
 
-	spctlEv := output.NewEvent(info, "spctl_status_check", false, "checking Gatekeeper status via spctl --status")
+	spctlEv := output.NewEvent(info, "spctl_status_check", module.OutcomeError, module.Process("spctl", "/usr/sbin/spctl", "spctl --status", 0), "checking Gatekeeper status via spctl --status")
 	spctlOut, spctlErr := exec.CommandContext(ctx, "spctl", "--status").CombinedOutput()
 	if spctlErr != nil {
-		spctlEv.Success = true
+		spctlEv.Outcome = module.OutcomeExecuted
 		spctlEv.Message = "Gatekeeper status check returned error (expected on some configs)"
 		spctlEv = output.WithDetails(spctlEv, map[string]any{"output": string(spctlOut), "error": spctlErr.Error()})
 	} else {
-		spctlEv.Success = true
+		spctlEv.Outcome = module.OutcomeExecuted
 		spctlEv.Message = fmt.Sprintf("Gatekeeper status: %s", strings.TrimSpace(string(spctlOut)))
 		spctlEv = output.WithDetails(spctlEv, map[string]any{"output": string(spctlOut)})
 	}
-	emit(spctlEv)
-
-	return nil
+	return emit(spctlEv)
 }
 
 func (p *procGatekeeper) DryRun(params module.Params) []string {

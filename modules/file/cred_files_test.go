@@ -107,9 +107,7 @@ func TestCredEventReadsPresentFile(t *testing.T) {
 	if ev.EventType != "cred_file_read" {
 		t.Errorf("event type = %q, want cred_file_read", ev.EventType)
 	}
-	// The read path leaves Outcome unset by design; it resolves to executed at
-	// the emitter boundary from Success, the same as browser_creds.
-	if got := ev.ResolvedOutcome(); got != module.OutcomeExecuted {
+	if got := ev.Outcome; got != module.OutcomeExecuted {
 		t.Errorf("resolved outcome = %q, want executed", got)
 	}
 	if ev.Details["bytes_read"] != int64(len(content)) {
@@ -132,8 +130,8 @@ func TestCredEventAbsentTargetIsIndeterminate(t *testing.T) {
 	if ev.Outcome != module.OutcomeIndeterminate {
 		t.Errorf("outcome = %q, want indeterminate", ev.Outcome)
 	}
-	if !ev.Success {
-		t.Error("Success = false; an absent target is a valid observation")
+	if ev.Outcome != module.OutcomeIndeterminate {
+		t.Errorf("Outcome = %q, want indeterminate", ev.Outcome)
 	}
 	if ev.Details["exists"] != false {
 		t.Errorf("exists = %v, want false", ev.Details["exists"])

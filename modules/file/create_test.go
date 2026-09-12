@@ -14,7 +14,7 @@ func TestFileCreate_GenerateAndCleanup(t *testing.T) {
 	dir := t.TempDir()
 	f := &fileCreate{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
 	params := module.Params{"base_dir": dir, "count": "3", "prefix": "it_"}
 	if err := f.Generate(context.Background(), params, emit); err != nil {
@@ -31,7 +31,7 @@ func TestFileCreate_GenerateAndCleanup(t *testing.T) {
 
 	successCount := 0
 	for _, ev := range events {
-		if ev.EventType == "file_create" && ev.Success {
+		if ev.EventType == "file_create" && ev.Outcome == module.OutcomeExecuted {
 			successCount++
 		}
 	}

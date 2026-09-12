@@ -9,7 +9,7 @@ import (
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
-func noopEmit(module.TelemetryEvent) {}
+func noopEmit(module.TelemetryEvent) error { return nil }
 
 // Cleanup must delete a file that fileModify itself created, not leave an
 // empty file behind. The bug: origContent was set to a non-nil empty slice

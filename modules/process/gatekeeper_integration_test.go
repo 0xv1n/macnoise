@@ -17,7 +17,7 @@ func TestGatekeeperGenerate_FullCycle(t *testing.T) {
 	target := filepath.Join(t.TempDir(), "gk_target")
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureProcessEvents(&events)
 	p := &procGatekeeper{}
 	ctx := module.ContextWithRunID(context.Background(), "gkrun7")
 	if err := p.Generate(ctx, module.Params{"target_path": target}, emit); err != nil {
@@ -37,10 +37,10 @@ func TestGatekeeperGenerate_FullCycle(t *testing.T) {
 	}
 
 	set := byType["xattr_quarantine_set"]
-	if !set.Success {
+	if set.Outcome != module.OutcomeExecuted {
 		t.Fatalf("quarantine set failed: %s", set.Message)
 	}
-	if !byType["xattr_quarantine_remove"].Success {
+	if byType["xattr_quarantine_remove"].Outcome != module.OutcomeExecuted {
 		t.Errorf("quarantine remove failed: %s", byType["xattr_quarantine_remove"].Message)
 	}
 	// The run ID must ride on the tagged file path.

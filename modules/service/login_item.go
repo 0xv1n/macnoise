@@ -125,7 +125,7 @@ func (s *svcLoginItem) Generate(ctx context.Context, params module.Params, emit 
 	info := s.Info()
 	s.name = name
 
-	ev := output.NewEvent(info, "login_item_add", false,
+	ev := output.NewEvent(info, "login_item_add", module.OutcomeError, module.Service(name, "gui", targetPath),
 		fmt.Sprintf("adding login item %q -> %s (triggers ES_EVENT_TYPE_NOTIFY_BTM_LAUNCH_ITEM_ADD)", name, targetPath))
 	details := map[string]any{
 		"name":     name,
@@ -154,8 +154,7 @@ func (s *svcLoginItem) Generate(ctx context.Context, params module.Params, emit 
 	}
 
 	ev = output.WithOutcome(ev, outcome, err)
-	emit(output.WithDetails(ev, details))
-	return nil
+	return emit(output.WithDetails(ev, details))
 }
 
 // loginItemPresent verifies the add landed rather than trusting osascript's

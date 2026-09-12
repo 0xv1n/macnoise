@@ -13,7 +13,7 @@ import (
 func TestNetListen_AcceptsSelfConnection(t *testing.T) {
 	n := &netListen{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -26,10 +26,10 @@ func TestNetListen_AcceptsSelfConnection(t *testing.T) {
 	if len(events) != 2 {
 		t.Fatalf("expected 2 events (tcp_listen, tcp_accept), got %d", len(events))
 	}
-	if events[0].EventType != "tcp_listen" || !events[0].Success {
+	if events[0].EventType != "tcp_listen" || events[0].Outcome != module.OutcomeExecuted {
 		t.Errorf("event[0] = %+v, want successful tcp_listen", events[0])
 	}
-	if events[1].EventType != "tcp_accept" || !events[1].Success {
+	if events[1].EventType != "tcp_accept" || events[1].Outcome != module.OutcomeExecuted {
 		t.Errorf("event[1] = %+v, want successful tcp_accept", events[1])
 	}
 }
@@ -40,7 +40,7 @@ func TestNetListen_AcceptsSelfConnection(t *testing.T) {
 // context must now short-circuit Accept() immediately.
 func TestNetListen_RespectsContextCancellation(t *testing.T) {
 	n := &netListen{}
-	emit := func(module.TelemetryEvent) {}
+	emit := discardNetworkEvent
 
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
@@ -60,7 +60,7 @@ func TestNetListen_RespectsContextCancellation(t *testing.T) {
 
 func TestNetListen_DefaultBindsLoopback(t *testing.T) {
 	n := &netListen{}
-	emit := func(module.TelemetryEvent) {}
+	emit := discardNetworkEvent
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
@@ -81,7 +81,7 @@ func TestNetListen_DefaultBindsLoopback(t *testing.T) {
 
 func TestNetListen_CustomBindAddr(t *testing.T) {
 	n := &netListen{}
-	emit := func(module.TelemetryEvent) {}
+	emit := discardNetworkEvent
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()

@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -67,30 +68,27 @@ func (s *svcShellProfile) Generate(ctx context.Context, params module.Params, em
 	}
 	block := fmt.Sprintf("\n%s\n%s\n%s\n", startMarker, payload, shellProfileMarkerEnd)
 
-	ev := output.NewEvent(info, "shell_profile_modify", false, fmt.Sprintf("appending persistence marker to %s", target))
+	ev := output.NewEvent(info, "shell_profile_modify", module.OutcomeError, module.File(target), fmt.Sprintf("appending persistence marker to %s", target))
 	f, err := os.OpenFile(target, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
 	_, writeErr := f.WriteString(block)
 	_ = f.Close()
 	if writeErr != nil {
 		ev = output.WithError(ev, writeErr)
-		emit(ev)
-		return writeErr
+		return errors.Join(writeErr, emit(ev))
 	}
 
-	ev.Success = true
+	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("persistence marker block appended to %s", target)
 	ev = output.WithDetails(ev, map[string]any{
 		"target":  target,
 		"payload": payload,
 		"block":   block,
 	})
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (s *svcShellProfile) DryRun(params module.Params) []string {

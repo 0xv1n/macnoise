@@ -4,6 +4,7 @@ package plistmod
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -85,20 +86,18 @@ func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit m
 		evMsg = fmt.Sprintf("creating plist at %s", outPath)
 	}
 
-	ev := output.NewEvent(info, evAction, false, evMsg)
+	ev := output.NewEvent(info, evAction, module.OutcomeError, module.File(outPath), evMsg)
 	f, err := os.Create(outPath)
 	if err != nil {
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
 	enc := plist.NewEncoder(f)
 	enc.Indent("\t")
 	if err := enc.Encode(plistData); err != nil {
 		_ = f.Close()
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
 	_ = f.Close()
 	p.createdPath = outPath
@@ -106,16 +105,15 @@ func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit m
 	if mode == "launchagent" {
 		label := params.String("label", bundleID)
 		program := params.String("program", "/usr/bin/true")
-		ev.Success = true
+		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("created LaunchAgent plist at %s (label: %s, program: %s)", outPath, label, program)
 		ev = output.WithDetails(ev, map[string]any{"path": outPath, "label": label, "program": program, "run_at_load": true, "format": "xml"})
 	} else {
-		ev.Success = true
+		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("created plist at %s (bundle ID: %s)", outPath, bundleID)
 		ev = output.WithDetails(ev, map[string]any{"path": outPath, "bundle_id": bundleID, "format": "xml"})
 	}
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (p *plistCreate) DryRun(params module.Params) []string {

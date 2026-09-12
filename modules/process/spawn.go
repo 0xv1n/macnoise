@@ -5,6 +5,7 @@ package process
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os/exec"
 
@@ -52,19 +53,17 @@ func (p *procSpawn) Generate(ctx context.Context, params module.Params, emit mod
 	command := stampCommand(params.String("command", "echo 'Telemetry Payload Executed'"), module.RunIDFromContext(ctx))
 	info := p.Info()
 
-	ev := output.NewEvent(info, "process_spawn", false, fmt.Sprintf("spawning: sh -c %q", command))
+	ev := output.NewEvent(info, "process_spawn", module.OutcomeError, module.Process("sh", "/bin/sh", command, 0), fmt.Sprintf("spawning: sh -c %q", command))
 	cmd := exec.CommandContext(ctx, "sh", "-c", command)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		ev = output.WithError(ev, err)
-		emit(ev)
-		return err
+		return errors.Join(err, emit(ev))
 	}
-	ev.Success = true
+	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("process exited 0: sh -c %q", command)
 	ev = output.WithDetails(ev, map[string]any{"command": command, "output": string(out)})
-	emit(ev)
-	return nil
+	return emit(ev)
 }
 
 func (p *procSpawn) DryRun(params module.Params) []string {

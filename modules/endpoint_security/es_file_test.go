@@ -15,7 +15,7 @@ func TestESFile_GenerateEmitsFullFileEventCycle(t *testing.T) {
 	workDir := filepath.Join(t.TempDir(), "es")
 	e := &esFile{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
 	if err := e.Generate(context.Background(), module.Params{"work_dir": workDir}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -40,7 +40,7 @@ func TestESFile_GenerateEmitsFullFileEventCycle(t *testing.T) {
 		if events[i].EventType != evType {
 			t.Errorf("event[%d] = %q, want %q", i, events[i].EventType, evType)
 		}
-		if !events[i].Success {
+		if events[i].Outcome != module.OutcomeExecuted {
 			t.Errorf("event %q did not succeed: %s", evType, events[i].Error)
 		}
 	}
@@ -84,7 +84,7 @@ func TestESFile_CleanupRemovesTrackedRenamedPath(t *testing.T) {
 func TestESFile_CleanupAfterSuccessfulUnlinkIsNoOp(t *testing.T) {
 	workDir := filepath.Join(t.TempDir(), "es")
 	e := &esFile{}
-	emit := func(module.TelemetryEvent) {}
+	emit := func(module.TelemetryEvent) error { return nil }
 
 	if err := e.Generate(context.Background(), module.Params{"work_dir": workDir}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)

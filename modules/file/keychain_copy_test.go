@@ -156,7 +156,7 @@ func TestKeychainEventsEmitsReadAndCopy(t *testing.T) {
 		t.Errorf("second event = %q, want keychain_copy", evs[1].EventType)
 	}
 	for _, ev := range evs {
-		if got := ev.ResolvedOutcome(); got != module.OutcomeExecuted {
+		if got := ev.Outcome; got != module.OutcomeExecuted {
 			t.Errorf("%s resolved outcome = %q, want executed", ev.EventType, got)
 		}
 	}
@@ -182,8 +182,8 @@ func TestKeychainEventsAbsentStoreIsIndeterminate(t *testing.T) {
 	if evs[0].Outcome != module.OutcomeIndeterminate {
 		t.Errorf("outcome = %q, want indeterminate", evs[0].Outcome)
 	}
-	if !evs[0].Success {
-		t.Error("Success = false; an absent store is a valid observation, not a fault")
+	if evs[0].Outcome != module.OutcomeIndeterminate {
+		t.Errorf("Outcome = %q, want indeterminate", evs[0].Outcome)
 	}
 	if evs[0].Details["exists"] != false {
 		t.Errorf("exists = %v, want false", evs[0].Details["exists"])
@@ -217,7 +217,7 @@ func TestKeychainEventsStageWriteFailureIsError(t *testing.T) {
 	if evs[0].EventType != "keychain_copy" {
 		t.Errorf("event type = %q, want keychain_copy", evs[0].EventType)
 	}
-	if got := evs[0].ResolvedOutcome(); got != module.OutcomeError {
+	if got := evs[0].Outcome; got != module.OutcomeError {
 		t.Errorf("resolved outcome = %q, want error", got)
 	}
 }

@@ -33,8 +33,8 @@ func TestCredFiles_UnreadableFileIsDeniedRead(t *testing.T) {
 	if ev.Outcome != module.OutcomeDenied {
 		t.Errorf("outcome = %q, want denied", ev.Outcome)
 	}
-	if !ev.Success {
-		t.Error("Success = false: a permission denial is expected telemetry, not a macnoise fault")
+	if ev.Outcome != module.OutcomeDenied {
+		t.Errorf("Outcome = %q, want denied", ev.Outcome)
 	}
 	if ev.Details["accessible"] != false {
 		t.Errorf("accessible = %v, want false", ev.Details["accessible"])
@@ -57,7 +57,7 @@ func TestCredFiles_GenerateOverTempHome(t *testing.T) {
 	}
 
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 	if err := (&fileCredFiles{}).Generate(context.Background(), module.Params{}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
@@ -68,8 +68,8 @@ func TestCredFiles_GenerateOverTempHome(t *testing.T) {
 		path, _ := ev.Details["path"].(string)
 		switch {
 		case kind == "aws_credentials" && path == awsCreds:
-			if ev.EventType != "cred_file_read" || ev.ResolvedOutcome() != module.OutcomeExecuted {
-				t.Errorf("aws credentials: type %q outcome %q, want cred_file_read/executed", ev.EventType, ev.ResolvedOutcome())
+			if ev.EventType != "cred_file_read" || ev.Outcome != module.OutcomeExecuted {
+				t.Errorf("aws credentials: type %q outcome %q, want cred_file_read/executed", ev.EventType, ev.Outcome)
 			}
 			sawAWSRead = true
 		case kind == "kube_config":

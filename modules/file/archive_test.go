@@ -17,7 +17,7 @@ func TestFileArchive_GenerateAndCleanup(t *testing.T) {
 	outputPath := filepath.Join(dir, "out.zip")
 	f := &fileArchive{}
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
 	params := module.Params{"source_dir": sourceDir, "output_path": outputPath, "tool": "zip"}
 	if err := f.Generate(context.Background(), params, emit); err != nil {
@@ -34,7 +34,7 @@ func TestFileArchive_GenerateAndCleanup(t *testing.T) {
 
 	var sawSuccess bool
 	for _, ev := range events {
-		if ev.EventType == "archive_create" && ev.Success {
+		if ev.EventType == "archive_create" && ev.Outcome == module.OutcomeExecuted {
 			sawSuccess = true
 		}
 	}

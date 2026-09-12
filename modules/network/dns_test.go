@@ -8,9 +8,18 @@ import (
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
+func captureNetworkEvents(events *[]module.TelemetryEvent) module.EventEmitter {
+	return func(ev module.TelemetryEvent) error {
+		*events = append(*events, ev)
+		return nil
+	}
+}
+
+func discardNetworkEvent(module.TelemetryEvent) error { return nil }
+
 func TestDNSGenerate_EmitsOnePerDomain(t *testing.T) {
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 
 	err := (&netDNS{}).Generate(context.Background(), module.Params{"domains": "localhost,macnoise.invalid"}, emit)
 	if err != nil {
@@ -28,7 +37,7 @@ func TestDNSGenerate_EmitsOnePerDomain(t *testing.T) {
 
 func TestDNSGenerate_SkipsEmptyDomains(t *testing.T) {
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 
 	// Leading/trailing commas and whitespace-only entries must not produce a lookup.
 	err := (&netDNS{}).Generate(context.Background(), module.Params{"domains": "localhost, ,,macnoise.invalid,"}, emit)
@@ -42,7 +51,7 @@ func TestDNSGenerate_SkipsEmptyDomains(t *testing.T) {
 
 func TestDNSGenerate_FailedLookupIsDeniedNotError(t *testing.T) {
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 
 	// A .invalid name (RFC 6761) never resolves, but a failed resolution is
 	// valid telemetry — the query still went out — not a macnoise error.
@@ -53,20 +62,20 @@ func TestDNSGenerate_FailedLookupIsDeniedNotError(t *testing.T) {
 	if len(events) != 1 {
 		t.Fatalf("emitted %d events, want 1", len(events))
 	}
-	if events[0].ResolvedOutcome() != module.OutcomeDenied {
-		t.Errorf("outcome = %q, want denied", events[0].ResolvedOutcome())
+	if events[0].Outcome != module.OutcomeDenied {
+		t.Errorf("outcome = %q, want denied", events[0].Outcome)
 	}
 }
 
 func TestDNSGenerate_SuccessCarriesAddresses(t *testing.T) {
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureNetworkEvents(&events)
 
 	// localhost resolves on every platform without a network round-trip.
 	if err := (&netDNS{}).Generate(context.Background(), module.Params{"domains": "localhost"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
-	if len(events) != 1 || !events[0].Success {
+	if len(events) != 1 || events[0].Outcome != module.OutcomeExecuted {
 		t.Fatalf("expected 1 successful event, got %+v", events)
 	}
 	addrs, ok := events[0].Details["addresses"].([]string)

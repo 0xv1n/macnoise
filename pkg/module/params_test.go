@@ -88,3 +88,21 @@ func TestNormalizeParamsRejectsInvalidInputs(t *testing.T) {
 		})
 	}
 }
+
+func TestRedactParams(t *testing.T) {
+	params := Params{"target": "example.com", "password": "real-secret"}
+	redacted := RedactParams([]ParamSpec{
+		{Name: "target", Type: ParamString},
+		{Name: "password", Type: ParamString, Sensitive: true},
+	}, params)
+
+	if redacted.String("target", "") != "example.com" {
+		t.Errorf("target = %q, want preserved", redacted["target"])
+	}
+	if redacted.String("password", "") != RedactedValue {
+		t.Errorf("password = %q, want redacted", redacted["password"])
+	}
+	if params.String("password", "") != "real-secret" {
+		t.Error("RedactParams mutated its input")
+	}
+}

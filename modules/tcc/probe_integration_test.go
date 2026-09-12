@@ -12,10 +12,17 @@ import (
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
+func captureTCCEvents(events *[]module.TelemetryEvent) module.EventEmitter {
+	return func(ev module.TelemetryEvent) error {
+		*events = append(*events, ev)
+		return nil
+	}
+}
+
 func runProbe(t *testing.T, gen module.Generator, params module.Params) module.TelemetryEvent {
 	t.Helper()
 	var events []module.TelemetryEvent
-	emit := func(ev module.TelemetryEvent) { events = append(events, ev) }
+	emit := captureTCCEvents(&events)
 
 	if err := gen.Generate(context.Background(), params, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
@@ -51,8 +58,8 @@ func TestTCCFDA_MissingPathIsAbsentNotDenied(t *testing.T) {
 	if ev.Details["result"] != "absent" {
 		t.Errorf("result = %v, want absent", ev.Details["result"])
 	}
-	if !ev.Success {
-		t.Error("Success = false, want true: an absent target is a valid observation")
+	if ev.Outcome != module.OutcomeIndeterminate {
+		t.Errorf("Outcome = %q, want indeterminate", ev.Outcome)
 	}
 	if ev.Outcome != module.OutcomeIndeterminate {
 		t.Errorf("outcome = %q, want %q", ev.Outcome, module.OutcomeIndeterminate)
@@ -79,8 +86,8 @@ func TestTCCFDA_UnreadableFileIsDenied(t *testing.T) {
 	if ev.Outcome != module.OutcomeDenied {
 		t.Errorf("outcome = %q, want %q", ev.Outcome, module.OutcomeDenied)
 	}
-	if !ev.Success {
-		t.Error("Success = false: a TCC denial is expected telemetry, not a macnoise failure")
+	if ev.Outcome != module.OutcomeDenied {
+		t.Errorf("Outcome = %q, want denied", ev.Outcome)
 	}
 }
 
@@ -132,8 +139,8 @@ func TestTCCContacts_NoAddressBookIsAbsentNotDenied(t *testing.T) {
 	if ev.Details["result"] != "absent" {
 		t.Errorf("result = %v, want absent", ev.Details["result"])
 	}
-	if !ev.Success {
-		t.Error("Success = false, want true: an absent target is a valid observation")
+	if ev.Outcome != module.OutcomeIndeterminate {
+		t.Errorf("Outcome = %q, want indeterminate", ev.Outcome)
 	}
 	if ev.Outcome != module.OutcomeIndeterminate {
 		t.Errorf("outcome = %q, want %q", ev.Outcome, module.OutcomeIndeterminate)

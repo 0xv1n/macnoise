@@ -67,8 +67,9 @@ func TestESProcessGenerate_Chains(t *testing.T) {
 			ctx = module.ContextWithRunID(ctx, tt.runID)
 			var events []module.TelemetryEvent
 			p := &esProcess{}
-			if err := p.Generate(ctx, module.Params{"chain_depth": tt.depth}, func(ev module.TelemetryEvent) {
+			if err := p.Generate(ctx, module.Params{"chain_depth": tt.depth}, func(ev module.TelemetryEvent) error {
 				events = append(events, ev)
+				return nil
 			}); err != nil {
 				t.Fatalf("Generate: %v", err)
 			}
@@ -76,7 +77,7 @@ func TestESProcessGenerate_Chains(t *testing.T) {
 				t.Fatalf("events = %+v, want one", events)
 			}
 			ev := events[0]
-			if ev.Module != "es_process" || ev.EventType != "es_exec_chain" || !ev.Success || ev.Error != "" || ev.ResolvedOutcome() != module.OutcomeExecuted {
+			if ev.Module != "es_process" || ev.EventType != "es_exec_chain" || ev.Error != "" || ev.Outcome != module.OutcomeExecuted {
 				t.Errorf("unexpected event: %+v", ev)
 			}
 			wantOutput := "es_exit"
@@ -100,13 +101,14 @@ func TestESProcessGenerate_Chains(t *testing.T) {
 func TestESProcessGenerate_MissingShell(t *testing.T) {
 	t.Setenv("PATH", t.TempDir())
 	var events []module.TelemetryEvent
-	err := (&esProcess{}).Generate(context.Background(), nil, func(ev module.TelemetryEvent) {
+	err := (&esProcess{}).Generate(context.Background(), nil, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
+		return nil
 	})
 	if !errors.Is(err, exec.ErrNotFound) {
 		t.Fatalf("Generate = %v, want missing executable", err)
 	}
-	if len(events) != 1 || events[0].Success || events[0].Error != err.Error() || events[0].ResolvedOutcome() != module.OutcomeError {
+	if len(events) != 1 || events[0].Error != err.Error() || events[0].Outcome != module.OutcomeError {
 		t.Fatalf("expected one failed event: %+v", events)
 	}
 }
@@ -115,13 +117,14 @@ func TestESProcessGenerate_CanceledBeforeExecution(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	var events []module.TelemetryEvent
-	err := (&esProcess{}).Generate(ctx, nil, func(ev module.TelemetryEvent) {
+	err := (&esProcess{}).Generate(ctx, nil, func(ev module.TelemetryEvent) error {
 		events = append(events, ev)
+		return nil
 	})
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("Generate = %v, want context.Canceled", err)
 	}
-	if len(events) != 1 || events[0].Success || events[0].Error != err.Error() || events[0].ResolvedOutcome() != module.OutcomeError {
+	if len(events) != 1 || events[0].Error != err.Error() || events[0].Outcome != module.OutcomeError {
 		t.Fatalf("expected one canceled event: %+v", events)
 	}
 }
