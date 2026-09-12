@@ -133,6 +133,16 @@ type Generator interface {
 }
 ```
 
+Modules that produce values for later scenario steps also implement
+`module.OutputProvider`. Declare each value with `OutputSpecs()` and publish it
+from `Generate` with `module.PublishOutput(ctx, name, value)`. A scenario run
+provides its private directory through `module.WorkspaceFromContext(ctx)`.
+
+Scenario YAML is versioned with `version: 1`. Dataflow references are explicit
+mapping values (`input: name` or `output: step.output`); do not add template,
+environment, or glob expansion. The runner preflights the full local include
+graph before mutation and owns reverse cleanup and workspace lifetime.
+
 **Registration** — every module file has an `init()` function:
 ```go
 func init() {

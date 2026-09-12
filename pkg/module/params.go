@@ -90,6 +90,48 @@ func ValidateParamSpecs(specs []ParamSpec) error {
 	return nil
 }
 
+// ValidateOutputSpecs checks that output names and types form a usable
+// scenario contract.
+func ValidateOutputSpecs(specs []OutputSpec) error {
+	seen := make(map[string]struct{}, len(specs))
+	for _, spec := range specs {
+		if spec.Name == "" {
+			return fmt.Errorf("output spec has an empty name")
+		}
+		if !validOutputName(spec.Name) {
+			return fmt.Errorf("output spec %q has an invalid name", spec.Name)
+		}
+		if _, exists := seen[spec.Name]; exists {
+			return fmt.Errorf("duplicate output spec %q", spec.Name)
+		}
+		seen[spec.Name] = struct{}{}
+		if !validParamType(spec.Type) {
+			return fmt.Errorf("output %q has invalid type %q", spec.Name, spec.Type)
+		}
+	}
+	return nil
+}
+
+func validOutputName(name string) bool {
+	for _, char := range name {
+		if (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || (char >= '0' && char <= '9') || char == '_' || char == '-' {
+			continue
+		}
+		return false
+	}
+	return name != ""
+}
+
+// NormalizeOutput validates one published value and returns its declared
+// runtime type.
+func NormalizeOutput(spec OutputSpec, value any) (any, error) {
+	normalized, err := normalizeParamValue(ParamSpec{Name: spec.Name, Type: spec.Type}, value)
+	if err != nil {
+		return nil, fmt.Errorf("output: %w", err)
+	}
+	return normalized, nil
+}
+
 // RedactParams returns a copy of params with values declared sensitive by the
 // module contract replaced before they reach managed logs.
 func RedactParams(specs []ParamSpec, params Params) Params {

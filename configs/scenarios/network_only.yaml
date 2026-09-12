@@ -1,3 +1,5 @@
+version: 1
+on_error: stop
 name: Network Telemetry Sweep
 description: Runs selected network modules to generate connection, listener, DNS, and beacon telemetry
 

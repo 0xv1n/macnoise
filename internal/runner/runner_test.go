@@ -238,7 +238,7 @@ func TestRunScenarioAuditDoesNotChangeFailurePolicy(t *testing.T) {
 			}
 			path := writeScenario(t, name, 2, "")
 			calls := 0
-			err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) error {
+			_, err := runner.RunScenario(context.Background(), path, func(module.TelemetryEvent) error {
 				calls++
 				return nil
 			}, runner.Options{
@@ -376,7 +376,7 @@ func (c *countingGen) Cleanup(ctx context.Context) error { return nil }
 func writeScenario(t *testing.T, moduleName string, stepCount int, onError string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "scenario.yaml")
-	body := "name: cancel test\n"
+	body := "version: 1\nname: cancel test\n"
 	if onError != "" {
 		body += "on_error: " + onError + "\n"
 	}
@@ -413,7 +413,7 @@ func TestRunScenarioStopsOnCancel(t *testing.T) {
 			})
 
 			path := writeScenario(t, name, 4, tc.onError)
-			err := runner.RunScenario(ctx, path, discardEvent, runner.Options{Registry: &registry})
+			_, err := runner.RunScenario(ctx, path, discardEvent, runner.Options{Registry: &registry})
 			if !errors.Is(err, context.Canceled) {
 				t.Errorf("expected context.Canceled, got %v", err)
 			}
@@ -443,7 +443,7 @@ func TestRunScenarioAuditsInterrupt(t *testing.T) {
 	}
 
 	path := writeScenario(t, name, 5, "")
-	runErr := runner.RunScenario(ctx, path, discardEvent, runner.Options{
+	_, runErr := runner.RunScenario(ctx, path, discardEvent, runner.Options{
 		Registry: &registry,
 		AuditLog: logger,
 	})
@@ -556,7 +556,7 @@ func TestRunScenarioCategoryHonorsOnErrorPerInvocation(t *testing.T) {
 			})
 
 			path := filepath.Join(t.TempDir(), "scenario.yaml")
-			body := "name: category policy\n"
+			body := "version: 1\nname: category policy\n"
 			if tt.onError != "" {
 				body += "on_error: " + tt.onError + "\n"
 			}
@@ -565,7 +565,7 @@ func TestRunScenarioCategoryHonorsOnErrorPerInvocation(t *testing.T) {
 				t.Fatal(err)
 			}
 
-			err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry})
+			_, err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry})
 			if err == nil {
 				t.Fatal("expected scenario failure")
 			}
@@ -578,7 +578,7 @@ func TestRunScenarioCategoryHonorsOnErrorPerInvocation(t *testing.T) {
 
 func TestLoadScenarioRejectsInvalidOnError(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "scenario.yaml")
-	if err := os.WriteFile(path, []byte("name: invalid\non_error: retry\nsteps:\n  - module: example\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("version: 1\nname: invalid\non_error: retry\nsteps:\n  - module: example\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runner.LoadScenario(path); err == nil || !strings.Contains(err.Error(), "invalid on_error") {
@@ -588,7 +588,7 @@ func TestLoadScenarioRejectsInvalidOnError(t *testing.T) {
 
 func TestLoadScenarioRejectsUnknownField(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "scenario.yaml")
-	if err := os.WriteFile(path, []byte("name: invalid\ndescripton: typo\nsteps:\n  - module: example\n"), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte("version: 1\nname: invalid\ndescripton: typo\nsteps:\n  - module: example\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	if _, err := runner.LoadScenario(path); err == nil || !strings.Contains(err.Error(), "field descripton not found") {
@@ -609,12 +609,12 @@ func TestRunScenarioNormalizesPathList(t *testing.T) {
 	})
 
 	path := filepath.Join(t.TempDir(), "scenario.yaml")
-	body := "name: typed list\nsteps:\n  - module: " + name + "\n    params:\n      paths:\n        - /tmp/one\n        - /tmp/two\n"
+	body := "version: 1\nname: typed list\nsteps:\n  - module: " + name + "\n    params:\n      paths:\n        - /tmp/one\n        - /tmp/two\n"
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	if err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry}); err != nil {
+	if _, err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry}); err != nil {
 		t.Fatal(err)
 	}
 	if got := invocation.params.Paths("paths", nil); !reflect.DeepEqual(got, []string{"/tmp/one", "/tmp/two"}) {
@@ -635,12 +635,12 @@ func TestRunScenarioRejectsUnknownParamBeforeExecution(t *testing.T) {
 	})
 
 	path := filepath.Join(t.TempDir(), "scenario.yaml")
-	body := "name: strict params\nsteps:\n  - module: " + name + "\n    params:\n      paht: /tmp/typo\n"
+	body := "version: 1\nname: strict params\nsteps:\n  - module: " + name + "\n    params:\n      paht: /tmp/typo\n"
 	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
 		t.Fatal(err)
 	}
 
-	err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry})
+	_, err := runner.RunScenario(context.Background(), path, discardEvent, runner.Options{Registry: &registry})
 	if err == nil || invocation.generateCalls != 0 || invocation.cleanedUp {
 		t.Fatalf("RunScenario error = %v, invocation = %+v", err, invocation)
 	}

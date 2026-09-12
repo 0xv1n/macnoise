@@ -1,3 +1,5 @@
+version: 1
+on_error: stop
 name: Full Telemetry Sweep
 description: Runs all modules across every category (excludes root-only modules)
 

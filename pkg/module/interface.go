@@ -57,6 +57,15 @@ type ParamSpec struct {
 	Choices     []string
 }
 
+// OutputSpec describes a typed value a module publishes for later scenario
+// steps. Declared outputs are required when Generate succeeds.
+type OutputSpec struct {
+	Name        string
+	Description string
+	Type        ParamType
+	Sensitive   bool
+}
+
 // IntegerRange defines inclusive bounds. A zero Max means no upper bound.
 type IntegerRange struct {
 	Min int `json:"min"`
@@ -261,4 +270,10 @@ type Generator interface {
 	Generate(ctx context.Context, params Params, emit EventEmitter) error
 	DryRun(params Params) []string
 	Cleanup(ctx context.Context) error
+}
+
+// OutputProvider is implemented by modules that publish values for scenario
+// dataflow. PublishOutput sends the values through the invocation context.
+type OutputProvider interface {
+	OutputSpecs() []OutputSpec
 }

@@ -1,3 +1,5 @@
+version: 1
+on_error: stop
 name: Ransomware Impact Simulation
 description: |
   Stages plaintext decoy files with randomized common extensions, encrypts them

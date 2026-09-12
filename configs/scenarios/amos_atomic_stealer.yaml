@@ -1,3 +1,5 @@
+version: 1
+on_error: stop
 name: AMOS / Atomic macOS Stealer — Comprehensive Emulation
 description: |
   Full kill-chain emulation of Atomic macOS Stealer (AMOS), a crimeware-as-a-service

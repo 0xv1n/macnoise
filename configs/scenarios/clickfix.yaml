@@ -1,3 +1,5 @@
+version: 1
+on_error: stop
 name: ClickFix / Malicious Copy-Paste Delivery
 description: |
   Emulates the ClickFix delivery pattern (T1204.004 User Execution: Malicious

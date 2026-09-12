@@ -26,6 +26,9 @@ func (catalogTestGen) ParamSpecs() []ParamSpec {
 		{Name: "target", Description: "the target", Type: ParamString, Required: true, Sensitive: true, Default: "1.2.3.4", Example: "10.0.0.1"},
 	}
 }
+func (catalogTestGen) OutputSpecs() []OutputSpec {
+	return []OutputSpec{{Name: "path", Description: "created path", Type: ParamPath}}
+}
 func (catalogTestGen) CheckPrereqs(ctx context.Context, params Params) error { return nil }
 func (catalogTestGen) Generate(context.Context, Params, EventEmitter) error  { return nil }
 func (catalogTestGen) DryRun(Params) []string                                { return nil }
@@ -50,5 +53,8 @@ func TestNewCatalogEntry(t *testing.T) {
 	}
 	if len(e.Params) != 1 || e.Params[0].Name != "target" || e.Params[0].Type != ParamString || !e.Params[0].Required || !e.Params[0].Sensitive || e.Params[0].Default != "1.2.3.4" {
 		t.Errorf("params mapped wrong: %+v", e.Params)
+	}
+	if len(e.Outputs) != 1 || e.Outputs[0].Name != "path" || e.Outputs[0].Type != ParamPath {
+		t.Errorf("outputs mapped wrong: %+v", e.Outputs)
 	}
 }
