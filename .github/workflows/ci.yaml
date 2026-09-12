@@ -23,8 +23,7 @@ jobs:
       - name: golangci-lint
         uses: golangci/golangci-lint-action@v9
         with:
-          version: v2.12.2
-          install-mode: goinstall
+          version: v2.13.2
       - name: govulncheck
         run: GOTOOLCHAIN=auto go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 
