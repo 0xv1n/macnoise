@@ -1,0 +1,32 @@
+version: 1
+name: Browser Credential Target Discovery Recipe
+description: Finds a bounded set of browser credential stores beneath explicit roots
+on_error: stop
+
+inputs:
+  roots:
+    type: path_list
+    default:
+      - /tmp/macnoise_test
+
+steps:
+  - id: targets
+    module: file_find
+    params:
+      roots:
+        input: roots
+      names:
+        - Login Data
+        - Cookies
+        - Web Data
+        - Local State
+        - logins.json
+        - key4.db
+        - cookies.sqlite
+        - Cookies.binarycookies
+      max_depth: 8
+      max_results: 100
+
+outputs:
+  paths:
+    output: targets.paths

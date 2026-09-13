@@ -277,3 +277,10 @@ type Generator interface {
 type OutputProvider interface {
 	OutputSpecs() []OutputSpec
 }
+
+// ParamValidator performs module-specific validation that cannot be expressed
+// by ParamSpec. Runners call it after normalization and before previews,
+// prerequisite checks, workspace creation, or module mutation.
+type ParamValidator interface {
+	ValidateParams(Params) error
+}

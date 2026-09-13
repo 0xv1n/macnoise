@@ -1,0 +1,36 @@
+version: 1
+name: Document Target Discovery Recipe
+description: Finds a bounded set of common document and wallet files beneath explicit roots
+on_error: stop
+
+inputs:
+  roots:
+    type: path_list
+    default:
+      - /tmp/macnoise_test
+  max_results:
+    type: integer
+    default: 100
+
+steps:
+  - id: targets
+    module: file_find
+    params:
+      roots:
+        input: roots
+      extensions:
+        - .txt
+        - .docx
+        - .rtf
+        - .doc
+        - .wallet
+        - .keys
+        - .key
+      max_depth: 3
+      max_results:
+        input: max_results
+      max_bytes: 51200
+
+outputs:
+  paths:
+    output: targets.paths

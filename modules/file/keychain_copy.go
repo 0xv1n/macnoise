@@ -27,7 +27,8 @@ const (
 var errStageWrite = errors.New("staging write failed")
 
 type fileKeychainCopy struct {
-	stageDir string
+	files []ownedFile
+	dirs  []ownedDir
 }
 
 // keychainTarget is one keychain database to copy, tagged with which store it
@@ -66,6 +67,7 @@ func (f *fileKeychainCopy) ParamSpecs() []module.ParamSpec {
 			Name:        "stage_dir",
 			Description: "Directory to stage the keychain copies in",
 			Type:        module.ParamPath,
+			Required:    true,
 			Default:     defaultKeychainStageDir,
 			Example:     "/var/tmp/macnoise_kc",
 		},
@@ -73,6 +75,10 @@ func (f *fileKeychainCopy) ParamSpecs() []module.ParamSpec {
 }
 
 func (f *fileKeychainCopy) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
+
+func (f *fileKeychainCopy) OutputSpecs() []module.OutputSpec {
+	return []module.OutputSpec{{Name: "paths", Description: "Concrete keychain copies staged successfully", Type: module.ParamPathList}}
+}
 
 // defaultKeychainTargets lists the keychain databases to copy. Both directories
 // are parameters so tests can point the enumeration at temp directories.
@@ -125,7 +131,7 @@ func stagedNames(targets []keychainTarget) []string {
 // destination error is wrapped in errStageWrite.
 //
 // The 0600 mode, and the 0700 staging directory in Generate, are deliberately
-// tighter than the 0644/0755 the other file modules use. This writes a real
+// tighter than ordinary decoy file modes. This writes a real
 // copy of a credential store into a world-writable /tmp, and inheriting the
 // conventional mode would leave the copy readable by everyone on the host when
 // the original was not.
@@ -136,14 +142,14 @@ func copyKeychain(src, dst string) (int64, error) {
 	}
 	defer func() { _ = in.Close() }()
 
-	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, 0o600)
+	out, err := os.OpenFile(dst, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
 	if err != nil {
 		return 0, fmt.Errorf("%w: %w", errStageWrite, err)
 	}
-	defer func() { _ = out.Close() }()
-
-	n, err := io.Copy(out, in)
-	if err != nil {
+	n, copyErr := io.Copy(out, in)
+	closeErr := out.Close()
+	if err := errors.Join(copyErr, closeErr); err != nil {
+		_ = os.Remove(dst)
 		return n, fmt.Errorf("%w: %w", errStageWrite, err)
 	}
 	return n, nil
@@ -232,14 +238,17 @@ func (f *fileKeychainCopy) Generate(ctx context.Context, params module.Params, e
 		return fmt.Errorf("cannot determine home directory: %w", err)
 	}
 
-	stageDir := module.TagPath(params.String("stage_dir", defaultKeychainStageDir), module.RunIDFromContext(ctx))
-	if err := os.MkdirAll(stageDir, 0o700); err != nil {
+	stageDir := params.String("stage_dir", defaultKeychainStageDir)
+	createdDirs, err := ensureDirs(stageDir, 0o700)
+	f.dirs = append(f.dirs, createdDirs...)
+	if err != nil {
 		return fmt.Errorf("mkdir %s: %w", stageDir, err)
 	}
-	f.stageDir = stageDir
 
 	targets := defaultKeychainTargets(home, systemKeychainDir)
 	names := stagedNames(targets)
+	var resultErr error
+	var stagedPaths []string
 
 	for i, target := range targets {
 		select {
@@ -247,13 +256,29 @@ func (f *fileKeychainCopy) Generate(ctx context.Context, params module.Params, e
 			return ctx.Err()
 		default:
 		}
-		for _, ev := range keychainEvents(info, target, filepath.Join(stageDir, names[i])) {
+		destination := filepath.Join(stageDir, names[i])
+		for _, ev := range keychainEvents(info, target, destination) {
+			if ev.EventType == "keychain_copy" {
+				if ev.Outcome == module.OutcomeExecuted {
+					owned, captureErr := captureOwnedFile(destination)
+					if captureErr == nil {
+						f.files = append(f.files, owned)
+						stagedPaths = append(stagedPaths, destination)
+					} else {
+						_ = os.Remove(destination)
+						resultErr = errors.Join(resultErr, captureErr)
+					}
+				}
+				if ev.Outcome == module.OutcomeError {
+					resultErr = errors.Join(resultErr, errors.New(ev.Error))
+				}
+			}
 			if err := emit(ev); err != nil {
-				return err
+				resultErr = errors.Join(resultErr, err)
 			}
 		}
 	}
-	return nil
+	return errors.Join(resultErr, module.PublishOutput(ctx, "paths", stagedPaths))
 }
 
 func (f *fileKeychainCopy) DryRun(params module.Params) []string {
@@ -269,10 +294,10 @@ func (f *fileKeychainCopy) DryRun(params module.Params) []string {
 // on disk is not an acceptable default, so this runs unless --no-cleanup is
 // passed, which announces itself.
 func (f *fileKeychainCopy) Cleanup(ctx context.Context) error {
-	if f.stageDir == "" {
-		return nil
-	}
-	return os.RemoveAll(f.stageDir)
+	err := errors.Join(removeOwnedFiles(f.files), removeOwnedDirs(f.dirs))
+	f.files = nil
+	f.dirs = nil
+	return err
 }
 
 func init() {

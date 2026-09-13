@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -20,7 +21,8 @@ func TestFileModify_CleanupRemovesFileItCreated(t *testing.T) {
 
 	f := &fileModify{}
 	params := module.Params{"target_path": target}
-	if err := f.Generate(context.Background(), params, noopEmit); err != nil {
+	ctx, _ := outputContext()
+	if err := f.Generate(ctx, params, noopEmit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
@@ -37,6 +39,27 @@ func TestFileModify_CleanupRemovesFileItCreated(t *testing.T) {
 	}
 }
 
+func TestFileModify_CleanupRefusesLaterChanges(t *testing.T) {
+	target := filepath.Join(t.TempDir(), "existing.txt")
+	if err := os.WriteFile(target, []byte("original"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := &fileModify{}
+	ctx, _ := outputContext()
+	if err := f.Generate(ctx, module.Params{"target_path": target, "content": "macnoise"}, noopEmit); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(target, []byte("later writer"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if err := f.Cleanup(context.Background()); err == nil || !strings.Contains(err.Error(), "cleanup conflict") {
+		t.Fatalf("Cleanup = %v, want conflict", err)
+	}
+	if data, err := os.ReadFile(target); err != nil || string(data) != "later writer" {
+		t.Fatalf("later change was not preserved: data=%q err=%v", data, err)
+	}
+}
+
 // Cleanup must restore a pre-existing file's exact original content, not
 // leave macnoise's appended modification in place.
 func TestFileModify_CleanupRestoresPriorContent(t *testing.T) {
@@ -48,7 +71,8 @@ func TestFileModify_CleanupRestoresPriorContent(t *testing.T) {
 
 	f := &fileModify{}
 	params := module.Params{"target_path": target}
-	if err := f.Generate(context.Background(), params, noopEmit); err != nil {
+	ctx, _ := outputContext()
+	if err := f.Generate(ctx, params, noopEmit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 

@@ -15,7 +15,10 @@ import (
 type fileModify struct {
 	targetPath  string
 	origContent []byte
+	origMode    os.FileMode
 	existed     bool
+	version     ownedFile
+	dirs        []ownedDir
 }
 
 func (f *fileModify) Info() module.ModuleInfo {
@@ -36,20 +39,20 @@ func (f *fileModify) Info() module.ModuleInfo {
 
 func (f *fileModify) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "target_path", Description: "File to modify (created if absent)", Type: module.ParamPath, Default: "/tmp/macnoise_modify_target.txt", Example: "/tmp/test.txt"},
+		{Name: "target_path", Description: "File to modify (created if absent)", Type: module.ParamPath, Required: true, Default: "/tmp/macnoise_modify_target.txt", Example: "/tmp/test.txt"},
 		{Name: "content", Description: "Content to append", Type: module.ParamString, Default: "macnoise modification", Example: "injected data"},
 	}
 }
 
 func (f *fileModify) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
 
+func (f *fileModify) OutputSpecs() []module.OutputSpec {
+	return []module.OutputSpec{{Name: "path", Description: "Concrete path modified by this invocation", Type: module.ParamPath}}
+}
+
 func (f *fileModify) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	runID := module.RunIDFromContext(ctx)
-	targetPath := module.TagPath(params.String("target_path", "/tmp/macnoise_modify_target.txt"), runID)
+	targetPath := params.String("target_path", "/tmp/macnoise_modify_target.txt")
 	content := params.String("content", "macnoise modification")
-	if runID != "" {
-		content += " mn:" + runID
-	}
 	info := f.Info()
 
 	f.targetPath = targetPath
@@ -57,7 +60,9 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 	orig, err := os.ReadFile(targetPath)
 	switch {
 	case os.IsNotExist(err):
-		if err2 := os.MkdirAll(filepath.Dir(targetPath), 0o755); err2 != nil {
+		createdDirs, err2 := ensureDirs(filepath.Dir(targetPath), 0o755)
+		f.dirs = append(f.dirs, createdDirs...)
+		if err2 != nil {
 			ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), "failed to create parent directory")
 			ev = output.WithError(ev, err2)
 			return errors.Join(err2, emit(ev))
@@ -70,12 +75,25 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 		return errors.Join(err, emit(ev))
 	default:
 		f.existed = true
+		fileInfo, statErr := os.Stat(targetPath)
+		if statErr != nil {
+			return statErr
+		}
+		f.origMode = fileInfo.Mode().Perm()
 	}
 	f.origContent = orig
 
-	newContent := append(orig, []byte(fmt.Sprintf("\n%s [%s]", content, time.Now().UTC()))...)
+	newContent := append(append([]byte(nil), orig...), []byte(fmt.Sprintf("\n%s [%s]", content, time.Now().UTC()))...)
 	ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), fmt.Sprintf("modifying %s", targetPath))
-	if err := os.WriteFile(targetPath, newContent, 0o644); err != nil {
+	if f.existed {
+		err = os.WriteFile(targetPath, newContent, f.origMode)
+		var captureErr error
+		f.version, captureErr = captureOwnedFile(targetPath)
+		err = errors.Join(err, captureErr)
+	} else {
+		f.version, err = createOwnedFile(targetPath, newContent, 0o644)
+	}
+	if err != nil {
 		ev = output.WithError(ev, err)
 		return errors.Join(err, emit(ev))
 	}
@@ -86,7 +104,7 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 		"orig_size": len(orig),
 		"new_size":  len(newContent),
 	})
-	return emit(ev)
+	return errors.Join(module.PublishOutput(ctx, "path", targetPath), emit(ev))
 }
 
 func (f *fileModify) DryRun(params module.Params) []string {
@@ -102,13 +120,24 @@ func (f *fileModify) Cleanup(ctx context.Context) error {
 	if f.targetPath == "" {
 		return nil
 	}
-	if !f.existed {
-		if err := os.Remove(f.targetPath); err != nil && !os.IsNotExist(err) {
+	if f.existed {
+		if _, err := os.Stat(f.targetPath); os.IsNotExist(err) {
+			return fmt.Errorf("cleanup conflict: %s was removed after macnoise modified it", f.targetPath)
+		} else if err != nil {
 			return err
 		}
+		if err := f.version.verifyCurrent(); err != nil {
+			return err
+		}
+		if err := os.WriteFile(f.targetPath, f.origContent, f.origMode); err != nil {
+			return err
+		}
+		f.targetPath = ""
+		f.origContent = nil
+		f.version = ownedFile{}
 		return nil
 	}
-	return os.WriteFile(f.targetPath, f.origContent, 0o644)
+	return errors.Join(removeOwnedFile(f.version), removeOwnedDirs(f.dirs))
 }
 
 func init() {

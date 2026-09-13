@@ -33,10 +33,14 @@ func TestClassify(t *testing.T) {
 		{"file", "cred_file_read", 1001, 2},
 		{"file", "dir_create", 1001, 1},
 		{"file", "file_create", 1001, 1},
+		{"file", "file_copy", 1001, 1},
+		{"file", "file_discover", 1001, 8},
 		{"file", "file_encrypt", 1001, 3},
 		{"file", "file_hide_chflags", 1001, 6},
 		{"file", "file_hide_dotfile", 1001, 1},
 		{"file", "file_modify", 1001, 3},
+		{"file", "file_probe", 1001, 8},
+		{"file", "file_read", 1001, 2},
 		// A copy has no single OCSF activity, so it lands as the read of the
 		// source and the create of the staged destination.
 		{"file", "keychain_read", 1001, 2},

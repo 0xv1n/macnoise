@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -19,7 +20,8 @@ func TestFileCreate_GenerateNamedFile(t *testing.T) {
 		"count":    "99",
 		"prefix":   "ignored_",
 	}
-	if err := f.Generate(context.Background(), params, noopEmit); err != nil {
+	ctx, _ := outputContext()
+	if err := f.Generate(ctx, params, noopEmit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
@@ -44,6 +46,26 @@ func TestFileCreate_GenerateNamedFile(t *testing.T) {
 	}
 	if _, err := os.Stat(path); !os.IsNotExist(err) {
 		t.Errorf("named file should be removed, stat err = %v", err)
+	}
+}
+
+func TestFileCreate_NeverOverwritesExistingFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "existing.txt")
+	if err := os.WriteFile(path, []byte("preexisting"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := &fileCreate{}
+	ctx, _ := outputContext()
+	err := f.Generate(ctx, module.Params{"base_dir": dir, "filename": "existing.txt", "content": "replacement"}, noopEmit)
+	if err == nil || !strings.Contains(err.Error(), "exists") {
+		t.Fatalf("Generate = %v, want existing-file error", err)
+	}
+	if err := f.Cleanup(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != "preexisting" {
+		t.Fatalf("existing file changed: data=%q err=%v", data, err)
 	}
 }
 

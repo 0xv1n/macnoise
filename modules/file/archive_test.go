@@ -15,13 +15,23 @@ func TestFileArchive_GenerateAndCleanup(t *testing.T) {
 	dir := t.TempDir()
 	sourceDir := filepath.Join(dir, "src")
 	outputPath := filepath.Join(dir, "out.zip")
+	if err := os.MkdirAll(sourceDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(sourceDir, "existing.txt"), []byte("existing source"), 0o600); err != nil {
+		t.Fatal(err)
+	}
 	f := &fileArchive{}
 	var events []module.TelemetryEvent
 	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
-	params := module.Params{"source_dir": sourceDir, "output_path": outputPath, "tool": "zip"}
-	if err := f.Generate(context.Background(), params, emit); err != nil {
+	params := module.Params{"source_path": sourceDir, "output_path": outputPath, "tool": "zip"}
+	ctx, outputs := outputContext()
+	if err := f.Generate(ctx, params, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
+	}
+	if outputs["path"] != outputPath {
+		t.Fatalf("path output = %v, want %s", outputs["path"], outputPath)
 	}
 
 	fi, err := os.Stat(outputPath)
@@ -48,7 +58,7 @@ func TestFileArchive_GenerateAndCleanup(t *testing.T) {
 	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
 		t.Errorf("expected archive to be removed after Cleanup, stat err = %v", err)
 	}
-	if _, err := os.Stat(sourceDir); !os.IsNotExist(err) {
-		t.Errorf("expected source_dir to be removed after Cleanup, stat err = %v", err)
+	if data, err := os.ReadFile(filepath.Join(sourceDir, "existing.txt")); err != nil || string(data) != "existing source" {
+		t.Errorf("archive source changed during cleanup: data=%q err=%v", data, err)
 	}
 }

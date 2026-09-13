@@ -5,10 +5,12 @@ import (
 	"crypto/aes"
 	"crypto/cipher"
 	"crypto/rand"
+	"errors"
 	"fmt"
 	"math/big"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -25,7 +27,8 @@ var decoyExtensions = []string{
 }
 
 type fileEncrypt struct {
-	stageDir string
+	files []ownedFile
+	dirs  []ownedDir
 }
 
 func (f *fileEncrypt) Info() module.ModuleInfo {
@@ -46,19 +49,30 @@ func (f *fileEncrypt) Info() module.ModuleInfo {
 
 func (f *fileEncrypt) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "stage_dir", Description: "Directory used to stage and encrypt decoy files (only files here are touched)", Type: module.ParamPath, Default: defaultEncryptStageDir, Example: "/var/tmp/macnoise_encrypt"},
-		{Name: "file_count", Description: "Number of plaintext decoy files to stage before encrypting", Type: module.ParamInteger, Default: 5, Example: 20, Range: &module.IntegerRange{Min: 1}},
+		{Name: "stage_dir", Description: "Directory used to stage and encrypt decoy files (only files here are touched)", Type: module.ParamPath, Required: true, Default: defaultEncryptStageDir, Example: "/var/tmp/macnoise_encrypt"},
+		{Name: "file_count", Description: "Number of plaintext decoy files to stage before encrypting", Type: module.ParamInteger, Default: 5, Example: 20, Range: &module.IntegerRange{Min: 1, Max: maxFileTargets}},
 		{Name: "extension", Description: "Extension appended to encrypted files", Type: module.ParamString, Default: defaultEncryptExtension, Example: ".crypted"},
 	}
 }
 
-func (f *fileEncrypt) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
+func (f *fileEncrypt) CheckPrereqs(ctx context.Context, params module.Params) error {
+	return f.ValidateParams(params)
+}
+
+func (f *fileEncrypt) ValidateParams(params module.Params) error {
+	return validateEncryptExtension(params.String("extension", defaultEncryptExtension))
+}
+
+func (f *fileEncrypt) OutputSpecs() []module.OutputSpec {
+	return []module.OutputSpec{{Name: "paths", Description: "Concrete encrypted decoy paths", Type: module.ParamPathList}}
+}
 
 // stageDecoyFiles writes all plaintext decoys into dir before encryption begins.
 // Only these macnoise-created decoys are ever encrypted; the module never reads
 // or touches anything the user owns.
 func stageDecoyFiles(dir string, count int) ([]string, error) {
 	paths := make([]string, 0, count)
+	owned := make([]ownedFile, 0, count)
 	for i := range count {
 		extension, err := randomDecoyExtension()
 		if err != nil {
@@ -66,9 +80,12 @@ func stageDecoyFiles(dir string, count int) ([]string, error) {
 		}
 		p := filepath.Join(dir, fmt.Sprintf("document_%d%s", i, extension))
 		content := fmt.Sprintf("macnoise decoy document %d - simulated victim data\n", i)
-		if err := os.WriteFile(p, []byte(content), 0o644); err != nil {
+		file, err := createOwnedFile(p, []byte(content), 0o644)
+		if err != nil {
+			_ = removeOwnedFiles(owned)
 			return nil, err
 		}
+		owned = append(owned, file)
 		paths = append(paths, p)
 	}
 	return paths, nil
@@ -107,34 +124,23 @@ func encryptFile(path, extension string, key []byte) (string, error) {
 	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
 
 	encPath := path + extension
-	if err := os.WriteFile(encPath, ciphertext, 0o644); err != nil {
+	if _, err := createOwnedFile(encPath, ciphertext, 0o644); err != nil {
 		return "", err
 	}
 	if err := os.Remove(path); err != nil {
-		return "", err
+		return encPath, err
 	}
 	return encPath, nil
 }
 
 func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	runID := module.RunIDFromContext(ctx)
-	stageDir := module.TagPath(params.String("stage_dir", defaultEncryptStageDir), runID)
+	stageDir := params.String("stage_dir", defaultEncryptStageDir)
 	extension := params.String("extension", defaultEncryptExtension)
 	count := params.Int("file_count", defaultEncryptCount)
-	if count < 1 {
-		count = 1
+	if err := f.ValidateParams(params); err != nil {
+		return err
 	}
 	info := f.Info()
-
-	if err := os.MkdirAll(stageDir, 0o755); err != nil {
-		return fmt.Errorf("mkdir %s: %w", stageDir, err)
-	}
-	f.stageDir = stageDir
-
-	paths, err := stageDecoyFiles(stageDir, count)
-	if err != nil {
-		return fmt.Errorf("stage decoy files: %w", err)
-	}
 
 	// One key per run is generated fresh. The nonce is stored with each
 	// ciphertext, matching the AES-GCM file layout used by the round-trip test.
@@ -142,7 +148,25 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 	if _, err := rand.Read(key); err != nil {
 		return fmt.Errorf("generate key: %w", err)
 	}
+	createdDirs, err := ensureDirs(stageDir, 0o700)
+	f.dirs = append(f.dirs, createdDirs...)
+	if err != nil {
+		return fmt.Errorf("mkdir %s: %w", stageDir, err)
+	}
+	paths, err := stageDecoyFiles(stageDir, count)
+	if err != nil {
+		return fmt.Errorf("stage decoy files: %w", err)
+	}
+	for _, path := range paths {
+		owned, captureErr := captureOwnedFile(path)
+		if captureErr != nil {
+			return captureErr
+		}
+		f.files = append(f.files, owned)
+	}
 
+	var resultErr error
+	var encryptedPaths []string
 	for _, p := range paths {
 		select {
 		case <-ctx.Done():
@@ -152,12 +176,21 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 		ev := output.NewEvent(info, "file_encrypt", module.OutcomeError, module.File(p+extension), fmt.Sprintf("encrypting %s", p))
 		encPath, encErr := encryptFile(p, extension, key)
 		if encErr != nil {
-			ev = output.WithError(ev, encErr)
-			if emitErr := emit(ev); emitErr != nil {
-				return emitErr
+			if encPath != "" {
+				if owned, captureErr := captureOwnedFile(encPath); captureErr == nil {
+					f.files = append(f.files, owned)
+				}
 			}
+			ev = output.WithError(ev, encErr)
+			resultErr = errors.Join(resultErr, encErr, emit(ev))
 			continue
 		}
+		owned, captureErr := captureOwnedFile(encPath)
+		if captureErr != nil {
+			return errors.Join(resultErr, captureErr)
+		}
+		f.files = append(f.files, owned)
+		encryptedPaths = append(encryptedPaths, encPath)
 		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("encrypted %s -> %s", p, encPath)
 		ev = output.WithDetails(ev, map[string]any{
@@ -166,10 +199,10 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 			"cipher":    "AES-256-GCM",
 		})
 		if err := emit(ev); err != nil {
-			return err
+			resultErr = errors.Join(resultErr, err)
 		}
 	}
-	return nil
+	return errors.Join(resultErr, module.PublishOutput(ctx, "paths", encryptedPaths))
 }
 
 func (f *fileEncrypt) DryRun(params module.Params) []string {
@@ -183,10 +216,17 @@ func (f *fileEncrypt) DryRun(params module.Params) []string {
 }
 
 func (f *fileEncrypt) Cleanup(ctx context.Context) error {
-	if f.stageDir == "" {
-		return nil
+	err := errors.Join(removeOwnedFiles(f.files), removeOwnedDirs(f.dirs))
+	f.files = nil
+	f.dirs = nil
+	return err
+}
+
+func validateEncryptExtension(extension string) error {
+	if extension == "" || !strings.HasPrefix(extension, ".") || filepath.Base(extension) != extension {
+		return fmt.Errorf("extension must be a file-name suffix beginning with a dot: %q", extension)
 	}
-	return os.RemoveAll(f.stageDir)
+	return nil
 }
 
 func init() {

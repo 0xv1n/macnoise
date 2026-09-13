@@ -1,0 +1,28 @@
+version: 1
+name: Keychain Target Discovery Recipe
+description: Finds a bounded set of macOS keychain database files beneath explicit roots
+on_error: stop
+
+inputs:
+  roots:
+    type: path_list
+    default:
+      - /tmp/macnoise_test
+
+steps:
+  - id: targets
+    module: file_find
+    params:
+      roots:
+        input: roots
+      names:
+        - login.keychain-db
+        - keychain-2.db
+        - System.keychain
+        - system-keychain-2.db
+      max_depth: 3
+      max_results: 20
+
+outputs:
+  paths:
+    output: targets.paths

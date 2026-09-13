@@ -272,7 +272,7 @@ steps:
   # T1560.001 — zip the full staging directory into a single archive
   - module: file_archive
     params:
-      source_dir: /tmp/macnoise_amos_staging
+      source_path: /tmp/macnoise_amos_staging
       output_path: /tmp/macnoise_amos_payload.zip
       tool: zip
 

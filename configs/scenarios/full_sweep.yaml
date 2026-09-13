@@ -8,7 +8,50 @@ steps:
 
   - category: process
 
-  - category: file
+  # File primitives are ordered so discovery, reads, copies, modification,
+  # and archiving consume artifacts created by earlier steps.
+  - id: file_create
+    module: file_create
+
+  - id: file_modify
+    module: file_modify
+    params:
+      target_path:
+        output: file_create.path
+
+  - id: file_find
+    module: file_find
+    params:
+      roots:
+        output: file_create.directories
+
+  - id: file_read
+    module: file_read
+    params:
+      paths:
+        output: file_find.paths
+
+  - id: file_copy
+    module: file_copy
+    params:
+      source_paths:
+        output: file_read.paths
+
+  - id: file_archive
+    module: file_archive
+    params:
+      source_path:
+        output: file_copy.directory
+
+  - module: file_browser_creds
+
+  - module: file_cred_files
+
+  - module: file_keychain_copy
+
+  - module: file_encrypt
+
+  - module: file_hide
 
   # service category is not run wholesale: svc_launch_daemon requires root
   # and this scenario is scoped to run without elevated privileges.

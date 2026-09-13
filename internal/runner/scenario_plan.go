@@ -230,8 +230,14 @@ func (s *preflightState) moduleStep(id, name, policy string, raw map[string]Scen
 	if err != nil {
 		return plannedStep{}, err
 	}
-	if _, err := module.NormalizeParams(gen.ParamSpecs(), representativeParams(params, gen.ParamSpecs())); err != nil {
+	representative, err := module.NormalizeParams(gen.ParamSpecs(), representativeParams(params, gen.ParamSpecs()))
+	if err != nil {
 		return plannedStep{}, fmt.Errorf("module %q params: %w", name, err)
+	}
+	if validator, ok := gen.(module.ParamValidator); ok {
+		if err := validator.ValidateParams(representative); err != nil {
+			return plannedStep{}, fmt.Errorf("module %q params: %w", name, err)
+		}
 	}
 	outputs := make(map[string]module.OutputSpec)
 	if provider, ok := gen.(module.OutputProvider); ok {

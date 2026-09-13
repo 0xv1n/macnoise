@@ -1,0 +1,64 @@
+version: 1
+name: File Primitive Flow
+description: Creates, modifies, and archives one connected decoy artifact through typed path outputs
+on_error: stop
+
+inputs:
+  base_dir:
+    type: path
+    default: /tmp/macnoise_file_flow
+  archive_path:
+    type: path
+    default: /tmp/macnoise_file_flow.tar.gz
+  copy_dir:
+    type: path
+    default: /tmp/macnoise_file_flow_copy
+
+steps:
+  - id: create
+    module: file_create
+    params:
+      base_dir:
+        input: base_dir
+      filename: artifact.txt
+      content: original decoy content
+
+  - id: modify
+    module: file_modify
+    params:
+      target_path:
+        output: create.path
+      content: appended decoy content
+
+  - id: targets
+    include: recipes/document_targets.yaml
+    inputs:
+      roots:
+        output: create.directories
+
+  - id: read
+    module: file_read
+    params:
+      paths:
+        output: targets.paths
+
+  - id: copy
+    module: file_copy
+    params:
+      source_paths:
+        output: read.paths
+      destination_dir:
+        input: copy_dir
+
+  - id: archive
+    module: file_archive
+    params:
+      source_path:
+        output: modify.path
+      output_path:
+        input: archive_path
+      tool: tar
+
+outputs:
+  archive:
+    output: archive.path
