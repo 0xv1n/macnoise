@@ -32,38 +32,26 @@ func (c *c2Beacon) Info() module.ModuleInfo {
 
 func (c *c2Beacon) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "target", Description: "Target URL or host", Type: module.ParamString, Default: "http://example.com", Example: "http://10.0.0.1"},
+		{Name: "target", Description: "Absolute HTTP or HTTPS URL", Type: module.ParamString, Default: "http://example.com", Example: "http://10.0.0.1"},
 		{Name: "count", Description: "Number of beacon attempts", Type: module.ParamInteger, Default: 3, Example: 5, Range: &module.IntegerRange{Min: 1}},
 		{Name: "interval", Description: "Seconds between beacons", Type: module.ParamInteger, Default: 2, Example: 10, Range: &module.IntegerRange{Min: 0}},
 		{Name: "jitter", Description: "Percent to randomise each interval by, 0-100 (0 = fixed)", Type: module.ParamInteger, Default: 0, Example: 30, Range: &module.IntegerRange{Min: 0, Max: 100}},
 	}
 }
 
-// jitterInterval randomises base by up to jitterPct percent in either
-// direction. A perfectly fixed beacon interval is one of the easiest C2
-// signals to fingerprint, so real implants jitter and detections look for the
-// absence of it. The result is clamped at zero so a large percentage cannot
-// produce a negative delay.
-func jitterInterval(base time.Duration, jitterPct int, rnd *rand.Rand) time.Duration {
-	if jitterPct <= 0 || base <= 0 {
-		return base
-	}
-	if jitterPct > 100 {
-		jitterPct = 100
-	}
-	span := float64(base) * float64(jitterPct) / 100.0
-	offset := (rnd.Float64()*2 - 1) * span
-	out := time.Duration(float64(base) + offset)
-	if out < 0 {
-		return 0
-	}
-	return out
+func (c *c2Beacon) ValidateParams(params module.Params) error {
+	return validateHTTPURL(params.String("target", "http://example.com"))
 }
 
-func (c *c2Beacon) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
+func (c *c2Beacon) CheckPrereqs(ctx context.Context, params module.Params) error {
+	return c.ValidateParams(params)
+}
 
 func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
-	target := tagURL(params.String("target", "http://example.com"), module.RunIDFromContext(ctx))
+	if err := c.ValidateParams(params); err != nil {
+		return err
+	}
+	target := params.String("target", "http://example.com")
 	count := params.Int("count", 3)
 	intervalSecs := params.Int("interval", 2)
 	interval := time.Duration(intervalSecs) * time.Second
@@ -71,8 +59,6 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 	rnd := rand.New(rand.NewSource(time.Now().UnixNano())) //nolint:gosec // jitter timing, not security
 
 	info := c.Info()
-	client := &http.Client{Timeout: 5 * time.Second}
-
 	for i := 1; i <= count; i++ {
 		select {
 		case <-ctx.Done():
@@ -80,23 +66,18 @@ func (c *c2Beacon) Generate(ctx context.Context, params module.Params, emit modu
 		default:
 		}
 
-		ev := output.NewEvent(info, "http_beacon", module.OutcomeError, module.Network("", target, ""), fmt.Sprintf("beacon %d/%d to %s", i, count, target))
-		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
-		var resp *http.Response
-		if err == nil {
-			resp, err = client.Do(req)
-		}
+		result, err := performHTTPRequest(ctx, http.MethodGet, target, "", nil, 5*time.Second)
+		ev := output.NewEvent(info, "http_beacon", module.OutcomeError, module.Network("", result.url, ""), fmt.Sprintf("beacon %d/%d to %s", i, count, result.url))
 		if err != nil {
 			if ctx.Err() != nil {
 				return ctx.Err()
 			}
 			ev = output.WithOutcome(ev, module.OutcomeDenied, err)
-			ev.Message = fmt.Sprintf("beacon %d/%d to %s (no response — telemetry generated)", i, count, target)
+			ev.Message = fmt.Sprintf("beacon %d/%d to %s (no response - telemetry generated)", i, count, result.url)
 		} else {
-			_ = resp.Body.Close()
 			ev.Outcome = module.OutcomeExecuted
-			ev.Message = fmt.Sprintf("beacon %d/%d to %s returned %d", i, count, target, resp.StatusCode)
-			ev = output.WithDetails(ev, map[string]any{"attempt": i, "total": count, "url": target, "status": resp.StatusCode})
+			ev.Message = fmt.Sprintf("beacon %d/%d to %s returned %d", i, count, result.url, result.statusCode)
+			ev = output.WithDetails(ev, map[string]any{"attempt": i, "total": count, "url": result.url, "status": result.statusCode})
 		}
 		if err := emit(ev); err != nil {
 			return err

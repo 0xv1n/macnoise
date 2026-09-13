@@ -42,7 +42,7 @@ make build
 
 | Category | Description | Modules |
 |----------|-------------|---------|
-| `network` | Outbound connections, DNS, beaconing, listeners, reverse shells, TLS, exfiltration | net_connect, net_listen, net_beacon, net_revshell, net_dns, net_dns_exfil, net_tls, net_exfil |
+| `network` | Outbound connections, DNS, HTTP, beaconing, listeners, reverse shells, TLS, exfiltration | net_connect, net_http, net_listen, net_beacon, net_revshell, net_dns, net_dns_exfil, net_tls, net_exfil |
 | `process` | Process spawning, signal delivery, dylib injection, discovery, Gatekeeper bypass, osascript | proc_exec, proc_spawn, proc_signal, proc_inject, proc_discovery, proc_gatekeeper, proc_osascript |
 | `file` | Bounded file discovery, literal reads/copies, creation, modification, archiving, hiding, and decoy encryption | file_find, file_read, file_copy, file_create, file_modify, file_browser_creds, file_cred_files, file_keychain_copy, file_archive, file_hide, file_encrypt |
 | `tcc` | TCC permission probes (FDA, Contacts, Keychain, Accessibility, Screen Recording) | tcc_fda, tcc_contacts, tcc_keychain, tcc_accessibility, tcc_screen_recording |
@@ -173,7 +173,7 @@ Scenarios chain modules into ordered sequences - a single YAML file that replays
 
 | File | Description |
 |------|-------------|
-| `network_only.yaml` | Selected connection, listener, DNS, and beacon modules |
+| `network_only.yaml` | Composed TCP, listener, DNS, HTTP beacon, and HTTP exfiltration operations |
 | `edr_validation.yaml` | Comprehensive EDR detection coverage |
 | `full_sweep.yaml` | All categories |
 | `lazarus_group.yaml` | Lazarus Group: dylib injection, service discovery, reverse shell, plist persistence |
