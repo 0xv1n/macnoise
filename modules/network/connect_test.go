@@ -2,10 +2,12 @@ package network
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -22,8 +24,11 @@ func hostPort(t *testing.T, rawURL string) (string, string) {
 	return host, port
 }
 
-func TestConnectGenerate_EmitsConnectThenGet(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+func TestConnectGenerate_OnlyDialsTCP(t *testing.T) {
+	var requests atomic.Int32
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+	}))
 	defer ts.Close()
 	host, port := hostPort(t, ts.URL)
 
@@ -33,14 +38,14 @@ func TestConnectGenerate_EmitsConnectThenGet(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
-	if len(events) != 2 {
-		t.Fatalf("emitted %d events, want 2 (tcp_connect, http_get)", len(events))
+	if len(events) != 1 {
+		t.Fatalf("emitted %d events, want 1 tcp_connect", len(events))
 	}
-	if events[0].EventType != "tcp_connect" || events[1].EventType != "http_get" {
-		t.Errorf("event types = %q,%q; want tcp_connect,http_get", events[0].EventType, events[1].EventType)
+	if events[0].EventType != "tcp_connect" || events[0].Outcome != module.OutcomeExecuted {
+		t.Errorf("event = %+v, want executed tcp_connect", events[0])
 	}
-	if events[0].Outcome != module.OutcomeExecuted || events[1].Outcome != module.OutcomeExecuted {
-		t.Errorf("both events should succeed against a live server: %+v", events)
+	if requests.Load() != 0 {
+		t.Errorf("net_connect sent %d HTTP request(s), want TCP only", requests.Load())
 	}
 }
 
@@ -58,38 +63,35 @@ func TestConnectGenerate_RefusedIsDenied(t *testing.T) {
 	if err := (&netConnect{}).Generate(context.Background(), module.Params{"target": host, "port": port}, emit); err != nil {
 		t.Fatalf("Generate should not error on a refused connection: %v", err)
 	}
-	if len(events) != 2 {
-		t.Fatalf("emitted %d events, want 2 even when refused", len(events))
+	if len(events) != 1 {
+		t.Fatalf("emitted %d events, want 1", len(events))
 	}
 	if events[0].Outcome != module.OutcomeDenied {
 		t.Errorf("refused tcp_connect outcome = %q, want denied", events[0].Outcome)
 	}
 }
 
-func TestConnectGenerate_RunIDInHTTPURL(t *testing.T) {
-	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
-	defer ts.Close()
-	host, port := hostPort(t, ts.URL)
-
-	var events []module.TelemetryEvent
-	emit := captureNetworkEvents(&events)
-	ctx := module.ContextWithRunID(context.Background(), "runid1234")
-	if err := (&netConnect{}).Generate(ctx, module.Params{"target": host, "port": port}, emit); err != nil {
-		t.Fatalf("Generate: %v", err)
-	}
-
-	url, _ := events[1].Details["url"].(string)
-	if !strings.Contains(url, "mn=runid1234") {
-		t.Errorf("http_get url = %q, want it to carry mn=runid1234", url)
+func TestConnectGenerate_AlreadyCanceled(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	err := (&netConnect{}).Generate(ctx, module.Params{"target": "127.0.0.1", "port": "1"}, func(ev module.TelemetryEvent) error {
+		t.Errorf("canceled connect emitted %+v", ev)
+		return nil
+	})
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("Generate = %v, want context.Canceled", err)
 	}
 }
 
 func TestConnectDryRun(t *testing.T) {
 	steps := (&netConnect{}).DryRun(module.Params{"target": "10.0.0.1", "port": "443"})
-	if len(steps) != 2 {
-		t.Fatalf("dry run = %v, want 2 lines", steps)
+	if len(steps) != 1 {
+		t.Fatalf("dry run = %v, want 1 line", steps)
 	}
 	if !strings.Contains(steps[0], "10.0.0.1:443") {
 		t.Errorf("first dry-run line %q should name the address", steps[0])
+	}
+	if strings.Contains(steps[0], "HTTP") {
+		t.Errorf("dry-run line %q includes HTTP behavior", steps[0])
 	}
 }

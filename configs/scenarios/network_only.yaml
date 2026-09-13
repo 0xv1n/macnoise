@@ -1,7 +1,7 @@
 version: 1
 on_error: stop
 name: Network Telemetry Sweep
-description: Runs selected network modules to generate connection, listener, DNS, and beacon telemetry
+description: Composes TCP, listener, DNS, HTTP beacon, and HTTP exfiltration operations
 
 steps:
   - module: net_connect
@@ -20,8 +20,8 @@ steps:
         - google.com
         - github.com
 
-  - module: net_beacon
-    params:
-      target: "http://example.com"
-      count: "3"
-      interval: "1"
+  - id: http_beacon
+    include: recipes/http_beacon.yaml
+
+  - id: http_exfil
+    include: recipes/http_exfil.yaml

@@ -5,10 +5,18 @@ Outbound connections, DNS, beaconing, listeners, reverse shells, and data exfilt
 ## Modules
 
 ### `net_connect`
-Initiates a TCP connection and HTTP GET. Maps to T1071.001.
+Initiates one cancellable TCP connection without adding application-layer traffic. Maps to T1095.
 
 ```bash
 macnoise run net_connect --param target=10.0.0.1 --param port=443
+```
+
+### `net_http`
+Sends exact GET or POST requests, including an optional body and repeated intervals. It is the shared HTTP operation used by the beacon and exfiltration modules. Maps to T1071.001.
+
+```bash
+macnoise run net_http --param target=https://example.com --param method=GET
+macnoise scenario configs/scenarios/network_only.yaml
 ```
 
 ### `net_listen`

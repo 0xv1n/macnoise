@@ -49,7 +49,7 @@ func Classify(category, eventType string) Classification {
 	switch eventType {
 	case "http_get", "http_beacon":
 		return Classification{4002, "HTTP Activity", 4, "Network Activity", 3, "Get"}
-	case "http_post_exfil":
+	case "http_post", "http_post_exfil":
 		return Classification{4002, "HTTP Activity", 4, "Network Activity", 6, "Post"}
 	case "dns_lookup", "dns_exfil_query":
 		return Classification{4003, "DNS Activity", 4, "Network Activity", 1, "Query"}

