@@ -107,8 +107,12 @@ func TestGenerate_StagesThenEncryptsAll(t *testing.T) {
 	var events []module.TelemetryEvent
 	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 	f := &fileEncrypt{}
-	if err := f.Generate(context.Background(), module.Params{"stage_dir": stage, "file_count": "4"}, emit); err != nil {
+	ctx, outputs := outputContext()
+	if err := f.Generate(ctx, module.Params{"stage_dir": stage, "file_count": "4"}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
+	}
+	if paths, ok := outputs["paths"].([]string); !ok || len(paths) != 4 {
+		t.Fatalf("paths output = %#v, want four paths", outputs["paths"])
 	}
 
 	var encEvents int
@@ -165,16 +169,28 @@ func containsDecoyExtension(extension string) bool {
 	return false
 }
 
-func TestEncryptCleanup_RemovesStageDir(t *testing.T) {
+func TestEncryptCleanup_PreservesPreexistingStageContents(t *testing.T) {
 	stage := filepath.Join(t.TempDir(), "enc")
 	if err := os.MkdirAll(stage, 0o755); err != nil {
 		t.Fatal(err)
 	}
-	f := &fileEncrypt{stageDir: stage}
+	keep := filepath.Join(stage, "keep.txt")
+	if err := os.WriteFile(keep, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	f := &fileEncrypt{}
+	ctx, _ := outputContext()
+	if err := f.Generate(ctx, module.Params{"stage_dir": stage, "file_count": 2, "extension": ".locked"}, noopEmit); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
 	if err := f.Cleanup(context.Background()); err != nil {
 		t.Fatalf("Cleanup: %v", err)
 	}
-	if _, err := os.Stat(stage); !os.IsNotExist(err) {
-		t.Errorf("stage dir should be removed, stat err = %v", err)
+	if data, err := os.ReadFile(keep); err != nil || string(data) != "keep" {
+		t.Errorf("preexisting file changed during cleanup: data=%q err=%v", data, err)
+	}
+	entries, err := os.ReadDir(stage)
+	if err != nil || len(entries) != 1 {
+		t.Fatalf("stage entries after cleanup = %v, err=%v", entries, err)
 	}
 }

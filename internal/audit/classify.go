@@ -117,15 +117,15 @@ func processActivity(eventType string) (int, string) {
 func fileActivity(eventType string) (int, string) {
 	switch eventType {
 	case "file_create", "dir_create", "file_hide_dotfile", "archive_create",
-		"plist_create", "plist_create_launchagent", "keychain_copy":
+		"file_copy", "plist_create", "plist_create_launchagent", "keychain_copy":
 		return 1, "Create"
-	case "plist_read_prior", "browser_cred_read", "cred_file_read", "keychain_read":
+	case "file_read", "plist_read_prior", "browser_cred_read", "cred_file_read", "keychain_read":
 		return 2, "Read"
 	case "file_modify", "plist_modify", "file_encrypt":
 		return 3, "Update"
 	case "file_hide_chflags":
 		return 6, "Set Attributes"
-	case "browser_cred_probe", "cred_file_probe":
+	case "file_discover", "file_probe", "browser_cred_probe", "cred_file_probe":
 		return 8, "Get Attributes"
 	}
 	return 99, "Other"

@@ -68,7 +68,8 @@ func TestKeychainCopy_GenerateStagesRealCopy(t *testing.T) {
 
 	var events []module.TelemetryEvent
 	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
-	if err := mod.Generate(context.Background(), module.Params{"stage_dir": stageDir}, emit); err != nil {
+	ctx, _ := outputContext()
+	if err := mod.Generate(ctx, module.Params{"stage_dir": stageDir}, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
@@ -131,7 +132,8 @@ func TestKeychainCopy_CleanupRemovesStagedCopies(t *testing.T) {
 
 	stageDir := filepath.Join(t.TempDir(), "stage")
 	mod := &fileKeychainCopy{}
-	if err := mod.Generate(context.Background(), module.Params{"stage_dir": stageDir}, noopEmit); err != nil {
+	ctx, _ := outputContext()
+	if err := mod.Generate(ctx, module.Params{"stage_dir": stageDir}, noopEmit); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 

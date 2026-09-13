@@ -51,6 +51,11 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 		return fmt.Errorf("[%s] params: %w", info.Name, err)
 	}
 	params = normalized
+	if validator, ok := gen.(module.ParamValidator); ok {
+		if err := validator.ValidateParams(params); err != nil {
+			return fmt.Errorf("[%s] params: %w", info.Name, err)
+		}
+	}
 	auditParams := module.RedactParams(gen.ParamSpecs(), params)
 	startTime := time.Now()
 

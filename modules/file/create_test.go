@@ -17,8 +17,12 @@ func TestFileCreate_GenerateAndCleanup(t *testing.T) {
 	emit := func(ev module.TelemetryEvent) error { events = append(events, ev); return nil }
 
 	params := module.Params{"base_dir": dir, "count": "3", "prefix": "it_"}
-	if err := f.Generate(context.Background(), params, emit); err != nil {
+	ctx, outputs := outputContext()
+	if err := f.Generate(ctx, params, emit); err != nil {
 		t.Fatalf("Generate: %v", err)
+	}
+	if paths, ok := outputs["paths"].([]string); !ok || len(paths) != 3 {
+		t.Fatalf("paths output = %#v, want three paths", outputs["paths"])
 	}
 
 	entries, err := os.ReadDir(dir)

@@ -6,7 +6,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 	"time"
 
@@ -15,7 +14,8 @@ import (
 )
 
 type fileCreate struct {
-	createdPaths []string
+	files []ownedFile
+	dirs  []ownedDir
 }
 
 func (f *fileCreate) Info() module.ModuleInfo {
@@ -36,15 +36,38 @@ func (f *fileCreate) Info() module.ModuleInfo {
 
 func (f *fileCreate) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
-		{Name: "base_dir", Description: "Directory to create files in", Type: module.ParamPath, Default: "/tmp/macnoise_test", Example: "/var/tmp/macnoise"},
-		{Name: "count", Description: "Number of files to create", Type: module.ParamInteger, Default: 3, Example: 10, Range: &module.IntegerRange{Min: 1}},
+		{Name: "base_dir", Description: "Directory to create files in", Type: module.ParamPath, Required: true, Default: "/tmp/macnoise_test", Example: "/var/tmp/macnoise"},
+		{Name: "count", Description: "Number of files to create", Type: module.ParamInteger, Default: 3, Example: 10, Range: &module.IntegerRange{Min: 1, Max: 100}},
 		{Name: "prefix", Description: "File name prefix", Type: module.ParamString, Default: "mnfile_", Example: "test_"},
 		{Name: "filename", Description: "Exact name for a single file (overrides count and prefix)", Type: module.ParamString, Example: "RECOVER_YOUR_FILES.txt"},
 		{Name: "content", Description: "Contents for a named file", Type: module.ParamString, Example: "Your files have been encrypted."},
 	}
 }
 
-func (f *fileCreate) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
+func (f *fileCreate) ValidateParams(params module.Params) error {
+	filename := params.String("filename", "")
+	if filename != "" && (filepath.Base(filename) != filename || filename == "." || filename == "..") {
+		return fmt.Errorf("filename must not include a directory: %q", filename)
+	}
+	prefix := params.String("prefix", "mnfile_")
+	if filepath.Base(prefix) != prefix || prefix == "." || prefix == ".." {
+		return fmt.Errorf("prefix must not include a directory: %q", prefix)
+	}
+	return nil
+}
+
+func (f *fileCreate) CheckPrereqs(ctx context.Context, params module.Params) error {
+	return f.ValidateParams(params)
+}
+
+func (f *fileCreate) OutputSpecs() []module.OutputSpec {
+	return []module.OutputSpec{
+		{Name: "path", Description: "First concrete path created by this invocation", Type: module.ParamPath},
+		{Name: "paths", Description: "Concrete paths created by this invocation", Type: module.ParamPathList},
+		{Name: "directory", Description: "Literal directory containing the created files", Type: module.ParamPath},
+		{Name: "directories", Description: "Literal directory as a path list for bounded discovery", Type: module.ParamPathList},
+	}
+}
 
 // stampedFileName builds the file name, folding the run ID in after the prefix
 // when one is set so a consumer can correlate the file back to the run.
@@ -56,6 +79,9 @@ func stampedFileName(prefix, runID, ts string, i int) string {
 }
 
 func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
+	if err := f.ValidateParams(params); err != nil {
+		return err
+	}
 	baseDir := params.String("base_dir", "/tmp/macnoise_test")
 	count := params.Int("count", 3)
 	prefix := params.String("prefix", "mnfile_")
@@ -65,16 +91,15 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 
 	info := f.Info()
 
-	if err := os.MkdirAll(baseDir, 0o755); err != nil {
+	createdDirs, err := ensureDirs(baseDir, 0o755)
+	f.dirs = append(f.dirs, createdDirs...)
+	if err != nil {
 		ev := output.NewEvent(info, "dir_create", module.OutcomeError, module.File(baseDir), fmt.Sprintf("failed to create directory %s", baseDir))
 		ev = output.WithError(ev, err)
 		return errors.Join(err, emit(ev))
 	}
 
 	if filename != "" {
-		if filepath.Base(filename) != filename {
-			return fmt.Errorf("filename must not include a directory: %q", filename)
-		}
 		count = 1
 	}
 
@@ -96,14 +121,12 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 		}
 
 		ev := output.NewEvent(info, "file_create", module.OutcomeError, module.File(fpath), fmt.Sprintf("creating %s", fpath))
-		if err := os.WriteFile(fpath, []byte(fileContent), 0o644); err != nil {
+		owned, err := createOwnedFile(fpath, []byte(fileContent), 0o644)
+		if err != nil {
 			ev = output.WithError(ev, err)
-			if emitErr := emit(ev); emitErr != nil {
-				return emitErr
-			}
-			continue
+			return errors.Join(err, emit(ev))
 		}
-		f.createdPaths = append(f.createdPaths, fpath)
+		f.files = append(f.files, owned)
 		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("created %s (%d bytes)", fpath, len(fileContent))
 		ev = output.WithDetails(ev, map[string]any{"path": fpath, "size": len(fileContent)})
@@ -111,7 +134,16 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 			return err
 		}
 	}
-	return nil
+	paths := make([]string, len(f.files))
+	for index, file := range f.files {
+		paths[index] = file.path
+	}
+	return errors.Join(
+		module.PublishOutput(ctx, "path", paths[0]),
+		module.PublishOutput(ctx, "paths", paths),
+		module.PublishOutput(ctx, "directory", baseDir),
+		module.PublishOutput(ctx, "directories", []string{baseDir}),
+	)
 }
 
 func (f *fileCreate) DryRun(params module.Params) []string {
@@ -132,14 +164,10 @@ func (f *fileCreate) DryRun(params module.Params) []string {
 }
 
 func (f *fileCreate) Cleanup(ctx context.Context) error {
-	var lastErr error
-	for _, p := range f.createdPaths {
-		if err := os.Remove(p); err != nil && !os.IsNotExist(err) {
-			lastErr = err
-		}
-	}
-	f.createdPaths = nil
-	return lastErr
+	err := errors.Join(removeOwnedFiles(f.files), removeOwnedDirs(f.dirs))
+	f.files = nil
+	f.dirs = nil
+	return err
 }
 
 func init() {
