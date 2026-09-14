@@ -97,3 +97,20 @@ func TestAccessibilityDryRunMatchesProbe(t *testing.T) {
 		t.Errorf("dry run does not advertise the probe script: %v", lines)
 	}
 }
+
+func TestTCCModulesDeclareExactPrivacyPrivileges(t *testing.T) {
+	tests := []struct {
+		gen  module.Generator
+		want module.Privilege
+	}{
+		{gen: &tccFDA{}, want: module.PrivilegeFullDiskAccess},
+		{gen: &tccContacts{}, want: module.PrivilegeContacts},
+		{gen: &tccAccessibility{}, want: module.PrivilegeAccessibility},
+		{gen: &tccScreenRecording{}, want: module.PrivilegeScreenRecording},
+	}
+	for _, tt := range tests {
+		if got := tt.gen.Info().Privileges; got != tt.want {
+			t.Errorf("%s privilege = %q, want %q", tt.gen.Info().Name, got, tt.want)
+		}
+	}
+}

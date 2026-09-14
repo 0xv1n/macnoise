@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"os"
 	"path/filepath"
 	"time"
 
@@ -41,6 +42,7 @@ func (f *fileCreate) ParamSpecs() []module.ParamSpec {
 		{Name: "prefix", Description: "File name prefix", Type: module.ParamString, Default: "mnfile_", Example: "test_"},
 		{Name: "filename", Description: "Exact name for a single file (overrides count and prefix)", Type: module.ParamString, Example: "RECOVER_YOUR_FILES.txt"},
 		{Name: "content", Description: "Contents for a named file", Type: module.ParamString, Example: "Your files have been encrypted."},
+		{Name: "executable", Description: "Create named files with executable mode", Type: module.ParamBoolean, Default: false, Example: true},
 	}
 }
 
@@ -87,6 +89,10 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 	prefix := params.String("prefix", "mnfile_")
 	filename := params.String("filename", "")
 	content := params.String("content", "")
+	mode := os.FileMode(0o644)
+	if params.Bool("executable", false) {
+		mode = 0o755
+	}
 	runID := module.RunIDFromContext(ctx)
 
 	info := f.Info()
@@ -121,7 +127,7 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 		}
 
 		ev := output.NewEvent(info, "file_create", module.OutcomeError, module.File(fpath), fmt.Sprintf("creating %s", fpath))
-		owned, err := createOwnedFile(fpath, []byte(fileContent), 0o644)
+		owned, err := createOwnedFile(fpath, []byte(fileContent), mode)
 		if err != nil {
 			ev = output.WithError(ev, err)
 			return errors.Join(err, emit(ev))
@@ -129,7 +135,7 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 		f.files = append(f.files, owned)
 		ev.Outcome = module.OutcomeExecuted
 		ev.Message = fmt.Sprintf("created %s (%d bytes)", fpath, len(fileContent))
-		ev = output.WithDetails(ev, map[string]any{"path": fpath, "size": len(fileContent)})
+		ev = output.WithDetails(ev, map[string]any{"path": fpath, "size": len(fileContent), "mode": fmt.Sprintf("%#o", mode)})
 		if err := emit(ev); err != nil {
 			return err
 		}
@@ -152,9 +158,13 @@ func (f *fileCreate) DryRun(params module.Params) []string {
 	prefix := params.String("prefix", "mnfile_")
 	filename := params.String("filename", "")
 	if filename != "" {
+		mode := "0644"
+		if params.Bool("executable", false) {
+			mode = "0755"
+		}
 		return []string{
 			fmt.Sprintf("mkdir -p %s", baseDir),
-			fmt.Sprintf("create %s in %s", filename, baseDir),
+			fmt.Sprintf("create %s in %s with mode %s", filename, baseDir, mode),
 		}
 	}
 	return []string{

@@ -76,12 +76,26 @@ func TestProcExecGenerate_CanceledBeforeExecution(t *testing.T) {
 func TestProcExecContract(t *testing.T) {
 	p := &procExec{}
 	specs := p.ParamSpecs()
-	if specs[0].Default != "/usr/bin/true" || !specs[1].Sensitive {
+	if specs[0].Default != "/usr/bin/true" || !specs[1].Sensitive || specs[2].Name != "working_dir" || specs[2].Type != module.ParamPath {
 		t.Fatalf("parameter specs = %+v", specs)
 	}
 	outputs := p.OutputSpecs()
 	if len(outputs) != 2 || !outputs[0].Sensitive || outputs[1].Type != module.ParamInteger {
 		t.Fatalf("output specs = %+v", outputs)
+	}
+}
+
+func TestProcExecGenerateReportsResolvedExecutableFromWorkingDirectory(t *testing.T) {
+	dir := t.TempDir()
+	ctx, _ := execOutputContext()
+	var events []module.TelemetryEvent
+	params := helperExecParams(0, "ok")
+	params["working_dir"] = dir
+	if err := (&procExec{}).Generate(ctx, params, captureExecEvents(&events)); err != nil {
+		t.Fatal(err)
+	}
+	if len(events) != 1 || events[0].Details["working_directory"] != dir {
+		t.Fatalf("events = %+v", events)
 	}
 }
 

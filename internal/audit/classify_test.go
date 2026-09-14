@@ -78,9 +78,9 @@ func TestClassify(t *testing.T) {
 		{"service", "shell_profile_modify", 1006, 2},
 
 		// tcc / xpc
-		{"tcc", "keychain_dump_attempt", 6003, 2},
-		{"tcc", "keychain_list", 6003, 2},
-		{"tcc", "keychain_unlock_attempt", 6003, 3},
+		{"credential", "keychain_dump_attempt", 6003, 2},
+		{"credential", "keychain_list", 6003, 2},
+		{"credential", "keychain_unlock_attempt", 6003, 3},
 		{"tcc", "tcc_accessibility_probe", 6003, 2},
 		{"tcc", "tcc_contacts_probe", 6003, 2},
 		{"tcc", "tcc_fda_probe", 6003, 2},
@@ -97,6 +97,8 @@ func TestClassify(t *testing.T) {
 		{"endpoint_security", "es_notify_rename", 1001, 5},
 		{"endpoint_security", "es_dmg_create", 1001, 1},
 		{"endpoint_security", "es_notify_mount", 1001, 12},
+		{"volume", "volume_image_create", 1001, 1},
+		{"volume", "volume_mount", 1001, 12},
 		{"endpoint_security", "es_notify_unmount", 1001, 13},
 		{"endpoint_security", "es_volume_exec", 1007, 1},
 

@@ -33,6 +33,7 @@ func (p *procExec) ParamSpecs() []module.ParamSpec {
 	return []module.ParamSpec{
 		{Name: "executable", Description: "Executable name or path", Type: module.ParamString, Default: "/usr/bin/true", Example: "/usr/bin/id"},
 		{Name: "args", Description: "Exact arguments passed to the executable", Type: module.ParamStringList, Sensitive: true, Default: []string{}, Example: []string{"-un"}},
+		{Name: "working_dir", Description: "Working directory for the process", Type: module.ParamPath, Default: "", Example: "/Volumes/Delivery"},
 		{Name: "accept_nonzero", Description: "Treat a completed non-zero exit as generated telemetry", Type: module.ParamBoolean, Default: false, Example: true},
 	}
 }
@@ -52,13 +53,18 @@ func (p *procExec) Generate(ctx context.Context, params module.Params, emit modu
 	}
 	executable := params.String("executable", "/usr/bin/true")
 	args := params.Strings("args", nil)
+	workingDir := params.String("working_dir", "")
 	argv := append([]string{executable}, args...)
 	info := p.Info()
+	subjectExecutable := executable
+	if workingDir != "" && !filepath.IsAbs(executable) {
+		subjectExecutable = filepath.Join(workingDir, executable)
+	}
 	ev := output.NewEvent(info, "process_exec", module.OutcomeError,
-		module.Process(filepath.Base(executable), executable, executable, 0),
+		module.Process(filepath.Base(executable), subjectExecutable, executable, 0),
 		fmt.Sprintf("executing %s with %d argument(s)", executable, len(args)))
 
-	result, runErr := subprocess.Run(ctx, executable, args...)
+	result, runErr := subprocess.RunInDir(ctx, workingDir, executable, args...)
 	if ctx.Err() != nil {
 		return errors.Join(runErr, ctx.Err())
 	}
@@ -75,6 +81,9 @@ func (p *procExec) Generate(ctx context.Context, params module.Params, emit modu
 		module.PublishOutput(ctx, "exit_code", result.ExitCode),
 	)
 	details := map[string]any{"argv": argv, "output": string(result.Output), "exit_code": result.ExitCode}
+	if workingDir != "" {
+		details["working_directory"] = workingDir
+	}
 	if runErr != nil && !params.Bool("accept_nonzero", false) {
 		ev = output.WithError(ev, runErr)
 		ev = output.WithDetails(ev, details)
@@ -98,7 +107,11 @@ func (p *procExec) DryRun(params module.Params) []string {
 	for index, arg := range argv {
 		quoted[index] = strconv.Quote(arg)
 	}
-	return []string{"exec: " + strings.Join(quoted, " ")}
+	line := "exec: " + strings.Join(quoted, " ")
+	if workingDir := params.String("working_dir", ""); workingDir != "" {
+		line = fmt.Sprintf("exec in %s: %s", workingDir, strings.Join(quoted, " "))
+	}
+	return []string{line}
 }
 
 func (p *procExec) Cleanup(ctx context.Context) error { return nil }

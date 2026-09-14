@@ -45,7 +45,9 @@ make build
 | `network` | Outbound connections, DNS, HTTP, beaconing, listeners, reverse shells, TLS, exfiltration | net_connect, net_http, net_listen, net_beacon, net_revshell, net_dns, net_dns_exfil, net_tls, net_exfil |
 | `process` | Process spawning, signal delivery, dylib injection, discovery, Gatekeeper bypass, osascript | proc_exec, proc_spawn, proc_signal, proc_inject, proc_discovery, proc_gatekeeper, proc_osascript |
 | `file` | Bounded file discovery, literal reads/copies, creation, modification, archiving, hiding, and decoy encryption | file_find, file_read, file_copy, file_create, file_modify, file_browser_creds, file_cred_files, file_keychain_copy, file_archive, file_hide, file_encrypt |
-| `tcc` | TCC permission probes (FDA, Contacts, Keychain, Accessibility, Screen Recording) | tcc_fda, tcc_contacts, tcc_keychain, tcc_accessibility, tcc_screen_recording |
+| `tcc` | TCC permission probes with exact Full Disk Access, Contacts, Accessibility, or Screen Recording requirements | tcc_fda, tcc_contacts, tcc_accessibility, tcc_screen_recording |
+| `credential` | Native credential-store access | cred_keychain |
+| `volume` | Disk-image creation and mounted-volume lifecycle | volume_create, volume_mount |
 | `endpoint_security` | ES framework event triggers, including .dmg mount and payload execution | es_file, es_process, es_mount |
 | `service` | Launchd enumeration, LaunchAgent/Daemon persistence, cron, shell profile, Login Items | svc_enumerate, svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile, svc_login_item |
 | `plist` | Plist creation and modification | plist_create, plist_modify |
@@ -183,6 +185,7 @@ Scenarios chain modules into ordered sequences - a single YAML file that replays
 | `discovery.yaml` | Composed argv-based system, account, network, and security software discovery recipes |
 | `process_chain.yaml` | Three-process shell chain built from an explicit argument vector |
 | `file_flow.yaml` | Connected create, modify, bounded discovery, read, copy, and archive flow |
+| `mounted_execution.yaml` | Create and execute a payload from an observed disk-image mount point |
 
 The two APT scenarios follow real documented intrusion sequences, technique by technique - each YAML file cites the actual threat intel it's built from and annotates every step with the MITRE technique it exercises, so start there for the full breakdown rather than a retelling here.
 

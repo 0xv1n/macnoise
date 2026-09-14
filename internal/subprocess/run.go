@@ -15,12 +15,22 @@ type Result struct {
 
 // Run executes one process, captures its combined output, and waits for it to exit.
 func Run(ctx context.Context, executable string, args ...string) (Result, error) {
+	return run(ctx, "", executable, args...)
+}
+
+// RunInDir executes one process with dir as its working directory.
+func RunInDir(ctx context.Context, dir, executable string, args ...string) (Result, error) {
+	return run(ctx, dir, executable, args...)
+}
+
+func run(ctx context.Context, dir, executable string, args ...string) (Result, error) {
 	result := Result{ExitCode: -1}
 	if err := ctx.Err(); err != nil {
 		return result, err
 	}
 
 	cmd := exec.CommandContext(ctx, executable, args...)
+	cmd.Dir = dir
 	configureCancellation(cmd)
 	output, err := cmd.CombinedOutput()
 	result.Output = output

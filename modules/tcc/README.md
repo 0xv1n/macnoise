@@ -1,6 +1,6 @@
 # tcc
 
-TCC permission probes covering Full Disk Access, Contacts, Keychain, Accessibility, and Screen Recording.
+TCC permission probes covering Full Disk Access, Contacts, Accessibility, and Screen Recording. Catalog metadata names the exact permission each probe exercises.
 
 ## Modules
 
@@ -11,14 +11,6 @@ Attempts to open the per-user `TCC.db` (`~/Library/Application Support/com.apple
 Enumerates the AddressBook directory. Maps to T1636.003.
 
 Both probes report `result` as one of `granted`, `denied`, `absent`, or `error`. `absent` means the resource does not exist, so no TCC decision was made, and it is deliberately distinct from `denied` so that consumers counting denials do not treat an unused feature as a privacy refusal.
-
-### `tcc_keychain`
-Probes keychain access by running `security list-keychains`, `security unlock-keychain`, and `security dump-keychain`. An empty password causes an expected denial — generating denied-access telemetry without needing valid credentials. Emits `keychain_list`, `keychain_unlock_attempt`, and `keychain_dump_attempt` events. Maps to T1555.001.
-
-```bash
-macnoise run tcc_keychain
-macnoise run tcc_keychain --param keychain_path=/Users/victim/Library/Keychains/login.keychain-db
-```
 
 ### `tcc_accessibility`
 Reads UI elements through System Events via `osascript`, which requires the Accessibility permission. Returns data when granted, a specific authorization error (`-1719` / assistive access) when not. Emits `tcc_accessibility_probe` with `result` as `executed` (granted), `denied` (refused), or `indeterminate` (no GUI session to run System Events). Maps to T1056.001 — Accessibility is the permission that enables reading UI/secure-field contents as they are typed, a keylogging vector.

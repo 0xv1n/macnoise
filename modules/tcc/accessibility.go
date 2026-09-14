@@ -19,7 +19,7 @@ func (t *tccAccessibility) Info() module.ModuleInfo {
 		Description: "Probes Accessibility permission by reading UI elements via System Events",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "accessibility", "keylogging", "privacy"},
-		Privileges:  module.PrivilegeTCC,
+		Privileges:  module.PrivilegeAccessibility,
 		MITRE: []module.MITRE{
 			// Accessibility (kTCCServiceAccessibility) is the permission that
 			// lets a process read other apps' UI element contents - including
