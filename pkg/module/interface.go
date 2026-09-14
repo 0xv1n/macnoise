@@ -14,10 +14,13 @@ type Privilege string
 
 // Privilege level constants used in ModuleInfo.
 const (
-	PrivilegeNone  Privilege = "none"
-	PrivilegeRoot  Privilege = "root"
-	PrivilegeTCC   Privilege = "tcc"
-	PrivilegeAdmin Privilege = "admin"
+	PrivilegeNone            Privilege = "none"
+	PrivilegeRoot            Privilege = "root"
+	PrivilegeAdmin           Privilege = "admin"
+	PrivilegeFullDiskAccess  Privilege = "full_disk_access"
+	PrivilegeContacts        Privilege = "contacts"
+	PrivilegeAccessibility   Privilege = "accessibility"
+	PrivilegeScreenRecording Privilege = "screen_recording"
 )
 
 // MITRE holds a single ATT&CK technique reference associated with a module.

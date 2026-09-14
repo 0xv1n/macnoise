@@ -65,6 +65,10 @@ func Classify(category, eventType string) Classification {
 		return Classification{1007, "Process Activity", 1, "System Activity", 1, "Launch"}
 	case "service_enumerate":
 		return Classification{6003, "API Activity", 6, "Application Activity", 2, "Read"}
+	case "volume_image_create":
+		return Classification{1001, "File System Activity", 1, "System Activity", 1, "Create"}
+	case "volume_mount":
+		return Classification{1001, "File System Activity", 1, "System Activity", 12, "Mount"}
 	}
 
 	switch category {
@@ -80,7 +84,7 @@ func Classify(category, eventType string) Classification {
 		actID, actName := fileActivity(eventType)
 		return Classification{1001, "File System Activity", 1, "System Activity", actID, actName}
 
-	case "tcc", "xpc":
+	case "tcc", "xpc", "credential":
 		actID, actName := apiActivity(eventType)
 		return Classification{6003, "API Activity", 6, "Application Activity", actID, actName}
 

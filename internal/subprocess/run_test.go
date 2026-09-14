@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"testing"
 )
@@ -17,6 +18,25 @@ func TestRunCapturesOutputAndExitCode(t *testing.T) {
 	}
 	if string(result.Output) != "literal ; value" || result.ExitCode != 0 {
 		t.Fatalf("result = %+v, want literal output and exit code 0", result)
+	}
+}
+
+func TestRunInDirUsesWorkingDirectory(t *testing.T) {
+	dir := t.TempDir()
+	result, err := RunInDir(context.Background(), dir, os.Args[0], "-test.run=TestRunHelper", "--", "--macnoise-subprocess-helper", "0", "<cwd>")
+	if err != nil {
+		t.Fatalf("RunInDir: %v", err)
+	}
+	got, err := filepath.Abs(string(result.Output))
+	if err != nil {
+		t.Fatal(err)
+	}
+	want, err := filepath.Abs(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != want {
+		t.Fatalf("working directory = %q, want %q", got, want)
 	}
 }
 
@@ -49,7 +69,15 @@ func TestRunHelper(t *testing.T) {
 	if err != nil {
 		panic(err)
 	}
-	fmt.Print(os.Args[index+2])
+	output := os.Args[index+2]
+	if output == "<cwd>" {
+		var err error
+		output, err = os.Getwd()
+		if err != nil {
+			panic(err)
+		}
+	}
+	fmt.Print(output)
 	os.Exit(code)
 }
 

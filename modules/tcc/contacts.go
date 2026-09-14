@@ -19,7 +19,7 @@ func (t *tccContacts) Info() module.ModuleInfo {
 		Description: "Attempts to enumerate the AddressBook directory to probe Contacts TCC permission",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "contacts", "addressbook", "privacy"},
-		Privileges:  module.PrivilegeTCC,
+		Privileges:  module.PrivilegeContacts,
 		MITRE: []module.MITRE{
 			{Technique: "T1636", SubTech: ".003", Name: "Protected User Data: Contact List"},
 		},

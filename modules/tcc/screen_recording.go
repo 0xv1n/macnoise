@@ -20,7 +20,7 @@ func (t *tccScreenRecording) Info() module.ModuleInfo {
 		Description: "Attempts a screen capture via screencapture to generate screen-capture telemetry",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "screen-recording", "screencapture", "privacy"},
-		Privileges:  module.PrivilegeTCC,
+		Privileges:  module.PrivilegeScreenRecording,
 		MITRE: []module.MITRE{
 			{Technique: "T1113", Name: "Screen Capture"},
 		},

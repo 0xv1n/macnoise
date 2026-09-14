@@ -401,7 +401,7 @@ func TestGenerateRunID_Format(t *testing.T) {
 func TestRedactedCommandLine(t *testing.T) {
 	const secret = "correct-horse-battery-staple"
 	got := redactedCommandLine([]string{
-		"macnoise", "run", "tcc_keychain",
+		"macnoise", "run", "cred_keychain",
 		"--param", "password=" + secret,
 		"--param=payload=" + secret,
 	})

@@ -14,6 +14,8 @@ const (
 	CategoryPlist            Category = "plist"
 	CategoryXPC              Category = "xpc"
 	CategoryEvasion          Category = "evasion"
+	CategoryCredential       Category = "credential"
+	CategoryVolume           Category = "volume"
 )
 
 // AllCategories returns a slice containing every known Category value.
@@ -28,5 +30,7 @@ func AllCategories() []Category {
 		CategoryPlist,
 		CategoryXPC,
 		CategoryEvasion,
+		CategoryCredential,
+		CategoryVolume,
 	}
 }

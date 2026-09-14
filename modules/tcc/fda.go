@@ -22,7 +22,7 @@ func (t *tccFDA) Info() module.ModuleInfo {
 		Description: "Attempts to read TCC.db to probe Full Disk Access permission",
 		Category:    module.CategoryTCC,
 		Tags:        []string{"tcc", "fda", "full-disk-access", "privacy"},
-		Privileges:  module.PrivilegeTCC,
+		Privileges:  module.PrivilegeFullDiskAccess,
 		MITRE: []module.MITRE{
 			{Technique: "T1555", Name: "Credentials from Password Stores"},
 			{Technique: "T1082", Name: "System Information Discovery"},

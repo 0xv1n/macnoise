@@ -5,7 +5,7 @@ Bounded file discovery, literal file operations, credential access, archiving, h
 ## Modules
 
 ### `file_create`
-Creates up to 100 files in a literal directory and publishes their concrete paths. `filename` and `content` create one exact, named file. Existing files are never overwritten. Maps to T1074.001. Cleanup removes only unchanged files created by that invocation.
+Creates up to 100 files in a literal directory and publishes their concrete paths. `filename` and `content` create one exact, named file; `executable=true` uses mode 0755 for mounted-execution recipes. Existing files are never overwritten. Maps to T1074.001. Cleanup removes only unchanged files created by that invocation.
 
 ### `file_modify`
 Appends to one literal path and publishes it. Maps to T1565.001. Cleanup restores the original only if no later writer changed or replaced the file; otherwise it reports a conflict and preserves the later state.

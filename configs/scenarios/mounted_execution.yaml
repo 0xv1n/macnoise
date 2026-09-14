@@ -1,0 +1,44 @@
+version: 1
+name: Mounted Volume Execution
+description: Creates a payload, packages it in a disk image, mounts it, and executes it from the observed volume path
+on_error: stop
+
+inputs:
+  source_dir:
+    type: path
+    default: /tmp/macnoise_volume_source
+
+steps:
+  - id: payload
+    module: file_create
+    params:
+      base_dir:
+        input: source_dir
+      filename: install.sh
+      content: "#!/bin/sh\nprintf 'macnoise mounted payload\\n'\n"
+      executable: true
+
+  - id: image
+    module: volume_create
+    params:
+      source_dir:
+        output: payload.directory
+      volume_name: MacNoiseDelivery
+
+  - id: mount
+    module: volume_mount
+    params:
+      image_path:
+        output: image.path
+
+  # T1204.002 - User Execution: Malicious File
+  - id: execute
+    module: proc_exec
+    params:
+      executable: ./install.sh
+      working_dir:
+        output: mount.mount_point
+
+outputs:
+  execution_output:
+    output: execute.output
