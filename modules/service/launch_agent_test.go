@@ -17,12 +17,12 @@ import (
 // registers its own removal, rather than relying on Cleanup() alone (which is
 // the thing under test and may itself be broken).
 func TestSvcLaunchAgent_GenerateAndCleanup(t *testing.T) {
-	home, err := os.UserHomeDir()
+	target, err := resolveLaunchdUser()
 	if err != nil {
-		t.Fatalf("UserHomeDir: %v", err)
+		t.Fatalf("resolveLaunchdUser: %v", err)
 	}
 	const label = "com.macnoise.integrationtest.agent"
-	plistPath := filepath.Join(home, "Library", "LaunchAgents", label+".plist")
+	plistPath := filepath.Join(target.home, "Library", "LaunchAgents", label+".plist")
 	t.Cleanup(func() { _ = os.Remove(plistPath) })
 
 	s := &svcLaunchAgent{}

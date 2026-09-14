@@ -1,6 +1,7 @@
 package plistmod
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -10,61 +11,44 @@ import (
 	"github.com/0xv1n/macnoise/internal/output"
 	"github.com/0xv1n/macnoise/internal/prereqs"
 	"github.com/0xv1n/macnoise/pkg/module"
+	"howett.net/plist"
 )
 
 type plistModify struct {
 	domain       string
 	key          string
 	priorExisted bool
-	priorValue   string
+	priorValue   any
+	writtenValue string
+	mutated      bool
 }
 
 // defaultsReadOutcome is the result of classifying a `defaults read domain
 // key` invocation before plistModify overwrites it.
 type defaultsReadOutcome struct {
-	// safe is true when Generate can trust existed/value enough to proceed:
-	// either the key definitely doesn't exist yet, or it holds a value simple
-	// enough to restore faithfully later.
 	safe    bool
 	existed bool
-	value   string
 }
 
 // classifyDefaultsRead inspects the result of `defaults read domain key` and
-// reports whether it is safe to overwrite the key, knowing how to restore it.
+// reports whether the key definitely exists or is definitely absent.
 //
 // `defaults read` exits non-zero both when the key genuinely does not exist
 // and when some other read failure occurs. Only the well-known "does not
 // exist" message is trusted as genuinely absent; any other failure is
 // reported unsafe so Generate can abort instead of guessing, and Cleanup
 // never has to choose between destroying or fabricating a value it never
-// actually saw.
-//
-// A successful read is only trusted when the value is a single line with no
-// defaults array/dict delimiters. `defaults read` renders array and
-// dictionary values across multiple lines; blindly feeding that text back
-// through `-string` on restore would corrupt rather than restore them, so
-// those are reported unsafe too.
+// actually saw. Existing values are captured from an exported plist so their
+// type and nested structure can be restored faithfully.
 func classifyDefaultsRead(out []byte, err error) defaultsReadOutcome {
-	text := strings.TrimRight(string(out), "\n")
 	if err == nil {
-		if isRestorableScalar(text) {
-			return defaultsReadOutcome{safe: true, existed: true, value: text}
-		}
-		return defaultsReadOutcome{safe: false}
+		return defaultsReadOutcome{safe: true, existed: true}
 	}
+	text := strings.TrimRight(string(out), "\n")
 	if strings.Contains(strings.ToLower(text), "does not exist") {
 		return defaultsReadOutcome{safe: true, existed: false}
 	}
 	return defaultsReadOutcome{safe: false}
-}
-
-func isRestorableScalar(text string) bool {
-	if strings.Contains(text, "\n") {
-		return false
-	}
-	trimmed := strings.TrimSpace(text)
-	return !strings.HasPrefix(trimmed, "(") && !strings.HasPrefix(trimmed, "{")
 }
 
 func (p *plistModify) Info() module.ModuleInfo {
@@ -114,11 +98,27 @@ func (p *plistModify) Generate(ctx context.Context, params module.Params, emit m
 			emit(readEv),
 		)
 	}
+	var priorValue any
+	if outcome.existed {
+		priorDomain, err := exportDefaultsDomain(ctx, domain)
+		if err != nil {
+			readEv = output.WithError(readEv, fmt.Errorf("export prior defaults domain %s: %w", domain, err))
+			return errors.Join(err, emit(readEv))
+		}
+		var ok bool
+		priorValue, ok = priorDomain[key]
+		if !ok {
+			err := fmt.Errorf("defaults export %s did not contain key %q returned by defaults read", domain, key)
+			readEv = output.WithError(readEv, err)
+			return errors.Join(err, emit(readEv))
+		}
+	}
 
 	p.domain = domain
 	p.key = key
 	p.priorExisted = outcome.existed
-	p.priorValue = outcome.value
+	p.priorValue = priorValue
+	p.writtenValue = value
 
 	readEv.Outcome = module.OutcomeExecuted
 	if outcome.existed {
@@ -137,6 +137,7 @@ func (p *plistModify) Generate(ctx context.Context, params module.Params, emit m
 		writeEv = output.WithError(writeEv, fmt.Errorf("%v: %s", err, out))
 		return errors.Join(err, emit(writeEv))
 	}
+	p.mutated = true
 	writeEv.Outcome = module.OutcomeExecuted
 	writeEv.Message = fmt.Sprintf("defaults write %s %s = %q", domain, key, value)
 	writeEv = output.WithDetails(writeEv, map[string]any{"domain": domain, "key": key, "value": value})
@@ -154,19 +155,69 @@ func (p *plistModify) DryRun(params module.Params) []string {
 }
 
 func (p *plistModify) Cleanup(ctx context.Context) error {
-	if p.domain == "" || p.key == "" {
+	if !p.mutated {
 		return nil
 	}
-	if p.priorExisted {
-		out, err := exec.CommandContext(ctx, "defaults", "write", p.domain, p.key, "-string", p.priorValue).CombinedOutput()
-		if err != nil {
-			return fmt.Errorf("defaults write %s %s (restore prior value): %v: %s", p.domain, p.key, err, out)
-		}
-		return nil
-	}
-	out, err := exec.CommandContext(ctx, "defaults", "delete", p.domain, p.key).CombinedOutput()
+	current, err := exportDefaultsDomain(ctx, p.domain)
 	if err != nil {
-		return fmt.Errorf("defaults delete %s %s: %v: %s", p.domain, p.key, err, out)
+		return fmt.Errorf("export defaults domain %s for cleanup: %w", p.domain, err)
+	}
+	if !p.priorExisted {
+		if err := checkWrittenPreference(current, p.key, p.writtenValue); err != nil {
+			return fmt.Errorf("plist_modify cleanup conflict for %s %s: %w", p.domain, p.key, err)
+		}
+		out, err := exec.CommandContext(ctx, "defaults", "delete", p.domain, p.key).CombinedOutput()
+		if err != nil {
+			return fmt.Errorf("defaults delete %s %s: %v: %s", p.domain, p.key, err, out)
+		}
+		p.mutated = false
+		return nil
+	}
+	if err := restorePreferenceValue(current, p.key, p.writtenValue, p.priorValue); err != nil {
+		return fmt.Errorf("plist_modify cleanup conflict for %s %s: %w", p.domain, p.key, err)
+	}
+	encoded, err := plist.Marshal(current, plist.XMLFormat)
+	if err != nil {
+		return fmt.Errorf("encode defaults domain %s for cleanup: %w", p.domain, err)
+	}
+	cmd := exec.CommandContext(ctx, "defaults", "import", p.domain, "-")
+	cmd.Stdin = bytes.NewReader(encoded)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("defaults import %s (restore prior value): %v: %s", p.domain, err, out)
+	}
+	p.mutated = false
+	return nil
+}
+
+func exportDefaultsDomain(ctx context.Context, domain string) (map[string]any, error) {
+	out, err := exec.CommandContext(ctx, "defaults", "export", domain, "-").CombinedOutput()
+	if err != nil {
+		return nil, fmt.Errorf("defaults export %s: %v: %s", domain, err, out)
+	}
+	var decoded map[string]any
+	if err := plist.NewDecoder(bytes.NewReader(out)).Decode(&decoded); err != nil {
+		return nil, fmt.Errorf("decode defaults export %s: %w", domain, err)
+	}
+	return decoded, nil
+}
+
+func restorePreferenceValue(current map[string]any, key, written string, prior any) error {
+	if err := checkWrittenPreference(current, key, written); err != nil {
+		return err
+	}
+	current[key] = prior
+	return nil
+}
+
+func checkWrittenPreference(current map[string]any, key, written string) error {
+	value, exists := current[key]
+	if !exists {
+		return fmt.Errorf("owned key is missing")
+	}
+	text, ok := value.(string)
+	if !ok || text != written {
+		return fmt.Errorf("owned key changed from %q to %#v", written, value)
 	}
 	return nil
 }

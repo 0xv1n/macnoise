@@ -19,6 +19,7 @@ import (
 type svcLaunchAgent struct {
 	plistPath string
 	label     string
+	domain    string
 	loaded    bool
 }
 
@@ -46,7 +47,8 @@ func (s *svcLaunchAgent) ParamSpecs() []module.ParamSpec {
 }
 
 func (s *svcLaunchAgent) CheckPrereqs(ctx context.Context, params module.Params) error {
-	return nil
+	_, err := resolveLaunchdUser()
+	return err
 }
 
 // stampLabel appends the run ID as a trailing reverse-DNS component so the
@@ -64,12 +66,12 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 	program := params.String("program", "/usr/bin/true")
 	info := s.Info()
 
-	home, err := os.UserHomeDir()
+	target, err := resolveLaunchdUser()
 	if err != nil {
-		return fmt.Errorf("cannot determine home dir: %w", err)
+		return err
 	}
 
-	agentDir := filepath.Join(home, "Library", "LaunchAgents")
+	agentDir := filepath.Join(target.home, "Library", "LaunchAgents")
 	if err := os.MkdirAll(agentDir, 0o755); err != nil {
 		return fmt.Errorf("mkdir %s: %w", agentDir, err)
 	}
@@ -77,7 +79,7 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 	plistPath := filepath.Join(agentDir, label+".plist")
 	s.plistPath = plistPath
 	s.label = label
-	domain := guiDomain()
+	s.domain = guiDomain(target.uid)
 
 	plistData := map[string]any{
 		"Label":            label,
@@ -86,7 +88,7 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 		"KeepAlive":        false,
 	}
 
-	createEv := output.NewEvent(info, "launchagent_create", module.OutcomeError, module.Service(label, domain, plistPath), fmt.Sprintf("creating plist at %s", plistPath))
+	createEv := output.NewEvent(info, "launchagent_create", module.OutcomeError, module.Service(label, s.domain, plistPath), fmt.Sprintf("creating plist at %s", plistPath))
 	f, err := os.Create(plistPath)
 	if err != nil {
 		createEv = output.WithError(createEv, err)
@@ -108,8 +110,8 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 		return err
 	}
 
-	loadEv := output.NewEvent(info, "launchagent_load", module.OutcomeError, module.Service(label, domain, plistPath), fmt.Sprintf("bootstrapping %s into %s", label, domain))
-	loadCmd := exec.CommandContext(ctx, "launchctl", bootstrapArgs(domain, plistPath)...)
+	loadEv := output.NewEvent(info, "launchagent_load", module.OutcomeError, module.Service(label, s.domain, plistPath), fmt.Sprintf("bootstrapping %s into %s", label, s.domain))
+	loadCmd := exec.CommandContext(ctx, "launchctl", bootstrapArgs(s.domain, plistPath)...)
 	out, err := loadCmd.CombinedOutput()
 	if err != nil {
 		loadEv = output.WithError(loadEv, fmt.Errorf("%v: %s", err, out))
@@ -117,18 +119,22 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 	}
 	s.loaded = true
 	loadEv.Outcome = module.OutcomeExecuted
-	loadEv.Message = fmt.Sprintf("bootstrapped LaunchAgent %s into %s", label, domain)
-	loadEv = output.WithDetails(loadEv, map[string]any{"label": label, "plist": plistPath, "domain": domain})
+	loadEv.Message = fmt.Sprintf("bootstrapped LaunchAgent %s into %s", label, s.domain)
+	loadEv = output.WithDetails(loadEv, map[string]any{"label": label, "plist": plistPath, "domain": s.domain})
 	return emit(loadEv)
 }
 
 func (s *svcLaunchAgent) DryRun(params module.Params) []string {
 	label := params.String("label", "com.macnoise.testagent")
 	program := params.String("program", "/usr/bin/true")
-	plistPath := fmt.Sprintf("~/Library/LaunchAgents/%s.plist", label)
+	target, err := resolveLaunchdUser()
+	if err != nil {
+		target = launchdUser{uid: os.Getuid(), home: "~"}
+	}
+	plistPath := filepath.Join(target.home, "Library", "LaunchAgents", label+".plist")
 	return []string{
 		fmt.Sprintf("create %s with Program=%s", plistPath, program),
-		launchctlCmdLine(bootstrapArgs(guiDomain(), plistPath)),
+		launchctlCmdLine(bootstrapArgs(guiDomain(target.uid), plistPath)),
 	}
 }
 
@@ -141,7 +147,7 @@ func (s *svcLaunchAgent) DryRun(params module.Params) []string {
 func (s *svcLaunchAgent) Cleanup(ctx context.Context) error {
 	var bootoutErr error
 	if s.loaded {
-		out, err := exec.CommandContext(ctx, "launchctl", bootoutArgs(guiDomain(), s.label)...).CombinedOutput()
+		out, err := exec.CommandContext(ctx, "launchctl", bootoutArgs(s.domain, s.label)...).CombinedOutput()
 		if err != nil {
 			bootoutErr = fmt.Errorf("launchctl bootout %s: %v: %s", s.label, err, out)
 		}

@@ -7,11 +7,13 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/0xv1n/macnoise/pkg/module"
+	"howett.net/plist"
 )
 
 // Each test owns a unique domain. Independent deletion still runs if Generate
@@ -125,32 +127,75 @@ func TestPlistModifyGenerate_RunID(t *testing.T) {
 	}
 }
 
-func TestPlistModifyGenerate_RefusesComplexValues(t *testing.T) {
-	for _, kind := range []string{"array", "dict"} {
-		t.Run(kind, func(t *testing.T) {
+func TestPlistModifyGenerate_RestoresTypedValues(t *testing.T) {
+	tests := []struct {
+		name string
+		args []string
+	}{
+		{name: "boolean", args: []string{"-bool", "true"}},
+		{name: "integer", args: []string{"-int", "42"}},
+		{name: "float", args: []string{"-float", "1.25"}},
+		{name: "data", args: []string{"-data", "010203"}},
+		{name: "array", args: []string{"-array", "first", "second"}},
+		{name: "dict", args: []string{"-dict", "first", "one", "second", "two"}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			domain := newModifyDomain(t)
-			defaultsCommand(t, "write", domain, "Target", "-"+kind, "first", "second")
-			before := defaultsCommand(t, "export", domain, "-")
+			defaultsCommand(t, append([]string{"write", domain, "Target"}, tt.args...)...)
+			before := exportedDomain(t, domain)
 			p := &plistModify{}
 			var events []module.TelemetryEvent
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 			defer cancel()
-			err := p.Generate(ctx, module.Params{"domain": domain, "key": "Target"}, func(ev module.TelemetryEvent) error {
+			err := p.Generate(ctx, module.Params{"domain": domain, "key": "Target", "value": "replacement"}, func(ev module.TelemetryEvent) error {
 				events = append(events, ev)
 				return nil
 			})
-			if err == nil {
-				t.Error("Generate succeeded, want refusal")
+			if err != nil {
+				t.Fatalf("Generate: %v", err)
 			}
-			if len(events) != 1 || events[0].EventType != "plist_read_prior" || events[0].Outcome != module.OutcomeError || events[0].Error == "" {
-				t.Errorf("events = %+v, want failed prior read only", events)
+			if len(events) != 2 || events[0].Outcome != module.OutcomeExecuted || events[1].Outcome != module.OutcomeExecuted {
+				t.Errorf("events = %+v, want successful read and write", events)
 			}
+			defaultsCommand(t, "write", domain, "Concurrent", "-bool", "true")
 			if err := p.Cleanup(context.Background()); err != nil {
-				t.Fatalf("Cleanup after refusal: %v", err)
+				t.Fatalf("Cleanup: %v", err)
 			}
-			if after := defaultsCommand(t, "export", domain, "-"); after != before {
-				t.Errorf("refused preference changed:\nbefore: %s\nafter: %s", before, after)
+			after := exportedDomain(t, domain)
+			if !reflect.DeepEqual(after["Target"], before["Target"]) {
+				t.Errorf("restored Target = %#v, want %#v", after["Target"], before["Target"])
+			}
+			if after["Concurrent"] != true {
+				t.Errorf("concurrent preference = %#v, want true", after["Concurrent"])
 			}
 		})
 	}
 }
+
+func TestPlistModifyCleanup_ReportsConcurrentTargetChange(t *testing.T) {
+	domain := newModifyDomain(t)
+	defaultsCommand(t, "write", domain, "Target", "-int", "42")
+	p := &plistModify{}
+	if err := p.Generate(context.Background(), module.Params{"domain": domain, "key": "Target", "value": "replacement"}, discardPlistEvent); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	defaultsCommand(t, "write", domain, "Target", "-string", "external change")
+	if err := p.Cleanup(context.Background()); err == nil {
+		t.Fatal("Cleanup succeeded, want ownership conflict")
+	}
+	if got := defaultsCommand(t, "read", domain, "Target"); got != "external change" {
+		t.Errorf("target after conflict = %q, want external change", got)
+	}
+}
+
+func exportedDomain(t *testing.T, domain string) map[string]any {
+	t.Helper()
+	var decoded map[string]any
+	if err := plist.NewDecoder(strings.NewReader(defaultsCommand(t, "export", domain, "-"))).Decode(&decoded); err != nil {
+		t.Fatalf("decode defaults export: %v", err)
+	}
+	return decoded
+}
+
+func discardPlistEvent(module.TelemetryEvent) error { return nil }

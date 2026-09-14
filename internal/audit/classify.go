@@ -63,6 +63,8 @@ func Classify(category, eventType string) Classification {
 		return Classification{1001, "File System Activity", 1, "System Activity", 1, "Create"}
 	case "masquerade_exec":
 		return Classification{1007, "Process Activity", 1, "System Activity", 1, "Launch"}
+	case "service_enumerate":
+		return Classification{6003, "API Activity", 6, "Application Activity", 2, "Read"}
 	}
 
 	switch category {

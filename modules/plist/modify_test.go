@@ -16,7 +16,6 @@ func TestClassifyDefaultsRead(t *testing.T) {
 		err         error
 		wantSafe    bool
 		wantExisted bool
-		wantValue   string
 	}{
 		{
 			name:        "existing simple string value",
@@ -24,7 +23,6 @@ func TestClassifyDefaultsRead(t *testing.T) {
 			err:         nil,
 			wantSafe:    true,
 			wantExisted: true,
-			wantValue:   "true",
 		},
 		{
 			name:        "existing numeric-looking value",
@@ -32,7 +30,6 @@ func TestClassifyDefaultsRead(t *testing.T) {
 			err:         nil,
 			wantSafe:    true,
 			wantExisted: true,
-			wantValue:   "1",
 		},
 		{
 			name:        "key does not exist, short message form",
@@ -55,16 +52,18 @@ func TestClassifyDefaultsRead(t *testing.T) {
 			wantExisted: false,
 		},
 		{
-			name:     "array value must not be treated as restorable",
-			out:      "(\n    item1,\n    item2\n)\n",
-			err:      nil,
-			wantSafe: false,
+			name:        "array value is captured from the exported domain",
+			out:         "(\n    item1,\n    item2\n)\n",
+			err:         nil,
+			wantSafe:    true,
+			wantExisted: true,
 		},
 		{
-			name:     "dict value must not be treated as restorable",
-			out:      "{\n    key1 = val1;\n}\n",
-			err:      nil,
-			wantSafe: false,
+			name:        "dict value is captured from the exported domain",
+			out:         "{\n    key1 = val1;\n}\n",
+			err:         nil,
+			wantSafe:    true,
+			wantExisted: true,
 		},
 		{
 			name:     "permission denied must not be treated as absent",
@@ -97,9 +96,6 @@ func TestClassifyDefaultsRead(t *testing.T) {
 			}
 			if got.existed != tt.wantExisted {
 				t.Errorf("existed = %v, want %v", got.existed, tt.wantExisted)
-			}
-			if tt.wantExisted && got.value != tt.wantValue {
-				t.Errorf("value = %q, want %q", got.value, tt.wantValue)
 			}
 		})
 	}

@@ -4,8 +4,16 @@ LaunchAgent/Daemon persistence, cron job installation, and shell profile modific
 
 ## Modules
 
+### `svc_enumerate`
+Enumerates launchd service labels in the current user's GUI domain, the system domain, or both. Results can be filtered and bounded per domain. Maps to T1007.
+
+```bash
+macnoise run svc_enumerate
+macnoise run svc_enumerate --param scope=system --param filter=com.apple.security --param max_results=20
+```
+
 ### `svc_launch_agent`
-Creates a LaunchAgent plist and registers it with `launchctl bootstrap gui/<uid>`. Maps to T1543.001. Cleanup boots it out and removes the plist.
+Creates a LaunchAgent plist in the target user's home and registers it with `launchctl bootstrap gui/<uid>`. An unprivileged run targets its own user; a root run targets the logged-in console user rather than `/var/root` and `gui/0`. Maps to T1543.001. Cleanup boots it out from the same domain and removes the plist.
 
 ### `svc_launch_daemon`
 Creates a LaunchDaemon plist and registers it with `launchctl bootstrap system` (root required). Maps to T1543.004. Cleanup boots it out and removes the plist.
@@ -33,7 +41,7 @@ macnoise run svc_cron --param schedule="@hourly" --param command="/usr/bin/true"
 ```
 
 ### `svc_shell_profile`
-Appends a marker block (`# macnoise-marker-start` / `# macnoise-marker-end`) containing a configurable payload to a shell profile file. Defaults to `~/.zshrc` with `export MACNOISE_PERSIST=1`. Emits a `shell_profile_modify` event. Maps to T1546.004. Cleanup strips the marker block from the file.
+Appends a marker block (`# macnoise-marker-start` / `# macnoise-marker-end`) containing a configurable payload to a shell profile file. Defaults to `~/.zshrc` with `export MACNOISE_PERSIST=1`. Emits a `shell_profile_modify` event. Maps to T1546.004. Cleanup removes only the exact block owned by that invocation and reports a conflict if it was changed or duplicated.
 
 ```bash
 macnoise run svc_shell_profile

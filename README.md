@@ -47,7 +47,7 @@ make build
 | `file` | Bounded file discovery, literal reads/copies, creation, modification, archiving, hiding, and decoy encryption | file_find, file_read, file_copy, file_create, file_modify, file_browser_creds, file_cred_files, file_keychain_copy, file_archive, file_hide, file_encrypt |
 | `tcc` | TCC permission probes (FDA, Contacts, Keychain, Accessibility, Screen Recording) | tcc_fda, tcc_contacts, tcc_keychain, tcc_accessibility, tcc_screen_recording |
 | `endpoint_security` | ES framework event triggers, including .dmg mount and payload execution | es_file, es_process, es_mount |
-| `service` | LaunchAgent/Daemon persistence, cron, shell profile, Login Items | svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile, svc_login_item |
+| `service` | Launchd enumeration, LaunchAgent/Daemon persistence, cron, shell profile, Login Items | svc_enumerate, svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile, svc_login_item |
 | `plist` | Plist creation and modification | plist_create, plist_modify |
 | `xpc` | XPC service enumeration | xpc_enumerate |
 | `evasion` | Defense evasion: log clearing, timestomping, history removal, masquerading | evade_log_clear, evade_masquerade |
