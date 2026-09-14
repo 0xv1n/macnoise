@@ -84,7 +84,7 @@ func TestExtractProcess(t *testing.T) {
 			wantName: "sleep",
 		},
 		{
-			name:     "command only, no pid (process_spawn)",
+			name:     "command only, no pid (process_exec)",
 			subject:  module.Process("sh", "/bin/sh", "echo hi", 0),
 			wantPID:  0,
 			wantName: "sh",
@@ -132,7 +132,7 @@ func TestLogEvent_RequiredFieldsByClass(t *testing.T) {
 		wantProcess bool
 	}{
 		{"file_activity gets file, no process", "file", "file_create", module.File("/tmp/x.txt"), true, false},
-		{"process_activity gets process, no file", "process", "process_spawn", module.Process("sh", "/bin/sh", "id", 0), false, true},
+		{"process_activity gets process, no file", "process", "process_exec", module.Process("sh", "/bin/sh", "id", 0), false, true},
 		{"network_activity gets neither", "network", "tcp_connect", module.Network("127.0.0.1:1", "", ""), false, false},
 	}
 

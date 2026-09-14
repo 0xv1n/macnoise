@@ -65,7 +65,7 @@ func (f *fileRead) Generate(ctx context.Context, params module.Params, emit modu
 		if err := ctx.Err(); err != nil {
 			return errors.Join(resultErr, err)
 		}
-		n, readErr := readCredFile(path)
+		n, readErr := readRegularFile(path)
 		var ev module.TelemetryEvent
 		switch {
 		case os.IsNotExist(readErr):

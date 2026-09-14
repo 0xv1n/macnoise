@@ -5,19 +5,22 @@ description: |
   Emulates a representative Lazarus Group (G0032) intrusion sequence on macOS.
   Lazarus (DPRK-attributed) is known for macOS-targeting operations (AppleJeus,
   BlindingCan) using trojanized apps, dylib injection into legitimate processes,
-  service enumeration for discovery, and multi-stage C2.
+  launchd service enumeration for discovery, and multi-stage C2.
 
   Sequence: dropper execution → dylib injection → service discovery → C2 resolution
-             → reverse shell attempt → payload staging → plist persistence → C2 comms
+             → reverse shell attempt → payload staging → LaunchAgent persistence → C2 comms
 
   MITRE ATT&CK techniques: T1059.004, T1574.006, T1057, T1071.004, T1059.004,
                             T1074.001, T1543.001, T1071.001
 
 steps:
   # T1059.004 + T1082 — system fingerprinting via shell (typical Lazarus first-stage recon)
-  - module: proc_spawn
+  - module: proc_exec
     params:
-      command: "uname -a && sysctl hw.model"
+      executable: /bin/sh
+      args:
+        - -c
+        - "uname -a && sysctl hw.model"
 
   # T1574.006 — inject dylib into legitimate process (classic Lazarus macOS technique)
   - module: proc_inject
@@ -25,8 +28,8 @@ steps:
       dylib_path: "/tmp/macnoise_lazarus.dylib"
       target: "/usr/bin/true"
 
-  # T1057 — enumerate system XPC services for discovery and lateral movement planning
-  - module: xpc_enumerate
+  # T1007 - enumerate launchd services for discovery and lateral movement planning
+  - module: svc_enumerate
 
   # T1071.004 - resolve known C2 domains via DNS
   - module: net_dns
@@ -46,17 +49,16 @@ steps:
       count: "4"
       prefix: "stage2_"
 
-  # T1543.001 — write LaunchAgent plist for persistence (masquerading as system component)
-  - module: plist_create
+  # T1543.001 - create and load a LaunchAgent (masquerading as a system component)
+  - module: svc_launch_agent
     params:
-      output_path: "/tmp/macnoise_lazarus/com.apple.coredata.plist"
-      bundle_id: "com.apple.coredata"
-      mode: "launchagent"
       label: "com.apple.coredata"
+      program: "/usr/bin/true"
 
   # T1071.001 — establish persistent beaconing to C2 for tasking
-  - module: net_beacon
-    params:
-      target: "http://example.com"
-      count: "4"
-      interval: "3"
+  - id: c2_beacon
+    include: recipes/http_beacon.yaml
+    inputs:
+      target: http://example.com
+      count: 4
+      interval: 3

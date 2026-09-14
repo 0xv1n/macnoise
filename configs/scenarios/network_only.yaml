@@ -1,5 +1,5 @@
 version: 1
-on_error: stop
+on_error: continue
 name: Network Telemetry Sweep
 description: Composes TCP, listener, DNS, HTTP beacon, and HTTP exfiltration operations
 

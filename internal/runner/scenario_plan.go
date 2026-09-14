@@ -345,6 +345,7 @@ func compileReference(value ScenarioValue, inputs map[string]valueBinding, prior
 			return binding, fmt.Errorf("unknown input %q", value.Input)
 		}
 		binding = valueBinding{
+			literal:   found.literal,
 			input:     value.Input,
 			typeName:  found.typeName,
 			sensitive: found.sensitive,
@@ -401,9 +402,25 @@ func representativeParams(bindings map[string]valueBinding, specs []module.Param
 	for _, spec := range specs {
 		byName[spec.Name] = spec
 	}
-	for name, binding := range bindings {
-		if binding.ref == nil && binding.input == "" {
+	pathBase := ""
+	for _, name := range sortedKeys(bindings) {
+		binding := bindings[name]
+		if byName[name].Type != module.ParamPath || binding.ref != nil || (binding.input != "" && binding.literal == nil) {
+			continue
+		}
+		if value, ok := binding.literal.(string); ok && filepath.IsAbs(value) {
+			pathBase = filepath.Dir(value)
+			break
+		}
+	}
+	for _, name := range sortedKeys(bindings) {
+		binding := bindings[name]
+		if binding.ref == nil && (binding.input == "" || binding.literal != nil) {
 			params[name] = binding.literal
+			continue
+		}
+		if pathBase != "" && byName[name].Type == module.ParamPath {
+			params[name] = filepath.Join(pathBase, ".macnoise-"+name+"-placeholder")
 			continue
 		}
 		params[name] = placeholderValue(byName[name], binding.label)

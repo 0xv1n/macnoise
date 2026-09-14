@@ -62,8 +62,7 @@ func deleteLoginItemScript(name string) string {
 
 // appleScriptString renders a Go string as an AppleScript string literal,
 // escaping backslashes and quotes. Without this a name or path containing a
-// quote would break out of the literal and change the statement, the same
-// class of bug the es_process quoting fix addressed.
+// quote would break out of the literal and change the statement.
 func appleScriptString(s string) string {
 	r := strings.NewReplacer(`\`, `\\`, `"`, `\"`)
 	return `"` + r.Replace(s) + `"`
@@ -158,7 +157,7 @@ func (s *svcLoginItem) Generate(ctx context.Context, params module.Params, emit 
 }
 
 // loginItemPresent verifies the add landed rather than trusting osascript's
-// exit code, the same way es_mount reads its mount point back from hdiutil.
+// exit code.
 func (s *svcLoginItem) loginItemPresent(ctx context.Context, name string) (bool, error) {
 	out, err := runOsascript(ctx, listLoginItemsScript())
 	if err != nil {

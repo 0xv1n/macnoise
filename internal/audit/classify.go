@@ -47,9 +47,9 @@ type Classification struct {
 // Classify maps a macnoise category and event type to its OCSF Classification.
 func Classify(category, eventType string) Classification {
 	switch eventType {
-	case "http_get", "http_beacon":
+	case "http_get":
 		return Classification{4002, "HTTP Activity", 4, "Network Activity", 3, "Get"}
-	case "http_post", "http_post_exfil":
+	case "http_post":
 		return Classification{4002, "HTTP Activity", 4, "Network Activity", 6, "Post"}
 	case "dns_lookup", "dns_exfil_query":
 		return Classification{4003, "DNS Activity", 4, "Network Activity", 1, "Query"}
@@ -84,12 +84,9 @@ func Classify(category, eventType string) Classification {
 		actID, actName := fileActivity(eventType)
 		return Classification{1001, "File System Activity", 1, "System Activity", actID, actName}
 
-	case "tcc", "xpc", "credential":
+	case "tcc", "credential":
 		actID, actName := apiActivity(eventType)
 		return Classification{6003, "API Activity", 6, "Application Activity", actID, actName}
-
-	case "endpoint_security":
-		return endpointSecurityActivity(eventType)
 
 	case "service":
 		actID, actName := serviceActivity(eventType)
@@ -111,7 +108,7 @@ func networkActivity(eventType string) (int, string) {
 
 func processActivity(eventType string) (int, string) {
 	switch eventType {
-	case "process_exec", "process_spawn", "process_fork", "osascript_exec", "system_discovery",
+	case "process_exec", "process_fork", "osascript_exec",
 		"xattr_quarantine_set", "xattr_quarantine_remove", "spctl_status_check":
 		return 1, "Launch"
 	case "dylib_inject_attempt":
@@ -123,15 +120,15 @@ func processActivity(eventType string) (int, string) {
 func fileActivity(eventType string) (int, string) {
 	switch eventType {
 	case "file_create", "dir_create", "file_hide_dotfile", "archive_create",
-		"file_copy", "plist_create", "plist_create_launchagent", "keychain_copy":
+		"file_copy", "plist_create", "plist_create_launchagent":
 		return 1, "Create"
-	case "file_read", "plist_read_prior", "browser_cred_read", "cred_file_read", "keychain_read":
+	case "file_read", "plist_read_prior":
 		return 2, "Read"
 	case "file_modify", "plist_modify", "file_encrypt":
 		return 3, "Update"
 	case "file_hide_chflags":
 		return 6, "Set Attributes"
-	case "file_discover", "file_probe", "browser_cred_probe", "cred_file_probe":
+	case "file_discover", "file_probe":
 		return 8, "Get Attributes"
 	}
 	return 99, "Other"
@@ -152,36 +149,10 @@ func serviceActivity(eventType string) (int, string) {
 func apiActivity(eventType string) (int, string) {
 	switch eventType {
 	case "keychain_list", "keychain_dump_attempt", "tcc_contacts_probe",
-		"tcc_fda_probe", "tcc_accessibility_probe", "screen_capture_attempt", "xpc_enumerate":
+		"tcc_fda_probe", "tcc_accessibility_probe", "screen_capture_attempt":
 		return 2, "Read"
 	case "keychain_unlock_attempt":
 		return 3, "Update"
 	}
 	return 99, "Other"
-}
-
-func endpointSecurityActivity(eventType string) Classification {
-	switch eventType {
-	case "es_notify_create":
-		return Classification{1001, "File System Activity", 1, "System Activity", 1, "Create"}
-	case "es_notify_write":
-		return Classification{1001, "File System Activity", 1, "System Activity", 3, "Update"}
-	case "es_notify_unlink":
-		return Classification{1001, "File System Activity", 1, "System Activity", 4, "Delete"}
-	case "es_notify_open":
-		return Classification{1001, "File System Activity", 1, "System Activity", 14, "Open"}
-	case "es_notify_setmode":
-		return Classification{1001, "File System Activity", 1, "System Activity", 6, "Set Attributes"}
-	case "es_notify_rename":
-		return Classification{1001, "File System Activity", 1, "System Activity", 5, "Rename"}
-	case "es_dmg_create":
-		return Classification{1001, "File System Activity", 1, "System Activity", 1, "Create"}
-	case "es_notify_mount":
-		return Classification{1001, "File System Activity", 1, "System Activity", 12, "Mount"}
-	case "es_notify_unmount":
-		return Classification{1001, "File System Activity", 1, "System Activity", 13, "Unmount"}
-	case "es_exec_chain", "es_volume_exec":
-		return Classification{1007, "Process Activity", 1, "System Activity", 1, "Launch"}
-	}
-	return Classification{6003, "API Activity", 6, "Application Activity", 99, "Other"}
 }

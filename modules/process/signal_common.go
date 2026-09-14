@@ -10,6 +10,14 @@ import (
 
 type procSignal struct{}
 
+// stampCommand adds an inert run marker to the shell command's argv.
+func stampCommand(command, runID string) string {
+	if runID == "" {
+		return command
+	}
+	return command + " # mn:" + runID
+}
+
 func (p *procSignal) Info() module.ModuleInfo {
 	return module.ModuleInfo{
 		Name:        "proc_signal",

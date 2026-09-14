@@ -21,7 +21,6 @@ import (
 	"github.com/0xv1n/macnoise/pkg/module"
 
 	_ "github.com/0xv1n/macnoise/modules/credential"
-	_ "github.com/0xv1n/macnoise/modules/endpoint_security"
 	_ "github.com/0xv1n/macnoise/modules/evasion"
 	_ "github.com/0xv1n/macnoise/modules/file"
 	_ "github.com/0xv1n/macnoise/modules/network"
@@ -30,7 +29,6 @@ import (
 	_ "github.com/0xv1n/macnoise/modules/service"
 	_ "github.com/0xv1n/macnoise/modules/tcc"
 	_ "github.com/0xv1n/macnoise/modules/volume"
-	_ "github.com/0xv1n/macnoise/modules/xpc"
 )
 
 var (

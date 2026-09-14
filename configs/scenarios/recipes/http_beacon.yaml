@@ -3,13 +3,31 @@ name: HTTP Beacon Recipe
 description: Sends three timed HTTP requests through the generic HTTP primitive
 on_error: stop
 
+inputs:
+  target:
+    type: string
+    default: http://example.com
+  count:
+    type: integer
+    default: 3
+  interval:
+    type: integer
+    default: 1
+  jitter:
+    type: integer
+    default: 0
+
 steps:
   # T1071.001 - Application Layer Protocol: Web Protocols
   - id: requests
     module: net_http
     params:
-      target: http://example.com
+      target:
+        input: target
       method: GET
-      count: 3
-      interval: 1
-      jitter: 0
+      count:
+        input: count
+      interval:
+        input: interval
+      jitter:
+        input: jitter

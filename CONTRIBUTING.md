@@ -116,8 +116,9 @@ If your new event type already maps correctly through its category (e.g. a new f
 | `network` (DNS event types) | 4003 | DNS Activity |
 | `process` | 1007 | Process Activity |
 | `file`, `plist` | 1001 | File System Activity |
-| `tcc`, `xpc` | 6003 | API Activity |
-| `endpoint_security` | 1001 or 1007 | Inferred from event type string |
+| `tcc`, `credential` | 6003 | API Activity |
+| `volume` | 1001 | File System Activity |
+| `evasion` | 1001 or 1007 | Inferred from event type string |
 | `service` | 1006 | Scheduled Job Activity |
 
 A new category requires a new `case` in the top-level `Classify()` switch and a row in this table.
