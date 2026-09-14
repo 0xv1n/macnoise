@@ -55,36 +55,45 @@ func TestSvcShellProfile_CleanupRestoresOriginalContent(t *testing.T) {
 	}
 }
 
-// Cleanup walks the file removing every marker block, so a profile that
-// accumulated blocks across repeated runs must come back fully clean.
-func TestSvcShellProfile_CleanupRemovesRepeatedBlocks(t *testing.T) {
+func TestSvcShellProfile_CleanupOwnsOnlyItsBlock(t *testing.T) {
 	target := filepath.Join(t.TempDir(), ".zshrc")
 	original := "# user config\n"
 	if err := os.WriteFile(target, []byte(original), 0o644); err != nil {
 		t.Fatalf("seed profile: %v", err)
 	}
 
-	emit := discardServiceEvent
+	first := &svcShellProfile{}
+	second := &svcShellProfile{}
 	params := module.Params{"target": target, "payload": "export MACNOISE_PERSIST=1"}
-
-	s := &svcShellProfile{}
-	for i := 0; i < 3; i++ {
-		if err := s.Generate(context.Background(), params, emit); err != nil {
-			t.Fatalf("Generate run %d: %v", i, err)
-		}
+	if err := first.Generate(module.ContextWithRunID(context.Background(), "first"), params, discardServiceEvent); err != nil {
+		t.Fatalf("first Generate: %v", err)
+	}
+	if err := second.Generate(module.ContextWithRunID(context.Background(), "second"), params, discardServiceEvent); err != nil {
+		t.Fatalf("second Generate: %v", err)
 	}
 
-	if err := s.Cleanup(context.Background()); err != nil {
-		t.Fatalf("Cleanup: %v", err)
+	if err := first.Cleanup(context.Background()); err != nil {
+		t.Fatalf("first Cleanup: %v", err)
+	}
+	remaining, err := os.ReadFile(target)
+	if err != nil {
+		t.Fatalf("read after first Cleanup: %v", err)
+	}
+	if strings.Contains(string(remaining), "mn:first") {
+		t.Error("first invocation marker remains after its cleanup")
+	}
+	if !strings.Contains(string(remaining), "mn:second") {
+		t.Error("first cleanup removed the second invocation's marker")
+	}
+
+	if err := second.Cleanup(context.Background()); err != nil {
+		t.Fatalf("second Cleanup: %v", err)
 	}
 	restored, err := os.ReadFile(target)
 	if err != nil {
-		t.Fatalf("read after Cleanup: %v", err)
+		t.Fatalf("read after second Cleanup: %v", err)
 	}
 	if string(restored) != original {
-		t.Errorf("Cleanup left residue after 3 appends\n got: %q\nwant: %q", restored, original)
-	}
-	if strings.Contains(string(restored), shellProfileMarkerStart) {
-		t.Error("marker still present after Cleanup")
+		t.Errorf("final content = %q, want %q", restored, original)
 	}
 }

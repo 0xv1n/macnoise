@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -19,6 +20,9 @@ const (
 
 type svcShellProfile struct {
 	targetFile string
+	block      string
+	mode       os.FileMode
+	created    bool
 }
 
 func (s *svcShellProfile) Info() module.ModuleInfo {
@@ -59,6 +63,15 @@ func (s *svcShellProfile) Generate(ctx context.Context, params module.Params, em
 		target = filepath.Join(home, target[2:])
 	}
 	s.targetFile = target
+	infoBefore, statErr := os.Stat(target)
+	s.created = os.IsNotExist(statErr)
+	if statErr != nil && !s.created {
+		return fmt.Errorf("stat %s: %w", target, statErr)
+	}
+	s.mode = 0o644
+	if infoBefore != nil {
+		s.mode = infoBefore.Mode().Perm()
+	}
 
 	// The run ID rides on the start marker line (Cleanup still matches on the
 	// constant prefix) so a consumer can correlate the profile change.
@@ -74,12 +87,19 @@ func (s *svcShellProfile) Generate(ctx context.Context, params module.Params, em
 		ev = output.WithError(ev, err)
 		return errors.Join(err, emit(ev))
 	}
-	_, writeErr := f.WriteString(block)
-	_ = f.Close()
+	written, writeErr := f.WriteString(block)
+	if writeErr == nil && written != len(block) {
+		writeErr = io.ErrShortWrite
+	}
+	closeErr := f.Close()
+	if writeErr == nil {
+		writeErr = closeErr
+	}
 	if writeErr != nil {
 		ev = output.WithError(ev, writeErr)
 		return errors.Join(writeErr, emit(ev))
 	}
+	s.block = block
 
 	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("persistence marker block appended to %s", target)
@@ -100,37 +120,41 @@ func (s *svcShellProfile) DryRun(params module.Params) []string {
 }
 
 func (s *svcShellProfile) Cleanup(ctx context.Context) error {
-	if s.targetFile == "" {
+	if s.targetFile == "" || s.block == "" {
 		return nil
 	}
 	data, err := os.ReadFile(s.targetFile)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil
+			return fmt.Errorf("svc_shell_profile cleanup %s: owned marker target is missing", s.targetFile)
 		}
 		return err
 	}
-	content := string(data)
-	for {
-		startIdx := strings.Index(content, shellProfileMarkerStart)
-		if startIdx == -1 {
-			break
-		}
-		endIdx := strings.Index(content[startIdx:], shellProfileMarkerEnd)
-		if endIdx == -1 {
-			content = content[:startIdx]
-			break
-		}
-		endIdx += startIdx + len(shellProfileMarkerEnd)
-		if endIdx < len(content) && content[endIdx] == '\n' {
-			endIdx++
-		}
-		if startIdx > 0 && content[startIdx-1] == '\n' {
-			startIdx--
-		}
-		content = content[:startIdx] + content[endIdx:]
+	content, err := removeOwnedBlock(string(data), s.block)
+	if err != nil {
+		return fmt.Errorf("svc_shell_profile cleanup %s: %w", s.targetFile, err)
 	}
-	return os.WriteFile(s.targetFile, []byte(content), 0o644)
+	if s.created && content == "" {
+		err = os.Remove(s.targetFile)
+	} else {
+		err = os.WriteFile(s.targetFile, []byte(content), s.mode)
+	}
+	if err == nil {
+		s.targetFile = ""
+		s.block = ""
+	}
+	return err
+}
+
+func removeOwnedBlock(content, block string) (string, error) {
+	switch count := strings.Count(content, block); count {
+	case 1:
+		return strings.Replace(content, block, "", 1), nil
+	case 0:
+		return "", fmt.Errorf("owned marker block was removed or modified")
+	default:
+		return "", fmt.Errorf("owned marker block occurs %d times", count)
+	}
 }
 
 func init() {

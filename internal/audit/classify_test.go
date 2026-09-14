@@ -52,6 +52,7 @@ func TestClassify(t *testing.T) {
 		{"plist", "plist_read_prior", 1001, 2},
 		{"plist", "plist_create", 1001, 1},
 		{"plist", "plist_create_launchagent", 1001, 1},
+		{"service", "service_enumerate", 6003, 2},
 
 		// process
 		{"process", "dylib_inject_attempt", 1007, 4},

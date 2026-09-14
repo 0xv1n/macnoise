@@ -52,13 +52,54 @@ func TestBootoutArgs_TargetsServiceNotPath(t *testing.T) {
 // A LaunchAgent is registered per user, so the domain target must carry the
 // uid. Daemons use the single system domain instead.
 func TestGuiDomain_CarriesUID(t *testing.T) {
-	got := guiDomain()
+	got := guiDomain(os.Getuid())
 	want := fmt.Sprintf("gui/%d", os.Getuid())
 	if got != want {
 		t.Errorf("guiDomain() = %q, want %q", got, want)
 	}
 	if !strings.HasPrefix(got, "gui/") {
 		t.Errorf("guiDomain() = %q, want a gui/<uid> domain target", got)
+	}
+}
+
+func TestSelectLaunchdUser(t *testing.T) {
+	tests := []struct {
+		name    string
+		process launchdUser
+		console launchdUser
+		want    launchdUser
+		wantErr bool
+	}{
+		{
+			name:    "unprivileged process owns its scope",
+			process: launchdUser{uid: 503, home: "/Users/macnoise"},
+			console: launchdUser{uid: 501, home: "/Users/console"},
+			want:    launchdUser{uid: 503, home: "/Users/macnoise"},
+		},
+		{
+			name:    "root targets logged-in console user",
+			process: launchdUser{uid: 0, home: "/var/root"},
+			console: launchdUser{uid: 501, home: "/Users/console"},
+			want:    launchdUser{uid: 501, home: "/Users/console"},
+		},
+		{
+			name:    "root without GUI user is rejected",
+			process: launchdUser{uid: 0, home: "/var/root"},
+			console: launchdUser{uid: 0, home: "/var/root"},
+			wantErr: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := selectLaunchdUser(tt.process, tt.console)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("selectLaunchdUser() error = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err == nil && got != tt.want {
+				t.Errorf("selectLaunchdUser() = %+v, want %+v", got, tt.want)
+			}
+		})
 	}
 }
 

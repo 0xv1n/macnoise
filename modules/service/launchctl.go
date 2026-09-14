@@ -2,18 +2,30 @@ package service
 
 import (
 	"fmt"
-	"os"
 	"strings"
 )
 
 // systemDomain is the launchd domain that holds LaunchDaemons.
 const systemDomain = "system"
 
-// guiDomain returns the launchd domain that holds the current user's
-// LaunchAgents. A LaunchAgent belongs to a per-user GUI session, so the
-// domain target carries the uid; daemons use the single system domain.
-func guiDomain() string {
-	return fmt.Sprintf("gui/%d", os.Getuid())
+type launchdUser struct {
+	uid  int
+	home string
+}
+
+func selectLaunchdUser(process, console launchdUser) (launchdUser, error) {
+	if process.uid != 0 {
+		return process, nil
+	}
+	if console.uid <= 0 || console.home == "" {
+		return launchdUser{}, fmt.Errorf("no logged-in GUI user is available for a LaunchAgent")
+	}
+	return console, nil
+}
+
+// guiDomain returns the launchd domain that holds one user's LaunchAgents.
+func guiDomain(uid int) string {
+	return fmt.Sprintf("gui/%d", uid)
 }
 
 // bootstrapArgs builds the launchctl argv that registers plistPath in domain.
