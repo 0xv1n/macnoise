@@ -3,6 +3,7 @@ package runner_test
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
@@ -43,9 +44,18 @@ func (m *artifactModule) ParamSpecs() []module.ParamSpec {
 		return []module.ParamSpec{{Name: "source", Type: module.ParamPath, Required: true}}
 	case "secret_consumer":
 		return []module.ParamSpec{{Name: "secret", Type: module.ParamString, Required: true, Sensitive: true}}
+	case "validated_input":
+		return []module.ParamSpec{{Name: "target", Type: module.ParamString, Required: true}}
 	default:
 		return nil
 	}
+}
+
+func (m *artifactModule) ValidateParams(params module.Params) error {
+	if m.name == "validated_input" && params.String("target", "") != "https://example.com" {
+		return fmt.Errorf("invalid target %q", params.String("target", ""))
+	}
+	return nil
 }
 
 func (m *artifactModule) OutputSpecs() []module.OutputSpec {
@@ -240,6 +250,30 @@ steps:
 	}
 	if report.Workspace != "" {
 		t.Fatalf("preflight failure created workspace %q", report.Workspace)
+	}
+}
+
+func TestScenarioPreflightValidatesBoundInputValue(t *testing.T) {
+	flow := &artifactFlow{}
+	registry := flowRegistry(flow, "validated_input")
+	path := writeScenarioFile(t, t.TempDir(), "validated.yaml", `version: 1
+name: validated input
+inputs:
+  target:
+    type: string
+    default: https://example.com
+steps:
+  - module: validated_input
+    params:
+      target:
+        input: target
+`)
+
+	if err := runner.ValidateScenario(path, nil, registry); err != nil {
+		t.Fatalf("valid default: %v", err)
+	}
+	if err := runner.ValidateScenario(path, module.Params{"target": "invalid"}, registry); err == nil || !strings.Contains(err.Error(), `invalid target "invalid"`) {
+		t.Fatalf("invalid override error = %v", err)
 	}
 }
 

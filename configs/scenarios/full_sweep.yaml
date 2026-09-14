@@ -1,12 +1,21 @@
 version: 1
-on_error: stop
+on_error: continue
 name: Full Telemetry Sweep
-description: Runs all modules across every category (excludes root-only modules)
+description: Runs every non-root native operation and composed telemetry recipe
 
 steps:
   - category: network
 
+  - id: http_beacon
+    include: recipes/http_beacon.yaml
+
+  - id: http_exfil
+    include: recipes/http_exfil.yaml
+
   - category: process
+
+  - id: discovery
+    include: discovery.yaml
 
   # File primitives are ordered so discovery, reads, copies, modification,
   # and archiving consume artifacts created by earlier steps.
@@ -43,11 +52,60 @@ steps:
       source_path:
         output: file_copy.directory
 
-  - module: file_browser_creds
+  - id: browser_decoy
+    module: file_create
+    params:
+      base_dir: /tmp/macnoise_full_sweep/browser
+      filename: Login Data
+      content: browser credential decoy
 
-  - module: file_cred_files
+  - id: browser_targets
+    include: recipes/browser_targets.yaml
+    inputs:
+      roots:
+        output: browser_decoy.directories
 
-  - module: file_keychain_copy
+  - module: file_read
+    params:
+      paths:
+        output: browser_targets.paths
+
+  - id: credential_decoy
+    module: file_create
+    params:
+      base_dir: /tmp/macnoise_full_sweep/credential
+      filename: .env
+      content: credential file decoy
+
+  - id: credential_targets
+    include: recipes/credential_targets.yaml
+    inputs:
+      roots:
+        output: credential_decoy.directories
+
+  - module: file_read
+    params:
+      paths:
+        output: credential_targets.paths
+
+  - id: keychain_decoy
+    module: file_create
+    params:
+      base_dir: /tmp/macnoise_full_sweep/keychain
+      filename: login.keychain-db
+      content: keychain database decoy
+
+  - id: keychain_targets
+    include: recipes/keychain_targets.yaml
+    inputs:
+      roots:
+        output: keychain_decoy.directories
+
+  - module: file_copy
+    params:
+      source_paths:
+        output: keychain_targets.paths
+      destination_dir: /tmp/macnoise_full_sweep/keychain_stage
 
   - module: file_encrypt
 
@@ -55,13 +113,18 @@ steps:
 
   # service category is not run wholesale: svc_launch_daemon requires root
   # and this scenario is scoped to run without elevated privileges.
+  - module: svc_enumerate
+
   - module: svc_cron
 
   - module: svc_launch_agent
 
   - module: svc_shell_profile
 
-  - category: endpoint_security
+  - module: svc_login_item
+
+  - id: mounted_execution
+    include: mounted_execution.yaml
 
   - category: tcc
 
@@ -69,4 +132,4 @@ steps:
 
   - category: plist
 
-  - category: xpc
+  - category: evasion

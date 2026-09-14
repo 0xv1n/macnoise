@@ -27,14 +27,15 @@ macnoise/
 │   ├── prereqs/           # OS/privilege/command helpers
 │   └── runner/            # Module execution orchestration
 ├── modules/
-│   ├── network/           # 5 modules: net_connect, net_listen, net_beacon, net_dns, net_revshell
-│   ├── process/           # 3 modules: proc_spawn, proc_signal, proc_inject
-│   ├── file/              # 2 modules: file_create, file_modify
-│   ├── tcc/               # 2 modules: tcc_fda, tcc_contacts
-│   ├── endpoint_security/ # 2 modules: es_file, es_process
-│   ├── service/           # 2 modules: svc_launch_agent, svc_launch_daemon
-│   ├── plist/             # 2 modules: plist_create, plist_modify
-│   └── xpc/               # 1 module:  xpc_enumerate
+│   ├── network/           # TCP, DNS, HTTP, listener, reverse-shell, and TLS operations
+│   ├── process/           # Exact execution, signals, injection, Gatekeeper, and osascript
+│   ├── file/              # Bounded discovery and literal file operations
+│   ├── tcc/               # Exact privacy-permission probes
+│   ├── credential/        # Native credential-store access
+│   ├── volume/            # Disk-image creation and mounting
+│   ├── service/           # Launchd, cron, shell-profile, and Login Item operations
+│   ├── plist/             # Plist creation and defaults modification
+│   └── evasion/           # Log clearing and masquerading operations
 └── configs/
     ├── defaults.yaml
     └── scenarios/         # pre-built YAML scenarios
@@ -72,7 +73,7 @@ MacNoise is structured in five distinct layers. When reasoning about where a cha
 | File | Purpose |
 |------|---------|
 | `pkg/module/interface.go` | `Generator` interface (6 methods); `ModuleInfo`, `ParamSpec`, `Params`, `MITRE`, `Privilege`, `TelemetryEvent`, `ProcessContext`, `EventEmitter` type definitions |
-| `pkg/module/category.go` | `Category` type; `CategoryNetwork` … `CategoryXPC` constants; `AllCategories()` |
+| `pkg/module/category.go` | `Category` type; category constants; `AllCategories()` |
 | `pkg/module/registry.go` | Global `map[string]Generator` registry; `Register`, `Get`, `All`, `ByCategory`, `ByTag`, `CategoryCounts` — all thread-safe via `sync.RWMutex` |
 
 ### Output

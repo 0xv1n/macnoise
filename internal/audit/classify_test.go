@@ -17,9 +17,7 @@ func TestClassify(t *testing.T) {
 		{"network", "dns_lookup", 4003, 1},
 		{"network", "dns_exfil_query", 4003, 1},
 		{"network", "http_get", 4002, 3},
-		{"network", "http_beacon", 4002, 3},
 		{"network", "http_post", 4002, 6},
-		{"network", "http_post_exfil", 4002, 6},
 		{"network", "tcp_connect", 4001, 1},
 		{"network", "tcp_accept", 4001, 1},
 		{"network", "tcp_listen", 4001, 7},
@@ -28,10 +26,6 @@ func TestClassify(t *testing.T) {
 
 		// file
 		{"file", "archive_create", 1001, 1},
-		{"file", "browser_cred_probe", 1001, 8},
-		{"file", "browser_cred_read", 1001, 2},
-		{"file", "cred_file_probe", 1001, 8},
-		{"file", "cred_file_read", 1001, 2},
 		{"file", "dir_create", 1001, 1},
 		{"file", "file_create", 1001, 1},
 		{"file", "file_copy", 1001, 1},
@@ -42,11 +36,6 @@ func TestClassify(t *testing.T) {
 		{"file", "file_modify", 1001, 3},
 		{"file", "file_probe", 1001, 8},
 		{"file", "file_read", 1001, 2},
-		// A copy has no single OCSF activity, so it lands as the read of the
-		// source and the create of the staged destination.
-		{"file", "keychain_read", 1001, 2},
-		{"file", "keychain_copy", 1001, 1},
-
 		// plist (routed through the file/plist case)
 		{"plist", "plist_modify", 1001, 3},
 		{"plist", "plist_read_prior", 1001, 2},
@@ -59,10 +48,8 @@ func TestClassify(t *testing.T) {
 		{"process", "osascript_exec", 1007, 1},
 		{"process", "process_exec", 1007, 1},
 		{"process", "process_fork", 1007, 1},
-		{"process", "process_spawn", 1007, 1},
 		{"process", "signal_send", 1007, 99},
 		{"process", "spctl_status_check", 1007, 1},
-		{"process", "system_discovery", 1007, 1},
 		{"process", "test_file_create_fail", 1007, 99},
 		{"process", "xattr_quarantine_remove", 1007, 1},
 		{"process", "xattr_quarantine_set", 1007, 1},
@@ -77,7 +64,7 @@ func TestClassify(t *testing.T) {
 		{"service", "login_item_add", 1006, 1},
 		{"service", "shell_profile_modify", 1006, 2},
 
-		// tcc / xpc
+		// tcc / credential
 		{"credential", "keychain_dump_attempt", 6003, 2},
 		{"credential", "keychain_list", 6003, 2},
 		{"credential", "keychain_unlock_attempt", 6003, 3},
@@ -85,22 +72,8 @@ func TestClassify(t *testing.T) {
 		{"tcc", "tcc_contacts_probe", 6003, 2},
 		{"tcc", "tcc_fda_probe", 6003, 2},
 		{"tcc", "screen_capture_attempt", 6003, 2},
-		{"xpc", "xpc_enumerate", 6003, 2},
-
-		// endpoint_security
-		{"endpoint_security", "es_exec_chain", 1007, 1},
-		{"endpoint_security", "es_notify_create", 1001, 1},
-		{"endpoint_security", "es_notify_write", 1001, 3},
-		{"endpoint_security", "es_notify_unlink", 1001, 4},
-		{"endpoint_security", "es_notify_open", 1001, 14},
-		{"endpoint_security", "es_notify_setmode", 1001, 6},
-		{"endpoint_security", "es_notify_rename", 1001, 5},
-		{"endpoint_security", "es_dmg_create", 1001, 1},
-		{"endpoint_security", "es_notify_mount", 1001, 12},
 		{"volume", "volume_image_create", 1001, 1},
 		{"volume", "volume_mount", 1001, 12},
-		{"endpoint_security", "es_notify_unmount", 1001, 13},
-		{"endpoint_security", "es_volume_exec", 1007, 1},
 
 		// evasion (routed by event type, not category)
 		{"evasion", "file_timestomp", 1001, 6},

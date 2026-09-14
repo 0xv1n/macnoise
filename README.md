@@ -42,16 +42,14 @@ make build
 
 | Category | Description | Modules |
 |----------|-------------|---------|
-| `network` | Outbound connections, DNS, HTTP, beaconing, listeners, reverse shells, TLS, exfiltration | net_connect, net_http, net_listen, net_beacon, net_revshell, net_dns, net_dns_exfil, net_tls, net_exfil |
-| `process` | Process spawning, signal delivery, dylib injection, discovery, Gatekeeper bypass, osascript | proc_exec, proc_spawn, proc_signal, proc_inject, proc_discovery, proc_gatekeeper, proc_osascript |
-| `file` | Bounded file discovery, literal reads/copies, creation, modification, archiving, hiding, and decoy encryption | file_find, file_read, file_copy, file_create, file_modify, file_browser_creds, file_cred_files, file_keychain_copy, file_archive, file_hide, file_encrypt |
+| `network` | TCP connections, HTTP, listeners, reverse shells, DNS, and TLS | net_connect, net_http, net_listen, net_revshell, net_dns, net_dns_exfil, net_tls |
+| `process` | Exact execution, signal delivery, dylib injection, Gatekeeper bypass, and osascript | proc_exec, proc_signal, proc_inject, proc_gatekeeper, proc_osascript |
+| `file` | Bounded discovery, literal reads/copies, creation, modification, archiving, hiding, and decoy encryption | file_find, file_read, file_copy, file_create, file_modify, file_archive, file_hide, file_encrypt |
 | `tcc` | TCC permission probes with exact Full Disk Access, Contacts, Accessibility, or Screen Recording requirements | tcc_fda, tcc_contacts, tcc_accessibility, tcc_screen_recording |
 | `credential` | Native credential-store access | cred_keychain |
 | `volume` | Disk-image creation and mounted-volume lifecycle | volume_create, volume_mount |
-| `endpoint_security` | ES framework event triggers, including .dmg mount and payload execution | es_file, es_process, es_mount |
 | `service` | Launchd enumeration, LaunchAgent/Daemon persistence, cron, shell profile, Login Items | svc_enumerate, svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile, svc_login_item |
 | `plist` | Plist creation and modification | plist_create, plist_modify |
-| `xpc` | XPC service enumeration | xpc_enumerate |
 | `evasion` | Defense evasion: log clearing, timestomping, history removal, masquerading | evade_log_clear, evade_masquerade |
 
 ## Commands
@@ -163,10 +161,10 @@ Module documentation lives alongside each category:
 | `process` | [modules/process/README.md](modules/process/README.md) |
 | `file` | [modules/file/README.md](modules/file/README.md) |
 | `tcc` | [modules/tcc/README.md](modules/tcc/README.md) |
-| `endpoint_security` | [modules/endpoint_security/README.md](modules/endpoint_security/README.md) |
+| `credential` | [modules/credential/README.md](modules/credential/README.md) |
+| `volume` | [modules/volume/README.md](modules/volume/README.md) |
 | `service` | [modules/service/README.md](modules/service/README.md) |
 | `plist` | [modules/plist/README.md](modules/plist/README.md) |
-| `xpc` | [modules/xpc/README.md](modules/xpc/README.md) |
 | `evasion` | [modules/evasion/README.md](modules/evasion/README.md) |
 
 ## Scenarios
@@ -178,7 +176,7 @@ Scenarios chain modules into ordered sequences - a single YAML file that replays
 | `network_only.yaml` | Composed TCP, listener, DNS, HTTP beacon, and HTTP exfiltration operations |
 | `edr_validation.yaml` | Comprehensive EDR detection coverage |
 | `full_sweep.yaml` | All categories |
-| `lazarus_group.yaml` | Lazarus Group: dylib injection, service discovery, reverse shell, plist persistence |
+| `lazarus_group.yaml` | Lazarus Group: dylib injection, service discovery, reverse shell, LaunchAgent persistence |
 | `amos_atomic_stealer.yaml` | AMOS / Atomic Stealer: MaaS infostealer, Gatekeeper bypass, keychain dump, ZIP exfil, backdoor persistence |
 | `clickfix.yaml` | ClickFix: obfuscated one-liner pasted into Terminal, base64 decode, second-stage fetch, LaunchAgent persistence |
 | `ransomware.yaml` | Ransomware impact: stage plaintext decoys, encrypt them, then drop a ransom note |

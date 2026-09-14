@@ -10,8 +10,7 @@ import (
 )
 
 // A name or path with a quote must not break out of the AppleScript literal.
-// This is the es_process quoting failure in a different interpreter: an
-// unescaped quote silently changes the statement rather than erroring.
+// An unescaped quote silently changes the statement rather than erroring.
 func TestAppleScriptString(t *testing.T) {
 	tests := []struct {
 		in   string

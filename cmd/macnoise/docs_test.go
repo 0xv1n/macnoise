@@ -26,8 +26,7 @@ func readRepoFile(t *testing.T, parts ...string) string {
 // category README.
 //
 // This gate exists because the drift recurs rather than because it is severe:
-// each of es_mount, svc_login_item, tcc_accessibility, tcc_screen_recording,
-// and file_cred_files shipped without being added to the table, and nothing
+// several modules shipped without being added to the table, and nothing
 // failed. A hand-maintained list of generated facts needs a check or it goes
 // stale silently, the same reason a gofmt linter was added rather than
 // reformatting the three files that had drifted at the time.
@@ -82,6 +81,32 @@ func TestPortableRegistryIncludesNativeModules(t *testing.T) {
 	for _, name := range []string{"proc_osascript", "proc_signal"} {
 		if _, ok := module.Get(name); !ok {
 			t.Errorf("portable registry is missing %s", name)
+		}
+	}
+}
+
+func TestSupersededCatalogEntriesAreRemoved(t *testing.T) {
+	for _, name := range []string{
+		"es_file",
+		"es_mount",
+		"es_process",
+		"file_browser_creds",
+		"file_cred_files",
+		"file_keychain_copy",
+		"net_beacon",
+		"net_exfil",
+		"proc_discovery",
+		"proc_spawn",
+		"xpc_enumerate",
+	} {
+		if _, ok := module.Get(name); ok {
+			t.Errorf("superseded module %s is still registered", name)
+		}
+	}
+
+	for _, category := range module.AllCategories() {
+		if category == "endpoint_security" || category == "xpc" {
+			t.Errorf("superseded category %s is still registered", category)
 		}
 	}
 }

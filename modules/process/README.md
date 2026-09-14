@@ -1,6 +1,6 @@
 # process
 
-Process spawning, signal delivery, dylib injection, system discovery, Gatekeeper bypass, and AppleScript/JXA execution.
+Exact process execution, signal delivery, dylib injection, Gatekeeper bypass, and AppleScript/JXA execution.
 
 ## Modules
 
@@ -12,9 +12,6 @@ macnoise run proc_exec --param executable=/usr/bin/id --param args=-un
 macnoise scenario configs/scenarios/discovery.yaml
 macnoise scenario configs/scenarios/process_chain.yaml
 ```
-
-### `proc_spawn`
-Spawns a shell command chain. Maps to T1059.004.
 
 ### `proc_signal`
 Forks a process and sends SIGSTOP/SIGCONT/SIGTERM. Maps to T1106. Requires macOS (darwin).
@@ -29,23 +26,6 @@ The dylib does not need to exist. dyld aborts the process when it cannot load an
 ```bash
 macnoise run proc_inject
 macnoise run proc_inject --param target=/tmp/my_unsigned_binary --param dylib_path=/tmp/evil.dylib
-```
-
-### `proc_discovery`
-Runs a configurable set of macOS reconnaissance commands (`sw_vers`, `system_profiler`, `sysctl`, `ifconfig`, `whoami`, `dscl`, `csrutil status`, `fdesetup status`), plus security software enumeration via `systemextensionsctl list`, the application firewall state, and a process scan for known endpoint agents. Each command emits a separate `system_discovery` event with structured output. Maps to T1082, T1016, T1033, T1518, T1518.001.
-
-`systemextensionsctl list` carries most of the security-software signal on modern macOS, since every current EDR registers an Endpoint Security system extension and it needs no vendor list to stay current. The agent process scan names specific vendors and is illustrative rather than exhaustive - a miss costs one match, while the exec that a detection actually sees still happens.
-
-The security commands are part of the defaults on purpose. A technique claimed in `Info()` but only reachable by overriding `commands` would be unbacked on a default run, which is the defect the original T1518 claim had, and `discovery_test.go` fails if a claim loses its backing command.
-
-```bash
-macnoise run proc_discovery
-macnoise run proc_discovery --param commands="sw_vers,whoami,csrutil status"
-```
-
-```bash
-macnoise run proc_discovery
-macnoise run proc_discovery --param commands="sw_vers,whoami,csrutil status"
 ```
 
 ### `proc_gatekeeper`

