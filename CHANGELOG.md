@@ -10,6 +10,42 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
 > required format. You no longer need to hand-edit this file.
 
+## [1.0.0](https://github.com/0xv1n/macnoise/compare/v0.6.0...v1.0.0) (2026-09-15)
+
+
+### ⚠ BREAKING CHANGES
+
+* v1 removes superseded modules and categories and adopts versioned scenario, telemetry, and report contracts.
+
+### Bug Fixes
+
+* bound connected reverse shell shutdown ([#71](https://github.com/0xv1n/macnoise/issues/71)) ([29e6779](https://github.com/0xv1n/macnoise/commit/29e677959c5efd50513fb2de928ddd8529e314e7))
+* honor beacon cancellation and test real HTTP execution ([#61](https://github.com/0xv1n/macnoise/issues/61)) ([bf868af](https://github.com/0xv1n/macnoise/commit/bf868af36ed719472a95dcecdd8b329cacedcfc5))
+* honor TLS cancellation and test real handshakes ([#64](https://github.com/0xv1n/macnoise/issues/64)) ([e5b9a8f](https://github.com/0xv1n/macnoise/commit/e5b9a8fa7f23bd779f01bb72d103076aa8f11f80))
+* include refactors in release notes ([#74](https://github.com/0xv1n/macnoise/issues/74)) ([4dec511](https://github.com/0xv1n/macnoise/commit/4dec511ba64ade4777eae3777e50eec777e4bd55))
+* report discovery cancellation and test real commands ([#65](https://github.com/0xv1n/macnoise/issues/65)) ([b7b94df](https://github.com/0xv1n/macnoise/commit/b7b94dfa3e71d777ecb0b543fb53b58e9c06ab0a))
+* report DNS exfil cancellation and test real queries ([#63](https://github.com/0xv1n/macnoise/issues/63)) ([0442dad](https://github.com/0xv1n/macnoise/commit/0442dad39fb94fed4ef7f55efba4b6c7f7ee51c6))
+* report osascript cancellation and test real execution ([#66](https://github.com/0xv1n/macnoise/issues/66)) ([3ca30fb](https://github.com/0xv1n/macnoise/commit/3ca30fbfb01a4f9d0da469d71ee49ab487feb737))
+
+
+### Documentation
+
+* prepare the 1.0 contributor release ([#84](https://github.com/0xv1n/macnoise/issues/84)) ([5972caf](https://github.com/0xv1n/macnoise/commit/5972caf748ab82daba2bc2483185054878858834))
+
+
+### Code Refactoring
+
+* add file operation primitives ([#79](https://github.com/0xv1n/macnoise/issues/79)) ([a0eff2a](https://github.com/0xv1n/macnoise/commit/a0eff2ad31153f5633c7681834c506c4bf5c7c71))
+* add network primitives ([#80](https://github.com/0xv1n/macnoise/issues/80)) ([7ed9ae4](https://github.com/0xv1n/macnoise/commit/7ed9ae45147f909dacd67da6f5f0d74a0f82c26f))
+* add process execution primitives ([#78](https://github.com/0xv1n/macnoise/issues/78)) ([78ca83e](https://github.com/0xv1n/macnoise/commit/78ca83ea3bcb3114c1fdfea46895d91f46678a9c))
+* add service and preference primitives ([#81](https://github.com/0xv1n/macnoise/issues/81)) ([d353229](https://github.com/0xv1n/macnoise/commit/d35322942c13a6ab624908b74dd071efe92df7aa))
+* add typed module inputs ([#73](https://github.com/0xv1n/macnoise/issues/73)) ([fd9ca1b](https://github.com/0xv1n/macnoise/commit/fd9ca1b7f8fc7871546753ab51905da64155a523))
+* add typed scenario runtime ([#77](https://github.com/0xv1n/macnoise/issues/77)) ([05d210b](https://github.com/0xv1n/macnoise/commit/05d210b2565bbedd4b64313d85ee6ec5c69605b6))
+* add typed telemetry events ([#75](https://github.com/0xv1n/macnoise/issues/75)) ([df3b7ca](https://github.com/0xv1n/macnoise/commit/df3b7ca2ae790d519f1db2607a123bec05c77514))
+* add volume and privacy primitives ([#82](https://github.com/0xv1n/macnoise/issues/82)) ([7b445a9](https://github.com/0xv1n/macnoise/commit/7b445a95f32b98678e201222f8d332cedd0dd335))
+* isolate module execution ([#72](https://github.com/0xv1n/macnoise/issues/72)) ([fb8e829](https://github.com/0xv1n/macnoise/commit/fb8e829619f0eebd435d4bf522a6fa22af2ba08d))
+* migrate scenarios to primitives ([#83](https://github.com/0xv1n/macnoise/issues/83)) ([71690ab](https://github.com/0xv1n/macnoise/commit/71690ab84a9464c7413f52ea61ff2a81f647048e))
+
 ## [0.6.0](https://github.com/0xv1n/macnoise/compare/v0.5.0...v0.6.0) (2026-09-07)
 
 
