@@ -40,17 +40,19 @@ make build
 
 ## Telemetry Categories
 
-| Category | Description | Modules |
-|----------|-------------|---------|
-| `network` | TCP connections, HTTP, listeners, reverse shells, DNS, and TLS | net_connect, net_http, net_listen, net_revshell, net_dns, net_dns_exfil, net_tls |
-| `process` | Exact execution, signal delivery, dylib injection, Gatekeeper bypass, and osascript | proc_exec, proc_signal, proc_inject, proc_gatekeeper, proc_osascript |
-| `file` | Bounded discovery, literal reads/copies, creation, modification, archiving, hiding, and decoy encryption | file_find, file_read, file_copy, file_create, file_modify, file_archive, file_hide, file_encrypt |
-| `tcc` | TCC permission probes with exact Full Disk Access, Contacts, Accessibility, or Screen Recording requirements | tcc_fda, tcc_contacts, tcc_accessibility, tcc_screen_recording |
-| `credential` | Native credential-store access | cred_keychain |
-| `volume` | Disk-image creation and mounted-volume lifecycle | volume_create, volume_mount |
-| `service` | Launchd enumeration, LaunchAgent/Daemon persistence, cron, shell profile, Login Items | svc_enumerate, svc_launch_agent, svc_launch_daemon, svc_cron, svc_shell_profile, svc_login_item |
-| `plist` | Plist creation and modification | plist_create, plist_modify |
-| `evasion` | Defense evasion: log clearing, timestomping, history removal, masquerading | evade_log_clear, evade_masquerade |
+| Category | Description |
+|----------|-------------|
+| `network` | TCP connections, HTTP, listeners, reverse shells, DNS, and TLS |
+| `process` | Exact execution, signal delivery, dylib injection, Gatekeeper bypass, and osascript |
+| `file` | Bounded discovery, literal reads/copies, creation, modification, archiving, hiding, and decoy encryption |
+| `tcc` | TCC permission probes with exact Full Disk Access, Contacts, Accessibility, or Screen Recording requirements |
+| `credential` | Native credential-store access |
+| `volume` | Disk-image creation and mounted-volume lifecycle |
+| `service` | Launchd enumeration, LaunchAgent/Daemon persistence, cron, shell profile, and Login Items |
+| `plist` | Plist creation and modification |
+| `evasion` | Log clearing, timestomping, history removal, and masquerading |
+
+See the generated [module catalog](docs/module-catalog.md) for every module, parameter, output, event type, privilege, and ATT&CK mapping.
 
 ## Commands
 
@@ -78,6 +80,7 @@ macnoise version                              Print version
 | `--timeout` | `30` | Per-module timeout in seconds |
 | `--audit-log` | (none) | Write OCSF 1.7.0 audit records to a JSONL file |
 | `--config` | (none) | Load defaults from a YAML config file |
+| `--run-id` | generated | Set the correlation identifier for this run |
 
 ### Scenario dataflow
 
@@ -149,11 +152,11 @@ Every telemetry event carries one authoritative `outcome` and one typed `subject
 
 A denied TCC probe or a beacon to a dead C2 is the telemetry this tool exists to generate, so it is distinct from `error`, which means MacNoise itself failed. The audit log records the same value at `unmapped.outcome`. Parameters declared sensitive are replaced with `[REDACTED]` in managed audit records and command-line identity.
 
-The audit log opens in append mode, so records from multiple runs pile up in one file for batch analysis. If you're adding a module and want to know how a new event type gets classified into OCSF, see [CONTRIBUTING.md](CONTRIBUTING.md#audit-logging-ocsf).
+The audit log opens in append mode, so records from multiple runs pile up in one file for batch analysis. If you're adding a module and want to know how a new event type gets classified into OCSF, see [CONTRIBUTING.md](CONTRIBUTING.md#primitive-modules).
 
 ## Module Reference
 
-Module documentation lives alongside each category:
+The generated [module catalog](docs/module-catalog.md) is the authoritative reference for names, parameters, outputs, event types, privileges, and ATT&CK mappings. Category notes explain platform behavior and operational boundaries:
 
 | Category | README |
 |----------|--------|
@@ -196,6 +199,7 @@ The two APT scenarios follow real documented intrusion sequences, technique by t
 
 **Writing your own:**
 ```yaml
+version: 1
 name: My Custom Scenario
 on_error: stop
 steps:
@@ -213,9 +217,17 @@ path, or list type before preview or execution. Unknown names and invalid values
 are rejected. `on_error` defaults to `stop`. Set it to `continue` only when a
 coverage sweep should attempt later module invocations after a failure.
 
+Start from the [scenario template](docs/templates/scenario.yaml) for typed inputs, outputs, and connected dataflow.
+
+## Version 1 compatibility
+
+Version 1.0 defines the supported CLI commands and flags, module names and contracts, scenario schema 1, telemetry schema 2.0, and scenario-report schema 1.0. Future incompatible changes to those interfaces require a new major release.
+
+Existing users should read [Migrating from v0.6.0 to v1.0.0](docs/migration-v1.md). It maps every removed module and describes the scenario, JSONL, and Go API changes.
+
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for adding new modules, code style, and the full PR process.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the primitive, scenario, and core-change paths.
 
 Releases are automated - [release-please](https://github.com/googleapis/release-please) cuts a new version straight from your [Conventional Commit](https://www.conventionalcommits.org/) PR title, so `feat: add net_tls module` or `fix: correct beacon jitter` is both your PR title and your changelog entry.
 

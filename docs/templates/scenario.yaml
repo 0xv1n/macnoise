@@ -1,0 +1,28 @@
+version: 1
+name: Example connected flow
+description: Passes one typed module output into a later operation
+on_error: stop
+
+inputs:
+  base_dir:
+    type: path
+    default: /tmp/macnoise_example
+
+steps:
+  - id: create
+    module: file_create
+    params:
+      base_dir:
+        input: base_dir
+      filename: artifact.txt
+      content: benign test content
+
+  - id: read
+    module: file_read
+    params:
+      paths:
+        output: create.paths
+
+outputs:
+  paths:
+    output: read.paths

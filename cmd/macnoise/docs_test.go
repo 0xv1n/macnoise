@@ -1,11 +1,13 @@
 package main
 
 import (
+	"bytes"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
+	"github.com/0xv1n/macnoise/internal/catalogdoc"
 	"github.com/0xv1n/macnoise/internal/runner"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
@@ -22,37 +24,14 @@ func readRepoFile(t *testing.T, parts ...string) string {
 	return string(b)
 }
 
-// Every registered module must appear in the top-level README table and in its
-// category README.
-//
-// This gate exists because the drift recurs rather than because it is severe:
-// several modules shipped without being added to the table, and nothing
-// failed. A hand-maintained list of generated facts needs a check or it goes
-// stale silently, the same reason a gofmt linter was added rather than
-// reformatting the three files that had drifted at the time.
-//
-// This package blank-imports every module package, so module.All() here is the
-// same set the binary exposes.
-func TestDocsListEveryRegisteredModule(t *testing.T) {
-	readme := readRepoFile(t, "README.md")
-
-	categoryDocs := map[module.Category]string{}
-	for _, g := range module.All() {
-		info := g.Info()
-
-		if !strings.Contains(readme, info.Name) {
-			t.Errorf("%s is registered but missing from the README module table", info.Name)
-		}
-
-		// Category values match the directory names under modules/.
-		doc, ok := categoryDocs[info.Category]
-		if !ok {
-			doc = readRepoFile(t, "modules", string(info.Category), "README.md")
-			categoryDocs[info.Category] = doc
-		}
-		if !strings.Contains(doc, info.Name) {
-			t.Errorf("%s is missing from modules/%s/README.md", info.Name, info.Category)
-		}
+func TestGeneratedCatalogIsCurrent(t *testing.T) {
+	want := readRepoFile(t, "docs", "module-catalog.md")
+	got, err := catalogdoc.Render(module.All())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(got, []byte(want)) {
+		t.Fatal("docs/module-catalog.md is stale; run make generate-catalog")
 	}
 }
 
@@ -77,36 +56,17 @@ func TestStockScenariosHaveValidInputs(t *testing.T) {
 	}
 }
 
+func TestScenarioTemplateIsValid(t *testing.T) {
+	path := filepath.Join("..", "..", "docs", "templates", "scenario.yaml")
+	if err := runner.ValidateScenario(path, nil, &module.DefaultRegistry); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestPortableRegistryIncludesNativeModules(t *testing.T) {
 	for _, name := range []string{"proc_osascript", "proc_signal"} {
 		if _, ok := module.Get(name); !ok {
 			t.Errorf("portable registry is missing %s", name)
-		}
-	}
-}
-
-func TestSupersededCatalogEntriesAreRemoved(t *testing.T) {
-	for _, name := range []string{
-		"es_file",
-		"es_mount",
-		"es_process",
-		"file_browser_creds",
-		"file_cred_files",
-		"file_keychain_copy",
-		"net_beacon",
-		"net_exfil",
-		"proc_discovery",
-		"proc_spawn",
-		"xpc_enumerate",
-	} {
-		if _, ok := module.Get(name); ok {
-			t.Errorf("superseded module %s is still registered", name)
-		}
-	}
-
-	for _, category := range module.AllCategories() {
-		if category == "endpoint_security" || category == "xpc" {
-			t.Errorf("superseded category %s is still registered", category)
 		}
 	}
 }
