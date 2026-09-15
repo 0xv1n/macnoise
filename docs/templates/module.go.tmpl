@@ -1,0 +1,48 @@
+package category
+
+import (
+	"context"
+	"errors"
+
+	"github.com/0xv1n/macnoise/pkg/module"
+)
+
+type moduleName struct{}
+
+func (m *moduleName) Info() module.ModuleInfo {
+	return module.ModuleInfo{
+		Name:        "category_operation",
+		Description: "Describe the real operating-system action",
+		Category:    module.Category("category"),
+		EventTypes:  []string{"event_type"},
+		Privileges:  module.PrivilegeNone,
+		MITRE:       []module.MITRE{{Technique: "T0000", Name: "Technique name"}},
+		MinMacOS:    "12.0",
+	}
+}
+
+func (m *moduleName) ParamSpecs() []module.ParamSpec {
+	return []module.ParamSpec{
+		{Name: "target", Description: "Literal operation target", Type: module.ParamPath, Required: true},
+	}
+}
+
+func (m *moduleName) CheckPrereqs(ctx context.Context, params module.Params) error {
+	return nil
+}
+
+func (m *moduleName) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
+	return errors.New("replace with a real operating-system attempt and emit its observed result")
+}
+
+func (m *moduleName) DryRun(params module.Params) []string {
+	return []string{"describe the exact attempted action"}
+}
+
+func (m *moduleName) Cleanup(ctx context.Context) error {
+	return nil
+}
+
+func init() {
+	module.Register(func() module.Generator { return &moduleName{} })
+}

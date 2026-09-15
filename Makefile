@@ -4,7 +4,7 @@ VERSION    := $(shell git describe --tags --always --dirty 2>/dev/null || echo "
 LDFLAGS    := -ldflags "-X main.version=$(VERSION)"
 GOOS_DARWIN := darwin
 
-.PHONY: build build-amd64 build-arm64 test test-integration lint fmt vet clean coverage install-hooks
+.PHONY: build build-amd64 build-arm64 test test-integration lint fmt vet clean coverage install-hooks generate-catalog
 
 ## Build for host OS (development)
 build:
@@ -20,6 +20,10 @@ build-arm64:
 
 ## Build both macOS architectures
 release: build-amd64 build-arm64
+
+## Regenerate the tracked module reference from registry metadata
+generate-catalog:
+	go run ./cmd/generate-catalog
 
 ## Run unit tests (no macOS required)
 test:

@@ -1,206 +1,117 @@
 # Contributing to MacNoise
 
-Thanks for your interest in contributing! This guide covers how to add new telemetry modules, the code style expectations, and the PR process.
+MacNoise accepts focused changes that improve real macOS telemetry generation, scenario composition, or the runtime that connects them.
 
-## Adding a New Module
+## Choose the right contribution path
 
-### Step-by-step
+| Goal | Path |
+|---|---|
+| Add a new operating-system action | Add a primitive or native adapter under `modules/<category>/` |
+| Combine existing actions into a technique or intrusion flow | Add a version 1 YAML recipe or scenario under `configs/scenarios/` |
+| Fix lifecycle, validation, output, or CLI behavior | Add a regression test in the owning package, then change that package |
+| Correct documentation or metadata | Update the source metadata and run `make generate-catalog` |
 
-1. **Choose a category** — see `pkg/module/category.go` for the list. If you need a new category, add it there.
+Do not add a Go module when existing primitives can express the behavior. Prefer a YAML recipe for composition.
 
-2. **Create your file** — `modules/<category>/<name>.go`. Use an existing module as a reference, e.g., `modules/network/connect.go`.
+## Primitive modules
 
-3. **Implement the `Generator` interface** (`pkg/module/interface.go`):
+Start from [the module template](docs/templates/module.go.tmpl) and an existing module in the same category.
 
-```go
-type Generator interface {
-    Info() ModuleInfo
-    ParamSpecs() []ParamSpec
-    CheckPrereqs(ctx context.Context, params Params) error
-    Generate(ctx context.Context, params Params, emit EventEmitter) error
-    DryRun(params Params) []string
-    Cleanup(ctx context.Context) error
-}
-```
+1. Implement all six methods of `module.Generator`.
+2. Register a factory that returns a new instance. Runtime state must never be shared between invocations.
+3. Declare every parameter with a type, default, bounds or choices, and sensitivity in `ParamSpecs()`.
+4. Keep metadata and registration portable. Put only native implementation details behind Darwin build tags.
+5. Attempt the real operating-system action before reporting its result. Synthetic success events are not substitutes for real activity.
+6. Emit events through the provided callback and propagate its error.
+7. Reverse only changes owned by that invocation. Preserve unrelated or subsequently changed state and report conflicts.
 
-4. **Register via `init()`**:
+Every event needs exactly one outcome and one typed subject:
 
-```go
-func init() {
-    module.Register(func() module.Generator { return &myModule{} })
-}
-```
+| Outcome | Meaning |
+|---|---|
+| `executed` | The attempted action completed as claimed |
+| `denied` | The environment explicitly refused the action |
+| `indeterminate` | The action ran, but its result proves neither success nor denial |
+| `error` | MacNoise failed to perform or observe the action |
 
-5. **Add the blank import** in `cmd/macnoise/main.go`:
+Use `module.File`, `Process`, `Network`, `Service`, or `Resource` for the subject. Mark secret-bearing parameters and outputs as sensitive. Managed logs must never receive their original values.
 
-```go
-_ "github.com/0xv1n/macnoise/modules/mynewcategory"
-```
+If a later scenario step needs a produced value, implement `module.OutputProvider`, declare it in `OutputSpecs()`, and publish it with `module.PublishOutput`. Use `module.WorkspaceFromContext(ctx)` only for invocation artifacts that must survive until scenario cleanup.
 
-6. **Write tests** — add `modules/<category>/<name>_test.go` with `//go:build integration && darwin`.
+Add portable unit tests for metadata, validation, failure classification, and ownership logic. Add `//go:build integration && darwin` tests for real macOS effects. A skipped root-only or GUI-only test is a stated coverage limit, not proof that the path works.
 
-### Checklist
+When an event type needs a non-default OCSF activity, update `internal/audit/classify.go` and its tests. Modules must not call the audit logger directly.
 
-- [ ] Implements all 6 methods of `Generator`
-- [ ] `Info()` has accurate `Category`, `Tags`, `Privileges`, and `MITRE` entries
-- [ ] `ParamSpecs()` declares the type of every accepted parameter, with defaults and examples
-- [ ] `CheckPrereqs(ctx, params)` returns a clear error when requirements aren't met
-- [ ] `DryRun()` describes every action without executing side-effects
-- [ ] `Cleanup(ctx)` fully reverts any persistent changes
-- [ ] Module emits events via `emit()`, never writes directly to stdout
-- [ ] Registered in `cmd/macnoise/main.go` via blank import
-- [ ] Integration test file added
-- [ ] PR title follows Conventional Commits (see Versioning below) - this becomes your changelog entry automatically
+A new category also needs a constant in `pkg/module/category.go`, blank imports in both CLI commands under `cmd/`, and an OCSF classifier mapping.
 
-## Code Style
+## Scenarios and recipes
 
-- Run `gofmt -w .` before committing
-- Run `go vet ./...` — fix all warnings
-- Run `golangci-lint run ./...` — address all findings
-- No global mutable state outside of the registry
-- Prefer returning errors over `log.Fatal`
+Start from [the scenario template](docs/templates/scenario.yaml). Scenario files use `version: 1` and are strictly validated before any mutation.
 
-## Emit Events Correctly
+- Give each data-producing step an `id`.
+- Reference declared scenario inputs with `{input: name}`.
+- Reference declared module outputs with `{output: step.name}`.
+- Use local `include` steps for reusable recipes.
+- Set `on_error: continue` only for coverage sweeps. Connected flows should stop on failure.
+- Do not add shell expansion, ambient environment expansion, implicit destructive globs, or a template language.
 
-```go
-// Good: declare the outcome and typed subject, then propagate write failures.
-ev := output.NewEvent(info, "event_type", module.OutcomeExecuted, module.File(path), "message")
-ev = output.WithDetails(ev, map[string]any{"key": "value"})
-if err := emit(ev); err != nil {
-    return err
-}
+Run every changed stock scenario with `--dry-run`. Tests validate all files under `configs/scenarios/` against the complete portable catalog.
 
-// Bad: never write to stdout/stderr directly from a module.
-fmt.Println("something happened")
-```
+## Core changes
 
-Every event requires exactly one typed subject. Use `module.File`, `module.Process`, `module.Network`, `module.Service`, or `module.Resource`. Mark secret-bearing parameter specs with `Sensitive: true` so managed audit output redacts their values.
+Start with a test that reproduces the behavior through the closest public entry point. Preserve these boundaries:
 
-If later scenario steps need a value produced by the module, implement
-`module.OutputProvider`, declare it in `OutputSpecs()`, and call
-`module.PublishOutput(ctx, name, value)` from `Generate`. Mark secret-bearing
-outputs sensitive as well. Use `module.WorkspaceFromContext(ctx)` for temporary
-scenario artifacts that must remain available until reverse cleanup.
+- The registry stores factories, not singleton instances.
+- Parameter normalization and complete scenario preflight happen before mutation.
+- Cancellation always stops a scenario and remains recognizable through `errors.Is`.
+- Scenario cleanup runs in reverse order with an independent deadline.
+- Audit logging records decisions but never controls them.
+- JSONL stdout remains machine-readable. Diagnostics and previews go to stderr.
 
-## Audit Logging (OCSF)
+## Generated reference
 
-MacNoise writes a second output stream alongside telemetry events: structured audit records in [OCSF 1.7.0](https://schema.ocsf.io/) JSONL format via `internal/audit/`. These records capture what MacNoise itself did - which modules ran, prereq and cleanup outcomes, timing, and MITRE mappings - rather than the telemetry events that modules produce for EDR consumption.
+[`docs/module-catalog.md`](docs/module-catalog.md) is generated from live registry metadata. After changing module metadata, parameters, outputs, categories, or registration, run:
 
-### Modules don't need to do anything
-
-The runner automatically wraps the `emit` callback with `Logger.WrapEmitter()` when `--audit-log` is active. Every `TelemetryEvent` emitted by your module is normalized, classified, and written to the audit file without any audit-specific module code. Lifecycle records (prereq check, cleanup, dry-run outcome) are also written by the runner - no module-level calls to `audit.Logger` are needed or appropriate.
-
-### Adding a new event type to the classifier
-
-`internal/audit/classify.go` maps `(category, eventType)` pairs to OCSF class and activity identifiers. If your module emits a new `eventType` string that should resolve to a specific OCSF activity (e.g. `Read` instead of the default `Create` for a file module), add a case to the relevant helper:
-
-```go
-// In classify.go
-func fileActivity(eventType string) (int, string) {
-    switch eventType {
-    case "my_read_event":
-        return 2, "Read"
-    // ...
-    }
-}
-```
-
-If your new event type already maps correctly through its category (e.g. a new file module emitting `"write"` already reaches `fileActivity`), no change to `classify.go` is needed.
-
-### OCSF class mapping
-
-| macnoise category | OCSF class UID | OCSF class name |
-|-------------------|----------------|-----------------|
-| `network` | 4001 | Network Activity |
-| `network` (HTTP event types) | 4002 | HTTP Activity |
-| `network` (DNS event types) | 4003 | DNS Activity |
-| `process` | 1007 | Process Activity |
-| `file`, `plist` | 1001 | File System Activity |
-| `tcc`, `credential` | 6003 | API Activity |
-| `volume` | 1001 | File System Activity |
-| `evasion` | 1001 or 1007 | Inferred from event type string |
-| `service` | 1006 | Scheduled Job Activity |
-
-A new category requires a new `case` in the top-level `Classify()` switch and a row in this table.
-
-### Record structure
-
-Each record is an `audit.Record` (`internal/audit/record.go`). Key fields and their sources:
-
-| Field | Source |
-|-------|--------|
-| `class_uid` / `activity_id` | `Classify(ev.Category, ev.EventType)` |
-| `time` | Epoch milliseconds from the normalized event timestamp |
-| `status_id` | OCSF status derived from `ev.Outcome` |
-| `metadata.correlation_uid` | Shared run ID across all records in one execution |
-| `actor` | PID, executable path, and username of the macnoise process |
-| `attacks[]` | MITRE entries from `ModuleInfo.MITRE` |
-| `unmapped` | Module name, category, params, and lifecycle outcome fields |
-
-### Checklist for audit-aware contributions
-
-- [ ] If your module emits a new `eventType` not handled by the existing category switch in `classify.go`, add a case
-- [ ] Give every event exactly one typed subject and propagate every `emit` error
-- [ ] Mark secret-bearing parameters with `Sensitive: true`
-- [ ] Do **not** call `audit.Logger` methods directly from module code - the runner owns the logger lifecycle
-- [ ] If you add a new `Category`, add a `case` in `Classify()` and update the class mapping table above
-- [ ] If you extend `LifecycleData` or `Record`, update the corresponding serialisation in `logger.go`
-- [ ] Verify audit records are valid OCSF by checking that `class_uid`, `category_uid`, `activity_id`, and `type_uid` are consistent (`type_uid = class_uid * 100 + activity_id`)
-
-## PR Process
-
-**One-time setup** (after cloning):
 ```bash
-make install-hooks
-```
-This installs a pre-push git hook that runs `make lint` and `make test` automatically before every push, so CI failures are caught locally first.
-
-1. Fork the repo and create a feature branch: `git checkout -b feat/my-module`
-2. Make your changes following the checklist above
-3. Title your PR using Conventional Commits format (`feat: ...`, `fix: ...`, `chore: ...`) - this is checked automatically and becomes your changelog entry, see Versioning below
-4. Run `make test` and `make lint` — both must pass
-5. Open a PR against `main`; the PR template will guide the required description fields
-
-## Versioning
-
-MacNoise follows [Semantic Versioning 2.0.0](https://semver.org/) and uses
-[release-please](https://github.com/googleapis/release-please) to automate
-releases from [Conventional Commits](https://www.conventionalcommits.org/).
-
-### PR title format
-
-This repo squash-merges every PR, so **the PR title is what release-please
-reads** - individual commits within your branch don't need to conform. Every
-PR title must follow `<type>: <description>`, and this is checked
-automatically (see the "PR Title" check). It also becomes your changelog
-entry, so write it for a reader, not just for the bot.
-
-| Type | Version bump | Use for |
-|------|-------------|---------|
-| `fix:` | **PATCH** (`0.0.X`) | Bug fix, `Cleanup()` regression, doc update, internal refactor |
-| `feat:` | **MINOR** (`0.X.0`) | New module, new flag, backwards-compatible feature |
-| `feat!:` or a `BREAKING CHANGE:` footer | **MAJOR** once `1.x+`, **MINOR** while `0.x` | Removing a flag, renaming a module |
-| `chore:`, `docs:`, `refactor:`, `test:`, `ci:`, `build:` | none on its own | Everything else |
-
-Examples:
-```
-feat: add net_tls module
-fix: correct beacon jitter calculation
-chore: bump golangci-lint to v2.11
+make generate-catalog
 ```
 
-### How a release actually happens
+The unit suite fails when the tracked reference is stale. Do not edit it by hand.
 
-1. PRs merge to `main` as normal.
-2. A bot keeps a single, continuously-updated "Release vX.Y.Z" pull request
-   open, with the version and `CHANGELOG.md` section computed from the
-   Conventional Commit history since the last release.
-3. Merging that PR is the release: the tag is created, both Darwin binaries
-   are built, and a GitHub Release is published in the same run. No manual
-   tagging or CHANGELOG editing.
+## Validation
 
-`CHANGELOG.md` is generated by release-please from PR titles; don't hand-edit
-it. The version fallback in `cmd/macnoise/version.go` is kept in sync
-automatically on each release - real builds always get their version from
-the git tag via LDFLAGS regardless, so that fallback only matters for
-unlinked builds (e.g. `go run`).
+Run the checks appropriate to the change, with the full local gate before opening a PR:
+
+```bash
+make generate-catalog
+make test
+make lint
+go vet ./...
+GOOS=darwin GOARCH=amd64 go build ./cmd/macnoise
+GOOS=darwin GOARCH=arm64 go build ./cmd/macnoise
+```
+
+Real-operation changes also require the race-enabled integration suite on macOS:
+
+```bash
+go test -tags integration -race -count=1 ./...
+```
+
+On a host without a CGO toolchain, `-race` cannot build. Run `go test -count=1 ./...` locally and require the race-enabled CI and macOS jobs before merge.
+
+## Pull requests
+
+Keep the description short: state the change and why in one or two sentences, then list validation. Call out a compatibility break or unverified root/GUI path directly.
+
+This repository squash-merges PRs. The PR title becomes the commit Release Please reads, so use Conventional Commits:
+
+| Title | Release effect after 1.0 |
+|---|---|
+| `fix: ...`, `perf: ...`, `refactor: ...`, `revert: ...` | Patch |
+| `feat: ...` | Minor |
+| `type!: ...` | Major |
+| `docs:`, `test:`, `ci:`, `build:`, `chore:` | No bump on their own |
+
+Use the `!` in the title for a breaking change so it survives the squash merge. `CHANGELOG.md` and `cmd/macnoise/version.go` are maintained by Release Please and must not be edited manually.
+
+Install the repository hooks once with `make install-hooks` if your platform supports them.
