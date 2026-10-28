@@ -74,7 +74,7 @@ macnoise version                              Print version
 |------|---------|-------------|
 | `--format` | `human` | Output format: `human` or `jsonl` |
 | `--output` | (none) | Write output to file (in addition to stdout) |
-| `--verbose` | false | Verbose output including cleanup errors |
+| `--verbose` | false | Currently accepted without changing output |
 | `--dry-run` | false | Preview actions without executing |
 | `--no-cleanup` | false | Leave module artifacts in place (see below) |
 | `--timeout` | `30` | Per-module timeout in seconds |
