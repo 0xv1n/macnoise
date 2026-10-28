@@ -21,6 +21,17 @@ func TestCreateFileRefusesExistingPath(t *testing.T) {
 	}
 }
 
+func TestCreateFileFromTracksWrittenSize(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "streamed")
+	owned, err := CreateFileFrom(path, strings.NewReader("payload"), 0o600)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := owned.Size(); got != int64(len("payload")) {
+		t.Fatalf("Size = %d, want %d", got, len("payload"))
+	}
+}
+
 func TestFileRemoveRefusesChangedFile(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "owned")
 	owned, err := CreateFile(path, []byte("created"), 0o600)

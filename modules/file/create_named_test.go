@@ -69,6 +69,30 @@ func TestFileCreate_NeverOverwritesExistingFile(t *testing.T) {
 	}
 }
 
+func TestFileCreate_CleanupRefusesSymlinkReplacement(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "owned.txt")
+	movedPath := filepath.Join(dir, "moved.txt")
+	f := &fileCreate{}
+	ctx, _ := outputContext()
+	if err := f.Generate(ctx, module.Params{"base_dir": dir, "filename": "owned.txt", "content": "created"}, noopEmit); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(path, movedPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(movedPath, path); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := f.Cleanup(context.Background()); err == nil || !strings.Contains(err.Error(), "cleanup conflict") {
+		t.Fatalf("Cleanup = %v, want conflict", err)
+	}
+	if info, err := os.Lstat(path); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("replacement symlink was not preserved: info=%v err=%v", info, err)
+	}
+}
+
 func TestFileCreate_RejectsNestedFilename(t *testing.T) {
 	f := &fileCreate{}
 	err := f.Generate(context.Background(), module.Params{

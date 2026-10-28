@@ -4,20 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
 var errCopyDestination = errors.New("copy destination failed")
 
 type fileCopy struct {
-	files       []ownedFile
-	dirs        []ownedDir
+	files       []ownership.File
+	dirs        []ownership.Directory
 	destination string
 }
 
@@ -81,7 +81,7 @@ func (f *fileCopy) Generate(ctx context.Context, params module.Params, emit modu
 	f.destination = params.String("destination_dir", "/tmp/macnoise_copy")
 	sources := params.Paths("source_paths", nil)
 	if len(sources) > 0 {
-		createdDirs, err := ensureDirs(f.destination, 0o700)
+		createdDirs, err := ownership.EnsureDirectories(f.destination, 0o700)
 		f.dirs = append(f.dirs, createdDirs...)
 		if err != nil {
 			return err
@@ -128,7 +128,7 @@ func (f *fileCopy) Generate(ctx context.Context, params module.Params, emit modu
 
 	paths := make([]string, len(f.files))
 	for index, file := range f.files {
-		paths[index] = file.path
+		paths[index] = file.Path()
 	}
 	return errors.Join(resultErr,
 		module.PublishOutput(ctx, "paths", paths),
@@ -136,36 +136,25 @@ func (f *fileCopy) Generate(ctx context.Context, params module.Params, emit modu
 	)
 }
 
-func copyOwnedFile(source, destination string) (int64, ownedFile, error) {
+func copyOwnedFile(source, destination string) (int64, ownership.File, error) {
 	in, err := os.Open(source)
 	if err != nil {
-		return 0, ownedFile{}, err
+		return 0, ownership.File{}, err
 	}
 	defer func() { _ = in.Close() }()
 	info, err := in.Stat()
 	if err != nil {
-		return 0, ownedFile{}, err
+		return 0, ownership.File{}, err
 	}
 	if !info.Mode().IsRegular() {
-		return 0, ownedFile{}, errNotRegularFile
+		return 0, ownership.File{}, errNotRegularFile
 	}
 
-	out, err := os.OpenFile(destination, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o600)
+	owned, err := ownership.CreateFileFrom(destination, in, 0o600)
 	if err != nil {
-		return 0, ownedFile{}, fmt.Errorf("%w: %w", errCopyDestination, err)
+		return 0, ownership.File{}, fmt.Errorf("%w: %w", errCopyDestination, err)
 	}
-	n, copyErr := io.Copy(out, in)
-	closeErr := out.Close()
-	if err := errors.Join(copyErr, closeErr); err != nil {
-		_ = os.Remove(destination)
-		return n, ownedFile{}, fmt.Errorf("%w: %w", errCopyDestination, err)
-	}
-	owned, err := captureOwnedFile(destination)
-	if err != nil {
-		_ = os.Remove(destination)
-		return n, ownedFile{}, fmt.Errorf("%w: %w", errCopyDestination, err)
-	}
-	return n, owned, nil
+	return owned.Size(), owned, nil
 }
 
 func (f *fileCopy) DryRun(params module.Params) []string {
@@ -174,7 +163,7 @@ func (f *fileCopy) DryRun(params module.Params) []string {
 }
 
 func (f *fileCopy) Cleanup(ctx context.Context) error {
-	err := errors.Join(removeOwnedFiles(f.files), removeOwnedDirs(f.dirs))
+	err := errors.Join(ownership.RemoveFiles(f.files), ownership.RemoveDirectories(f.dirs))
 	f.files = nil
 	f.dirs = nil
 	return err

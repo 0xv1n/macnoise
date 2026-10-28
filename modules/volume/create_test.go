@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -23,23 +24,50 @@ func TestCreateArgsUseLiteralSourceAndDoNotOverwrite(t *testing.T) {
 	}
 }
 
-func TestOwnedImageCleanupRefusesChangedFile(t *testing.T) {
+func TestVolumeCreateCleanupRefusesChangedImage(t *testing.T) {
 	path := filepath.Join(t.TempDir(), "image.dmg")
 	if err := os.WriteFile(path, []byte("original"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	owned, err := captureOwnedImage(path)
+	owned, err := ownership.CaptureFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if err := os.WriteFile(path, []byte("changed"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := owned.remove(); err == nil || !strings.Contains(err.Error(), "changed") {
+	if err := (&volumeCreate{image: owned}).Cleanup(context.Background()); err == nil || !strings.Contains(err.Error(), "changed") {
 		t.Fatalf("remove = %v, want changed-file conflict", err)
 	}
 	if _, err := os.Stat(path); err != nil {
 		t.Fatalf("changed image was removed: %v", err)
+	}
+}
+
+func TestVolumeCreateCleanupRefusesSameContentReplacement(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "image.dmg")
+	movedPath := filepath.Join(dir, "moved.dmg")
+	const content = "original"
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	owned, err := ownership.CaptureFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(path, movedPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := (&volumeCreate{image: owned}).Cleanup(context.Background()); err == nil {
+		t.Fatal("Cleanup removed a byte-identical replacement")
+	}
+	if data, err := os.ReadFile(path); err != nil || string(data) != content {
+		t.Fatalf("replacement changed: data=%q err=%v", data, err)
 	}
 }
 
