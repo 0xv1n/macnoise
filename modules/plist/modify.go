@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"os/exec"
-	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
 	"github.com/0xv1n/macnoise/internal/prereqs"
@@ -21,34 +20,6 @@ type plistModify struct {
 	priorValue   any
 	writtenValue string
 	mutated      bool
-}
-
-// defaultsReadOutcome is the result of classifying a `defaults read domain
-// key` invocation before plistModify overwrites it.
-type defaultsReadOutcome struct {
-	safe    bool
-	existed bool
-}
-
-// classifyDefaultsRead inspects the result of `defaults read domain key` and
-// reports whether the key definitely exists or is definitely absent.
-//
-// `defaults read` exits non-zero both when the key genuinely does not exist
-// and when some other read failure occurs. Only the well-known "does not
-// exist" message is trusted as genuinely absent; any other failure is
-// reported unsafe so Generate can abort instead of guessing, and Cleanup
-// never has to choose between destroying or fabricating a value it never
-// actually saw. Existing values are captured from an exported plist so their
-// type and nested structure can be restored faithfully.
-func classifyDefaultsRead(out []byte, err error) defaultsReadOutcome {
-	if err == nil {
-		return defaultsReadOutcome{safe: true, existed: true}
-	}
-	text := strings.TrimRight(string(out), "\n")
-	if strings.Contains(strings.ToLower(text), "does not exist") {
-		return defaultsReadOutcome{safe: true, existed: false}
-	}
-	return defaultsReadOutcome{safe: false}
 }
 
 func (p *plistModify) Info() module.ModuleInfo {
@@ -89,39 +60,21 @@ func (p *plistModify) Generate(ctx context.Context, params module.Params, emit m
 	info := p.Info()
 
 	readEv := output.NewEvent(info, "plist_read_prior", module.OutcomeError, module.Resource("preference", domain+":"+key, ""), fmt.Sprintf("reading prior value of %s %s", domain, key))
-	readOut, readErr := exec.CommandContext(ctx, "defaults", "read", domain, key).CombinedOutput()
-	outcome := classifyDefaultsRead(readOut, readErr)
-	if !outcome.safe {
-		readEv = output.WithError(readEv, fmt.Errorf("cannot safely determine prior value of %s %s, refusing to overwrite: %v: %s", domain, key, readErr, strings.TrimSpace(string(readOut))))
-		return errors.Join(
-			fmt.Errorf("plist_modify: cannot safely determine prior value of %s %s, aborting rather than risk losing it: %w", domain, key, readErr),
-			emit(readEv),
-		)
+	priorDomain, err := exportDefaultsDomain(ctx, domain)
+	if err != nil {
+		readEv = output.WithError(readEv, fmt.Errorf("export prior defaults domain %s: %w", domain, err))
+		return errors.Join(err, emit(readEv))
 	}
-	var priorValue any
-	if outcome.existed {
-		priorDomain, err := exportDefaultsDomain(ctx, domain)
-		if err != nil {
-			readEv = output.WithError(readEv, fmt.Errorf("export prior defaults domain %s: %w", domain, err))
-			return errors.Join(err, emit(readEv))
-		}
-		var ok bool
-		priorValue, ok = priorDomain[key]
-		if !ok {
-			err := fmt.Errorf("defaults export %s did not contain key %q returned by defaults read", domain, key)
-			readEv = output.WithError(readEv, err)
-			return errors.Join(err, emit(readEv))
-		}
-	}
+	priorValue, priorExisted := priorDomain[key]
 
 	p.domain = domain
 	p.key = key
-	p.priorExisted = outcome.existed
+	p.priorExisted = priorExisted
 	p.priorValue = priorValue
 	p.writtenValue = value
 
 	readEv.Outcome = module.OutcomeExecuted
-	if outcome.existed {
+	if priorExisted {
 		readEv.Message = fmt.Sprintf("%s %s already set, prior value will be restored on cleanup", domain, key)
 	} else {
 		readEv.Message = fmt.Sprintf("%s %s not set, key will be removed on cleanup", domain, key)
@@ -149,7 +102,7 @@ func (p *plistModify) DryRun(params module.Params) []string {
 	key := params.String("key", "MacnoiseTest")
 	value := params.String("value", "true")
 	return []string{
-		fmt.Sprintf("defaults read %s %s (capture prior value for cleanup)", domain, key),
+		fmt.Sprintf("defaults export %s - (capture prior value for cleanup)", domain),
 		fmt.Sprintf("defaults write %s %s -string %s", domain, key, value),
 	}
 }
