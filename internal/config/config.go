@@ -53,5 +53,8 @@ func Load(path string) (Config, error) {
 		}
 		return cfg, fmt.Errorf("config: parse %s: %w", path, err)
 	}
+	if cfg.DefaultTimeout < 0 {
+		return cfg, fmt.Errorf("config: default_timeout %d must be 0 or greater", cfg.DefaultTimeout)
+	}
 	return cfg, nil
 }

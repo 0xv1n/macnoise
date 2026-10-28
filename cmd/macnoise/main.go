@@ -67,11 +67,14 @@ EDR validation, and detection engineering.`,
 			if !cmd.Flags().Changed("format") && cfg.DefaultFormat != "" {
 				globalFormat = cfg.DefaultFormat
 			}
-			if !cmd.Flags().Changed("timeout") && cfg.DefaultTimeout > 0 {
+			if !cmd.Flags().Changed("timeout") {
 				globalTimeout = cfg.DefaultTimeout
 			}
 			if !cmd.Flags().Changed("output") && cfg.OutputFile != "" {
 				globalOutput = cfg.OutputFile
+			}
+			if globalTimeout < 0 {
+				return errors.New("--timeout must be 0 or greater")
 			}
 			return nil
 		},
