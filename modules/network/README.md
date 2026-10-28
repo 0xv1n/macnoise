@@ -29,7 +29,7 @@ DNS resolution of configurable domains. Maps to T1071.004.
 Connects a shell to a remote listener (connection refused is expected without one). Maps to T1059.004.
 
 ### `net_tls`
-Performs TLS handshakes to configurable endpoints and reports the negotiated version, cipher suite, and server certificate subject. Fills the encrypted-traffic gap that all other network modules leave open - no SNI/JA3/certificate-based detection fires without a TLS handshake. Pass `insecure=true` to skip certificate verification, matching what real C2 does with self-signed certs. Maps to T1573.002.
+Performs direct TLS handshakes to configurable endpoints and reports the negotiated version, cipher suite, and server certificate subject. Use it when you need TLS telemetry without an HTTP request. Pass `insecure=true` to connect without verifying the server certificate. Maps to T1573.002.
 
 ```bash
 macnoise run net_tls

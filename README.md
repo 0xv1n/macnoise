@@ -1,5 +1,5 @@
 <div style="text-align: center;">
-  <img src="macnoise.png" alt="Description of image" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
+  <img src="macnoise.png" alt="MacNoise logo" style="max-width: 100%; height: auto; display: block; margin: 0 auto;">
 </div>
 
 ---
@@ -123,7 +123,9 @@ versioned execution report.
 
 ## Leaving Artifacts In Place
 
-By default every module reverses itself when it finishes. That is usually what you want, but it means a detection only ever sees the *install* event. To validate that your stack detects the persistence itself - a LaunchAgent sitting in `~/Library/LaunchAgents`, a cron entry, a modified shell profile - the artifact has to still be there when the scan runs:
+By default, MacNoise runs module cleanup after execution. Cleanup removes artifacts that the invocation created and still owns. It cannot reverse completed network, process, or destructive activity.
+
+To validate that your stack detects persistence itself, leave the artifact in place while the scan runs. Examples include a LaunchAgent in `~/Library/LaunchAgents`, a cron entry, and a modified shell profile:
 
 ```bash
 ./macnoise run svc_launch_agent --no-cleanup
@@ -188,7 +190,7 @@ Scenarios chain modules into ordered sequences - a single YAML file that replays
 | `file_flow.yaml` | Connected create, modify, bounded discovery, read, copy, and archive flow |
 | `mounted_execution.yaml` | Create and execute a payload from an observed disk-image mount point |
 
-The two APT scenarios follow real documented intrusion sequences, technique by technique - each YAML file cites the actual threat intel it's built from and annotates every step with the MITRE technique it exercises, so start there for the full breakdown rather than a retelling here.
+The AMOS scenario cites the threat reports used for its sequence and step annotations. The Lazarus scenario groups representative macOS techniques into one sequence. Each step comment names the MITRE ATT&CK technique that it exercises.
 
 **Dry-run first:**
 ```bash
