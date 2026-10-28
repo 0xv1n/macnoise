@@ -404,12 +404,14 @@ func TestRedactedCommandLine(t *testing.T) {
 		"macnoise", "run", "cred_keychain",
 		"--param", "password=" + secret,
 		"--param=payload=" + secret,
+		"--input", "token=" + secret,
+		"--input=body=" + secret,
 	})
 	if strings.Contains(got, secret) {
 		t.Fatalf("redacted command line contains sensitive value: %q", got)
 	}
-	if count := strings.Count(got, module.RedactedValue); count != 2 {
-		t.Fatalf("redaction markers = %d, want 2 in %q", count, got)
+	if count := strings.Count(got, module.RedactedValue); count != 4 {
+		t.Fatalf("redaction markers = %d, want 4 in %q", count, got)
 	}
 }
 
