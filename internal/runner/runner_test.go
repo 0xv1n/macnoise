@@ -196,6 +196,64 @@ func TestRunSingleRedactsSensitiveAuditParams(t *testing.T) {
 	}
 }
 
+func TestRunScenarioRedactsSensitiveInputInModuleAudit(t *testing.T) {
+	const secret = "scenario-secret-value"
+	const moduleName = "scenario_sensitive_input"
+
+	var registry module.Registry
+	registry.Register(func() module.Generator {
+		return &mockGen{
+			name:       moduleName,
+			paramSpecs: []module.ParamSpec{{Name: "target", Type: module.ParamString, Required: true}},
+		}
+	})
+
+	scenarioPath := filepath.Join(t.TempDir(), "scenario.yaml")
+	scenario := `version: 1
+name: sensitive input audit
+inputs:
+  token:
+    type: string
+    required: true
+    sensitive: true
+steps:
+  - module: scenario_sensitive_input
+    params:
+      target:
+        input: token
+`
+	if err := os.WriteFile(scenarioPath, []byte(scenario), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	auditPath := filepath.Join(t.TempDir(), "audit.jsonl")
+	logger, err := audit.NewLogger(auditPath, "test", "run")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, runErr := runner.RunScenario(context.Background(), scenarioPath, discardEvent, runner.Options{
+		Registry:       &registry,
+		ScenarioInputs: module.Params{"token": secret},
+		AuditLog:       logger,
+	})
+	if runErr != nil {
+		t.Fatal(runErr)
+	}
+	if err := logger.Close(); err != nil {
+		t.Fatal(err)
+	}
+	data, err := os.ReadFile(auditPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), secret) {
+		t.Fatal("audit log contains sensitive scenario input")
+	}
+	if !strings.Contains(string(data), module.RedactedValue) {
+		t.Fatal("audit log does not contain redaction marker")
+	}
+}
+
 func TestRunSingleReturnsCleanupError(t *testing.T) {
 	want := errors.New("cleanup failed")
 	gen := &mockGen{name: "cleanup_error", cleanupErr: want}

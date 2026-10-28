@@ -322,11 +322,13 @@ func redactedCommandLine(args []string) string {
 	redacted := append([]string(nil), args...)
 	for i := 0; i < len(redacted); i++ {
 		switch {
-		case redacted[i] == "--param" && i+1 < len(redacted):
+		case (redacted[i] == "--param" || redacted[i] == "--input") && i+1 < len(redacted):
 			redacted[i+1] = module.RedactedValue
 			i++
 		case strings.HasPrefix(redacted[i], "--param="):
 			redacted[i] = "--param=" + module.RedactedValue
+		case strings.HasPrefix(redacted[i], "--input="):
+			redacted[i] = "--input=" + module.RedactedValue
 		}
 	}
 	return strings.Join(redacted, " ")

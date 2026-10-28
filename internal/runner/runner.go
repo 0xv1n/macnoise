@@ -37,10 +37,11 @@ type Options struct {
 	// RunScenario. PrepareScenario captures inputs before PreparedScenario.Run.
 	ScenarioInputs module.Params
 
-	workspace        string
-	deferCleanup     func(func() error)
-	cleanupResult    func(string, string)
-	invocationOutput *module.Params
+	workspace            string
+	deferCleanup         func(func() error)
+	cleanupResult        func(string, string)
+	invocationOutput     *module.Params
+	auditSensitiveParams []string
 }
 
 // RunSingle executes one module through its full lifecycle (prereqs → generate → cleanup).
@@ -57,6 +58,11 @@ func RunSingle(ctx context.Context, gen module.Generator, params module.Params, 
 		}
 	}
 	auditParams := module.RedactParams(gen.ParamSpecs(), params)
+	for _, name := range opts.auditSensitiveParams {
+		if _, ok := auditParams[name]; ok {
+			auditParams[name] = module.RedactedValue
+		}
+	}
 	startTime := time.Now()
 
 	lifecycle := audit.LifecycleData{

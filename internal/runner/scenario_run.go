@@ -201,6 +201,7 @@ func (e *scenarioExecution) runPlan(plan *scenarioPlan, inputValues module.Param
 				invocationOpts := e.opts
 				invocationOpts.workspace = e.workspace
 				invocationOpts.invocationOutput = &outputs
+				invocationOpts.auditSensitiveParams = sensitiveBindingNames(step.params)
 				registered := false
 				invocationOpts.deferCleanup = func(run func() error) {
 					registered = true
@@ -263,6 +264,16 @@ func (e *scenarioExecution) runPlan(plan *scenarioPlan, inputValues module.Param
 func (e *scenarioExecution) moduleParamSpecs(name string) []module.ParamSpec {
 	gen, _ := e.registry.Get(name)
 	return gen.ParamSpecs()
+}
+
+func sensitiveBindingNames(bindings map[string]valueBinding) []string {
+	names := make([]string, 0)
+	for name, binding := range bindings {
+		if binding.sensitive {
+			names = append(names, name)
+		}
+	}
+	return names
 }
 
 func resolvePlanInputs(bindings map[string]valueBinding, parentInputs module.Params, parentSteps map[string]module.Params, preview bool) (module.Params, error) {
