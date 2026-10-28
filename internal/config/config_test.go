@@ -95,3 +95,15 @@ func TestLoadRejectsUnknownField(t *testing.T) {
 		t.Fatalf("Load error = %v, want unknown-field error", err)
 	}
 }
+
+func TestLoadRejectsNegativeTimeout(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "negative-timeout.yaml")
+	if err := os.WriteFile(path, []byte("default_timeout: -1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := config.Load(path)
+	if err == nil || !strings.Contains(err.Error(), "default_timeout must be 0 or greater") {
+		t.Fatalf("Load error = %v, want negative timeout error", err)
+	}
+}
