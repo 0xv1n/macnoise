@@ -12,15 +12,16 @@ import (
 	"path/filepath"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
-	"howett.net/plist"
 )
 
 type svcLaunchAgent struct {
-	plistPath string
-	label     string
-	domain    string
-	loaded    bool
+	plist       ownership.File
+	createdDirs []ownership.Directory
+	label       string
+	domain      string
+	loaded      bool
 }
 
 func (s *svcLaunchAgent) Info() module.ModuleInfo {
@@ -72,36 +73,23 @@ func (s *svcLaunchAgent) Generate(ctx context.Context, params module.Params, emi
 	}
 
 	agentDir := filepath.Join(target.home, "Library", "LaunchAgents")
-	if err := os.MkdirAll(agentDir, 0o755); err != nil {
+	createdDirs, err := ownership.EnsureDirectories(agentDir, 0o755)
+	s.createdDirs = append(s.createdDirs, createdDirs...)
+	if err != nil {
 		return fmt.Errorf("mkdir %s: %w", agentDir, err)
 	}
 
 	plistPath := filepath.Join(agentDir, label+".plist")
-	s.plistPath = plistPath
 	s.label = label
 	s.domain = guiDomain(target.uid)
 
-	plistData := map[string]any{
-		"Label":            label,
-		"ProgramArguments": []string{program},
-		"RunAtLoad":        false,
-		"KeepAlive":        false,
-	}
-
 	createEv := output.NewEvent(info, "launchagent_create", module.OutcomeError, module.Service(label, s.domain, plistPath), fmt.Sprintf("creating plist at %s", plistPath))
-	f, err := os.Create(plistPath)
+	created, err := createLaunchdPlist(plistPath, label, program)
 	if err != nil {
 		createEv = output.WithError(createEv, err)
 		return errors.Join(err, emit(createEv))
 	}
-	enc := plist.NewEncoder(f)
-	enc.Indent("\t")
-	if err := enc.Encode(plistData); err != nil {
-		_ = f.Close()
-		createEv = output.WithError(createEv, err)
-		return errors.Join(err, emit(createEv))
-	}
-	_ = f.Close()
+	s.plist = created
 
 	createEv.Outcome = module.OutcomeExecuted
 	createEv.Message = fmt.Sprintf("created LaunchAgent plist at %s", plistPath)
@@ -152,12 +140,7 @@ func (s *svcLaunchAgent) Cleanup(ctx context.Context) error {
 			bootoutErr = fmt.Errorf("launchctl bootout %s: %v: %s", s.label, err, out)
 		}
 	}
-	if s.plistPath != "" {
-		if err := os.Remove(s.plistPath); err != nil {
-			return err
-		}
-	}
-	return bootoutErr
+	return errors.Join(bootoutErr, s.plist.Remove(), ownership.RemoveDirectories(s.createdDirs))
 }
 
 func init() {

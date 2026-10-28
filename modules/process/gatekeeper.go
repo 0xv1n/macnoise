@@ -4,16 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/internal/subprocess"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
 type procGatekeeper struct {
-	targetPath string
+	target ownership.File
 }
 
 func (p *procGatekeeper) Info() module.ModuleInfo {
@@ -49,14 +49,15 @@ func (p *procGatekeeper) CheckPrereqs(ctx context.Context, params module.Params)
 func (p *procGatekeeper) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	runID := module.RunIDFromContext(ctx)
 	targetPath := module.TagPath(params.String("target_path", "/tmp/macnoise_gatekeeper_test"), runID)
-	p.targetPath = targetPath
 	info := p.Info()
 
-	if err := os.WriteFile(targetPath, []byte("macnoise gatekeeper test\n"), 0o644); err != nil {
+	target, err := ownership.CreateFile(targetPath, []byte("macnoise gatekeeper test\n"), 0o644)
+	if err != nil {
 		ev := output.NewEvent(info, "test_file_create_fail", module.OutcomeError, module.File(targetPath), fmt.Sprintf("failed to create test file %s", targetPath))
 		ev = output.WithError(ev, err)
 		return errors.Join(err, emit(ev))
 	}
+	p.target = target
 
 	// The quarantine value's agent field carries the run ID so a consumer can
 	// correlate the xattr back to the run.
@@ -118,12 +119,7 @@ func (p *procGatekeeper) DryRun(params module.Params) []string {
 }
 
 func (p *procGatekeeper) Cleanup(ctx context.Context) error {
-	if p.targetPath != "" {
-		if err := os.Remove(p.targetPath); err != nil && !os.IsNotExist(err) {
-			return err
-		}
-	}
-	return nil
+	return p.target.Remove()
 }
 
 func init() {
