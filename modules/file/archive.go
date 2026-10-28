@@ -9,14 +9,15 @@ import (
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/internal/prereqs"
 	"github.com/0xv1n/macnoise/internal/subprocess"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
 type fileArchive struct {
-	files []ownedFile
-	dirs  []ownedDir
+	files []ownership.File
+	dirs  []ownership.Directory
 }
 
 func (f *fileArchive) Info() module.ModuleInfo {
@@ -109,7 +110,7 @@ func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit m
 	} else if !os.IsNotExist(err) {
 		return err
 	}
-	createdDirs, err := ensureDirs(filepath.Dir(outputPath), 0o700)
+	createdDirs, err := ownership.EnsureDirectories(filepath.Dir(outputPath), 0o700)
 	f.dirs = append(f.dirs, createdDirs...)
 	if err != nil {
 		return err
@@ -132,7 +133,7 @@ func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit m
 		return errors.Join(runErr, emit(ev))
 	}
 
-	tempFile, err := captureOwnedFile(tempPath)
+	tempFile, err := ownership.CaptureFile(tempPath)
 	if err != nil {
 		return err
 	}
@@ -141,19 +142,19 @@ func (f *fileArchive) Generate(ctx context.Context, params module.Params, emit m
 		ev = output.WithError(ev, err)
 		return errors.Join(err, emit(ev))
 	}
-	outputFile := ownedFile{path: outputPath, info: tempFile.info, hash: tempFile.hash}
+	outputFile := tempFile.AtPath(outputPath)
 	f.files = append(f.files, outputFile)
 	if err := os.Remove(tempPath); err != nil {
 		f.files = append(f.files, tempFile)
 		return err
 	}
 	ev.Outcome = module.OutcomeExecuted
-	ev.Message = fmt.Sprintf("archive created: %s (%d bytes) via %s", outputPath, outputFile.info.Size(), tool)
+	ev.Message = fmt.Sprintf("archive created: %s (%d bytes) via %s", outputPath, outputFile.Size(), tool)
 	ev = output.WithDetails(ev, map[string]any{
 		"source_path":  sourcePath,
 		"output_path":  outputPath,
 		"tool":         tool,
-		"archive_size": outputFile.info.Size(),
+		"archive_size": outputFile.Size(),
 	})
 	return errors.Join(module.PublishOutput(ctx, "path", outputPath), emit(ev))
 }
@@ -186,7 +187,7 @@ func reserveArchivePath(dir, outputPath, tool string) (string, error) {
 }
 
 func (f *fileArchive) capturePartial(path string) {
-	owned, err := captureOwnedFile(path)
+	owned, err := ownership.CaptureFile(path)
 	if err == nil {
 		f.files = append(f.files, owned)
 	}
@@ -200,7 +201,7 @@ func (f *fileArchive) DryRun(params module.Params) []string {
 }
 
 func (f *fileArchive) Cleanup(ctx context.Context) error {
-	err := errors.Join(removeOwnedFiles(f.files), removeOwnedDirs(f.dirs))
+	err := errors.Join(ownership.RemoveFiles(f.files), ownership.RemoveDirectories(f.dirs))
 	f.files = nil
 	f.dirs = nil
 	return err

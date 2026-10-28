@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -17,8 +18,8 @@ type fileModify struct {
 	origContent []byte
 	origMode    os.FileMode
 	existed     bool
-	version     ownedFile
-	dirs        []ownedDir
+	version     ownership.File
+	dirs        []ownership.Directory
 }
 
 func (f *fileModify) Info() module.ModuleInfo {
@@ -57,10 +58,11 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 
 	f.targetPath = targetPath
 
-	orig, err := os.ReadFile(targetPath)
+	var orig []byte
+	writePath, err := filepath.EvalSymlinks(targetPath)
 	switch {
 	case os.IsNotExist(err):
-		createdDirs, err2 := ensureDirs(filepath.Dir(targetPath), 0o755)
+		createdDirs, err2 := ownership.EnsureDirectories(filepath.Dir(targetPath), 0o755)
 		f.dirs = append(f.dirs, createdDirs...)
 		if err2 != nil {
 			ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), "failed to create parent directory")
@@ -68,6 +70,7 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 			return errors.Join(err2, emit(ev))
 		}
 		orig = []byte{}
+		writePath = targetPath
 		f.existed = false
 	case err != nil:
 		ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), fmt.Sprintf("failed to read %s", targetPath))
@@ -75,9 +78,18 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 		return errors.Join(err, emit(ev))
 	default:
 		f.existed = true
-		fileInfo, statErr := os.Stat(targetPath)
+		fileInfo, statErr := os.Stat(writePath)
 		if statErr != nil {
 			return statErr
+		}
+		if !fileInfo.Mode().IsRegular() {
+			return fmt.Errorf("file modify target is not a regular file: %s", targetPath)
+		}
+		orig, err = os.ReadFile(writePath)
+		if err != nil {
+			ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), fmt.Sprintf("failed to read %s", targetPath))
+			ev = output.WithError(ev, err)
+			return errors.Join(err, emit(ev))
 		}
 		f.origMode = fileInfo.Mode().Perm()
 	}
@@ -86,12 +98,12 @@ func (f *fileModify) Generate(ctx context.Context, params module.Params, emit mo
 	newContent := append(append([]byte(nil), orig...), []byte(fmt.Sprintf("\n%s [%s]", content, time.Now().UTC()))...)
 	ev := output.NewEvent(info, "file_modify", module.OutcomeError, module.File(targetPath), fmt.Sprintf("modifying %s", targetPath))
 	if f.existed {
-		err = os.WriteFile(targetPath, newContent, f.origMode)
+		err = os.WriteFile(writePath, newContent, f.origMode)
 		var captureErr error
-		f.version, captureErr = captureOwnedFile(targetPath)
+		f.version, captureErr = ownership.CaptureFile(writePath)
 		err = errors.Join(err, captureErr)
 	} else {
-		f.version, err = createOwnedFile(targetPath, newContent, 0o644)
+		f.version, err = ownership.CreateFile(targetPath, newContent, 0o644)
 	}
 	if err != nil {
 		ev = output.WithError(ev, err)
@@ -121,23 +133,18 @@ func (f *fileModify) Cleanup(ctx context.Context) error {
 		return nil
 	}
 	if f.existed {
-		if _, err := os.Stat(f.targetPath); os.IsNotExist(err) {
-			return fmt.Errorf("cleanup conflict: %s was removed after macnoise modified it", f.targetPath)
-		} else if err != nil {
+		if err := f.version.Verify(); err != nil {
 			return err
 		}
-		if err := f.version.verifyCurrent(); err != nil {
-			return err
-		}
-		if err := os.WriteFile(f.targetPath, f.origContent, f.origMode); err != nil {
+		if err := os.WriteFile(f.version.Path(), f.origContent, f.origMode); err != nil {
 			return err
 		}
 		f.targetPath = ""
 		f.origContent = nil
-		f.version = ownedFile{}
+		f.version = ownership.File{}
 		return nil
 	}
-	return errors.Join(removeOwnedFile(f.version), removeOwnedDirs(f.dirs))
+	return errors.Join(f.version.Remove(), ownership.RemoveDirectories(f.dirs))
 }
 
 func init() {

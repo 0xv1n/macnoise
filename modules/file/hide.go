@@ -8,12 +8,13 @@ import (
 	"path/filepath"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
 type fileHide struct {
-	files []ownedFile
-	dirs  []ownedDir
+	files []ownership.File
+	dirs  []ownership.Directory
 }
 
 func (f *fileHide) Info() module.ModuleInfo {
@@ -51,14 +52,14 @@ func (f *fileHide) Generate(ctx context.Context, params module.Params, emit modu
 	workDir := params.String("work_dir", "/tmp/macnoise_hide")
 	info := f.Info()
 
-	createdDirs, err := ensureDirs(workDir, 0o755)
+	createdDirs, err := ownership.EnsureDirectories(workDir, 0o755)
 	f.dirs = append(f.dirs, createdDirs...)
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w", workDir, err)
 	}
 
 	chflagsTarget := filepath.Join(workDir, "visible_file.txt")
-	owned, err := createOwnedFile(chflagsTarget, []byte("macnoise chflags hidden test\n"), 0o644)
+	owned, err := ownership.CreateFile(chflagsTarget, []byte("macnoise chflags hidden test\n"), 0o644)
 	if err != nil {
 		return err
 	}
@@ -76,7 +77,7 @@ func (f *fileHide) Generate(ctx context.Context, params module.Params, emit modu
 
 	dotTarget := filepath.Join(workDir, ".macnoise_hidden")
 	dotEv := output.NewEvent(info, "file_hide_dotfile", module.OutcomeError, module.File(dotTarget), fmt.Sprintf("creating dotfile: %s", dotTarget))
-	owned, err = createOwnedFile(dotTarget, []byte("macnoise dotfile hidden test\n"), 0o644)
+	owned, err = ownership.CreateFile(dotTarget, []byte("macnoise dotfile hidden test\n"), 0o644)
 	if err != nil {
 		dotEv = output.WithError(dotEv, err)
 	} else {
@@ -98,7 +99,7 @@ func (f *fileHide) DryRun(params module.Params) []string {
 }
 
 func (f *fileHide) Cleanup(ctx context.Context) error {
-	err := errors.Join(removeOwnedFiles(f.files), removeOwnedDirs(f.dirs))
+	err := errors.Join(ownership.RemoveFiles(f.files), ownership.RemoveDirectories(f.dirs))
 	f.files = nil
 	f.dirs = nil
 	return err

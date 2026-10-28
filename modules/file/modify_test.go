@@ -96,3 +96,31 @@ func TestFileModify_CleanupRestoresPriorContent(t *testing.T) {
 		t.Errorf("Cleanup did not restore original content:\n got:  %q\n want: %q", restored, original)
 	}
 }
+
+func TestFileModify_CleanupRestoresSymlinkTarget(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "target.txt")
+	link := filepath.Join(dir, "link.txt")
+	original := []byte("original content\n")
+	if err := os.WriteFile(target, original, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+
+	f := &fileModify{}
+	ctx, _ := outputContext()
+	if err := f.Generate(ctx, module.Params{"target_path": link}, noopEmit); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if err := f.Cleanup(context.Background()); err != nil {
+		t.Fatalf("Cleanup: %v", err)
+	}
+	if restored, err := os.ReadFile(target); err != nil || string(restored) != string(original) {
+		t.Fatalf("symlink target was not restored: data=%q err=%v", restored, err)
+	}
+	if info, err := os.Lstat(link); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("symlink changed: info=%v err=%v", info, err)
+	}
+}

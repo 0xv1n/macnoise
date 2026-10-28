@@ -11,12 +11,13 @@ import (
 	"time"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
 type fileCreate struct {
-	files []ownedFile
-	dirs  []ownedDir
+	files []ownership.File
+	dirs  []ownership.Directory
 }
 
 func (f *fileCreate) Info() module.ModuleInfo {
@@ -97,7 +98,7 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 
 	info := f.Info()
 
-	createdDirs, err := ensureDirs(baseDir, 0o755)
+	createdDirs, err := ownership.EnsureDirectories(baseDir, 0o755)
 	f.dirs = append(f.dirs, createdDirs...)
 	if err != nil {
 		ev := output.NewEvent(info, "dir_create", module.OutcomeError, module.File(baseDir), fmt.Sprintf("failed to create directory %s", baseDir))
@@ -127,7 +128,7 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 		}
 
 		ev := output.NewEvent(info, "file_create", module.OutcomeError, module.File(fpath), fmt.Sprintf("creating %s", fpath))
-		owned, err := createOwnedFile(fpath, []byte(fileContent), mode)
+		owned, err := ownership.CreateFile(fpath, []byte(fileContent), mode)
 		if err != nil {
 			ev = output.WithError(ev, err)
 			return errors.Join(err, emit(ev))
@@ -142,7 +143,7 @@ func (f *fileCreate) Generate(ctx context.Context, params module.Params, emit mo
 	}
 	paths := make([]string, len(f.files))
 	for index, file := range f.files {
-		paths[index] = file.path
+		paths[index] = file.Path()
 	}
 	return errors.Join(
 		module.PublishOutput(ctx, "path", paths[0]),
@@ -174,7 +175,7 @@ func (f *fileCreate) DryRun(params module.Params) []string {
 }
 
 func (f *fileCreate) Cleanup(ctx context.Context) error {
-	err := errors.Join(removeOwnedFiles(f.files), removeOwnedDirs(f.dirs))
+	err := errors.Join(ownership.RemoveFiles(f.files), ownership.RemoveDirectories(f.dirs))
 	f.files = nil
 	f.dirs = nil
 	return err

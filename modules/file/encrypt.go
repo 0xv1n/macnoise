@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -27,8 +28,8 @@ var decoyExtensions = []string{
 }
 
 type fileEncrypt struct {
-	files []ownedFile
-	dirs  []ownedDir
+	files []ownership.File
+	dirs  []ownership.Directory
 }
 
 func (f *fileEncrypt) Info() module.ModuleInfo {
@@ -72,7 +73,7 @@ func (f *fileEncrypt) OutputSpecs() []module.OutputSpec {
 // or touches anything the user owns.
 func stageDecoyFiles(dir string, count int) ([]string, error) {
 	paths := make([]string, 0, count)
-	owned := make([]ownedFile, 0, count)
+	owned := make([]ownership.File, 0, count)
 	for i := range count {
 		extension, err := randomDecoyExtension()
 		if err != nil {
@@ -80,9 +81,9 @@ func stageDecoyFiles(dir string, count int) ([]string, error) {
 		}
 		p := filepath.Join(dir, fmt.Sprintf("document_%d%s", i, extension))
 		content := fmt.Sprintf("macnoise decoy document %d - simulated victim data\n", i)
-		file, err := createOwnedFile(p, []byte(content), 0o644)
+		file, err := ownership.CreateFile(p, []byte(content), 0o644)
 		if err != nil {
-			_ = removeOwnedFiles(owned)
+			_ = ownership.RemoveFiles(owned)
 			return nil, err
 		}
 		owned = append(owned, file)
@@ -124,7 +125,7 @@ func encryptFile(path, extension string, key []byte) (string, error) {
 	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
 
 	encPath := path + extension
-	if _, err := createOwnedFile(encPath, ciphertext, 0o644); err != nil {
+	if _, err := ownership.CreateFile(encPath, ciphertext, 0o644); err != nil {
 		return "", err
 	}
 	if err := os.Remove(path); err != nil {
@@ -148,7 +149,7 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 	if _, err := rand.Read(key); err != nil {
 		return fmt.Errorf("generate key: %w", err)
 	}
-	createdDirs, err := ensureDirs(stageDir, 0o700)
+	createdDirs, err := ownership.EnsureDirectories(stageDir, 0o700)
 	f.dirs = append(f.dirs, createdDirs...)
 	if err != nil {
 		return fmt.Errorf("mkdir %s: %w", stageDir, err)
@@ -158,7 +159,7 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 		return fmt.Errorf("stage decoy files: %w", err)
 	}
 	for _, path := range paths {
-		owned, captureErr := captureOwnedFile(path)
+		owned, captureErr := ownership.CaptureFile(path)
 		if captureErr != nil {
 			return captureErr
 		}
@@ -177,7 +178,7 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 		encPath, encErr := encryptFile(p, extension, key)
 		if encErr != nil {
 			if encPath != "" {
-				if owned, captureErr := captureOwnedFile(encPath); captureErr == nil {
+				if owned, captureErr := ownership.CaptureFile(encPath); captureErr == nil {
 					f.files = append(f.files, owned)
 				}
 			}
@@ -185,7 +186,7 @@ func (f *fileEncrypt) Generate(ctx context.Context, params module.Params, emit m
 			resultErr = errors.Join(resultErr, encErr, emit(ev))
 			continue
 		}
-		owned, captureErr := captureOwnedFile(encPath)
+		owned, captureErr := ownership.CaptureFile(encPath)
 		if captureErr != nil {
 			return errors.Join(resultErr, captureErr)
 		}
@@ -216,7 +217,7 @@ func (f *fileEncrypt) DryRun(params module.Params) []string {
 }
 
 func (f *fileEncrypt) Cleanup(ctx context.Context) error {
-	err := errors.Join(removeOwnedFiles(f.files), removeOwnedDirs(f.dirs))
+	err := errors.Join(ownership.RemoveFiles(f.files), ownership.RemoveDirectories(f.dirs))
 	f.files = nil
 	f.dirs = nil
 	return err

@@ -11,7 +11,7 @@ import (
 	"path/filepath"
 )
 
-// File identifies one file created by MacNoise.
+// File identifies one file version tracked by MacNoise.
 type File struct {
 	path string
 	info os.FileInfo
@@ -29,21 +29,27 @@ func CreateFileFrom(path string, src io.Reader, mode os.FileMode) (File, error) 
 	if err != nil {
 		return File{}, err
 	}
-	info, statErr := f.Stat()
+	createdInfo, statErr := f.Stat()
 	if statErr != nil {
 		_ = f.Close()
 		return File{}, statErr
 	}
 	h := sha256.New()
 	_, writeErr := io.Copy(io.MultiWriter(f, h), src)
+	info, finalStatErr := f.Stat()
 	closeErr := f.Close()
-	if err := errors.Join(writeErr, closeErr); err != nil {
-		removeFileIfSame(path, info)
+	if err := errors.Join(writeErr, finalStatErr, closeErr); err != nil {
+		removeFileIfSame(path, createdInfo)
 		return File{}, err
 	}
 	var digest [sha256.Size]byte
 	copy(digest[:], h.Sum(nil))
 	return File{path: path, info: info, hash: digest}, nil
+}
+
+// CaptureFile records the identity and contents of an existing regular file.
+func CaptureFile(path string) (File, error) {
+	return captureFile(path)
 }
 
 func captureFile(path string) (File, error) {
@@ -83,14 +89,40 @@ func removeFileIfSame(path string, owned os.FileInfo) {
 	}
 }
 
-// Remove deletes the file only when its identity and contents still match.
-func (f File) Remove() error {
+// Path returns the tracked file path.
+func (f File) Path() string {
+	return f.path
+}
+
+// AtPath tracks the same captured file identity and contents at another path.
+func (f File) AtPath(path string) File {
+	f.path = path
+	return f
+}
+
+// Size returns the captured file size.
+func (f File) Size() int64 {
+	if f.info == nil {
+		return 0
+	}
+	return f.info.Size()
+}
+
+// Verify checks that the file identity and contents still match.
+func (f File) Verify() error {
+	return f.verify(false)
+}
+
+func (f File) verify(allowMissing bool) error {
 	if f.path == "" {
 		return nil
 	}
 	current, err := captureFile(f.path)
 	if os.IsNotExist(err) {
-		return nil
+		if allowMissing {
+			return nil
+		}
+		return fmt.Errorf("cleanup conflict: %s was removed", f.path)
 	}
 	if err != nil {
 		return fmt.Errorf("cleanup conflict: cannot safely inspect %s: %w", f.path, err)
@@ -98,10 +130,32 @@ func (f File) Remove() error {
 	if !os.SameFile(f.info, current.info) || f.hash != current.hash {
 		return fmt.Errorf("cleanup conflict: %s changed after macnoise wrote it", f.path)
 	}
+	return nil
+}
+
+// Remove deletes the file only when its identity and contents still match.
+func (f File) Remove() error {
+	if f.path == "" {
+		return nil
+	}
+	if err := f.verify(true); err != nil {
+		return err
+	}
 	if err := os.Remove(f.path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return nil
+}
+
+// RemoveFiles removes tracked files in reverse creation order.
+func RemoveFiles(files []File) error {
+	var errs []error
+	for index := len(files) - 1; index >= 0; index-- {
+		if err := files[index].Remove(); err != nil {
+			errs = append(errs, err)
+		}
+	}
+	return errors.Join(errs...)
 }
 
 // Directory identifies one directory created by MacNoise.

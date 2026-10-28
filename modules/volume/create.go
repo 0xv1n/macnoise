@@ -3,15 +3,14 @@ package volume
 
 import (
 	"context"
-	"crypto/sha256"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/internal/prereqs"
 	"github.com/0xv1n/macnoise/internal/subprocess"
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -19,13 +18,8 @@ import (
 
 const defaultVolumeName = "MacNoiseDelivery"
 
-type ownedImage struct {
-	path string
-	hash [sha256.Size]byte
-}
-
 type volumeCreate struct {
-	image ownedImage
+	image ownership.File
 }
 
 func (v *volumeCreate) Info() module.ModuleInfo {
@@ -92,48 +86,6 @@ func defaultImagePath(ctx context.Context) (string, error) {
 	return path, nil
 }
 
-func captureOwnedImage(path string) (ownedImage, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return ownedImage{}, err
-	}
-	defer func() { _ = f.Close() }()
-	info, err := f.Stat()
-	if err != nil {
-		return ownedImage{}, err
-	}
-	if !info.Mode().IsRegular() {
-		return ownedImage{}, fmt.Errorf("%s is not a regular file", path)
-	}
-	hash := sha256.New()
-	if _, err := io.Copy(hash, f); err != nil {
-		return ownedImage{}, err
-	}
-	var digest [sha256.Size]byte
-	copy(digest[:], hash.Sum(nil))
-	return ownedImage{path: path, hash: digest}, nil
-}
-
-func (o ownedImage) remove() error {
-	if o.path == "" {
-		return nil
-	}
-	current, err := captureOwnedImage(o.path)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("inspect owned image %s: %w", o.path, err)
-	}
-	if current.hash != o.hash {
-		return fmt.Errorf("refusing to remove %s: image changed since creation", o.path)
-	}
-	if err := os.Remove(o.path); err != nil && !os.IsNotExist(err) {
-		return err
-	}
-	return nil
-}
-
 func (v *volumeCreate) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
 	if err := v.ValidateParams(params); err != nil {
 		return err
@@ -173,9 +125,9 @@ func (v *volumeCreate) Generate(ctx context.Context, params module.Params, emit 
 		ev = output.WithError(ev, runErr)
 		return errors.Join(runErr, emit(ev))
 	}
-	v.image, err = captureOwnedImage(imagePath)
+	v.image, err = ownership.CaptureFile(imagePath)
 	if err != nil {
-		return errors.Join(fmt.Errorf("capture created image %s: %w", imagePath, err), os.Remove(imagePath))
+		return fmt.Errorf("capture created image %s: %w", imagePath, err)
 	}
 	ev.Outcome = module.OutcomeExecuted
 	ev.Message = fmt.Sprintf("created disk image %s from %s", imagePath, sourceDir)
@@ -196,9 +148,9 @@ func (v *volumeCreate) DryRun(params module.Params) []string {
 }
 
 func (v *volumeCreate) Cleanup(ctx context.Context) error {
-	err := v.image.remove()
+	err := v.image.Remove()
 	if err == nil {
-		v.image = ownedImage{}
+		v.image = ownership.File{}
 	}
 	return err
 }
