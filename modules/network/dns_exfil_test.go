@@ -1,6 +1,7 @@
 package network
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"testing"
@@ -94,6 +95,24 @@ func TestExfilQueries_NameTooLong(t *testing.T) {
 		if len(q) > dnsNameMax {
 			t.Errorf("query exceeds DNS name max: %s", q)
 		}
+	}
+}
+
+func TestDNSExfilRejectsUnrepresentableQuery(t *testing.T) {
+	longDomain := strings.Repeat("x", 240) + ".invalid"
+	emitted := 0
+	err := (&netDNSExfil{}).Generate(context.Background(), module.Params{
+		"payload":     "test",
+		"base_domain": longDomain,
+	}, func(module.TelemetryEvent) error {
+		emitted++
+		return nil
+	})
+	if err == nil || !strings.Contains(err.Error(), "exceeds DNS name max") {
+		t.Fatalf("Generate error = %v, want DNS name length error", err)
+	}
+	if emitted != 0 {
+		t.Fatalf("emitted %d events for an incomplete payload", emitted)
 	}
 }
 
