@@ -24,6 +24,10 @@ jobs:
         with:
           version: v2.13.2
           install-mode: goinstall
+      - uses: actions/setup-go@v7
+        with:
+          go-version: '1.27'
+          check-latest: true
       - name: govulncheck
         run: GOTOOLCHAIN=auto go install golang.org/x/vuln/cmd/govulncheck@latest && govulncheck ./...
 
