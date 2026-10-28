@@ -81,15 +81,33 @@ func TestPlistModifyGenerate_WriteAndCleanup(t *testing.T) {
 					t.Errorf("restored type = %q, want string", got)
 				}
 			} else {
-				out, err := exec.CommandContext(ctx, "/usr/bin/defaults", "read", domain, key).CombinedOutput()
-				if err == nil || !strings.Contains(string(out), "does not exist") {
-					t.Errorf("deleted key read = %q, %v; want missing key", out, err)
+				if _, exists := exportedDomain(t, domain)[key]; exists {
+					t.Errorf("deleted key %q remains in domain", key)
 				}
 			}
 			if got := defaultsCommand(t, "read", domain, "Unrelated"); got != "keep me" {
 				t.Errorf("unrelated preference = %q", got)
 			}
 		})
+	}
+}
+
+func TestPlistModifyGenerate_AbsentDomain(t *testing.T) {
+	domain := fmt.Sprintf("com.macnoise.execution.absent.%d.%d", os.Getpid(), time.Now().UnixNano())
+	t.Cleanup(func() { _ = exec.Command("/usr/bin/defaults", "delete", domain).Run() })
+	p := &plistModify{}
+
+	if err := p.Generate(context.Background(), module.Params{"domain": domain}, discardPlistEvent); err != nil {
+		t.Fatalf("Generate: %v", err)
+	}
+	if got := defaultsCommand(t, "read", domain, "MacnoiseTest"); got != "true" {
+		t.Errorf("written value = %q, want true", got)
+	}
+	if err := p.Cleanup(context.Background()); err != nil {
+		t.Fatalf("Cleanup: %v", err)
+	}
+	if _, exists := exportedDomain(t, domain)["MacnoiseTest"]; exists {
+		t.Error("created key remains after cleanup")
 	}
 }
 
