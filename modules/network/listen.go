@@ -54,9 +54,11 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 		return errors.Join(err, emit(ev))
 	}
 	n.listener = l
+	target := selfDialAddress(l.Addr().(*net.TCPAddr))
+	boundAddress := l.Addr().String()
 
-	ev := output.NewEvent(info, "tcp_listen", module.OutcomeExecuted, module.Network(address, "", ""), fmt.Sprintf("listening on %s", address))
-	ev = output.WithDetails(ev, map[string]any{"address": address})
+	ev := output.NewEvent(info, "tcp_listen", module.OutcomeExecuted, module.Network(boundAddress, "", ""), fmt.Sprintf("listening on %s", boundAddress))
+	ev = output.WithDetails(ev, map[string]any{"address": boundAddress})
 	if err := emit(ev); err != nil {
 		return err
 	}
@@ -67,9 +69,14 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 	}
 
 	go func() {
-		time.Sleep(200 * time.Millisecond)
-		target := net.JoinHostPort("127.0.0.1", port)
-		conn, err := net.Dial("tcp", target)
+		timer := time.NewTimer(200 * time.Millisecond)
+		defer timer.Stop()
+		select {
+		case <-ctx.Done():
+			return
+		case <-timer.C:
+		}
+		conn, err := (&net.Dialer{}).DialContext(ctx, "tcp", target)
 		if err != nil {
 			return
 		}
@@ -89,8 +96,14 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 
 	select {
 	case <-ctx.Done():
-		_ = l.Close()
-		return ctx.Err()
+		closeErr := n.closeListener()
+		if closeErr == nil {
+			res := <-acceptCh
+			if res.conn != nil {
+				_ = res.conn.Close()
+			}
+		}
+		return errors.Join(ctx.Err(), closeErr)
 	case res := <-acceptCh:
 		if res.err != nil {
 			return nil
@@ -103,18 +116,43 @@ func (n *netListen) Generate(ctx context.Context, params module.Params, emit mod
 	}
 }
 
+func selfDialAddress(addr *net.TCPAddr) string {
+	ip := addr.IP
+	if len(ip) == 0 || ip.IsUnspecified() {
+		if ip.To4() != nil {
+			ip = net.IPv4(127, 0, 0, 1)
+		} else {
+			ip = net.IPv6loopback
+		}
+	}
+	host := ip.String()
+	if addr.Zone != "" {
+		host += "%" + addr.Zone
+	}
+	return net.JoinHostPort(host, strconv.Itoa(addr.Port))
+}
+
 func (n *netListen) DryRun(params module.Params) []string {
 	port := strconv.Itoa(params.Int("port", 8080))
 	bindAddr := params.String("bind_addr", "127.0.0.1")
 	return []string{
 		fmt.Sprintf("bind TCP %s:%s", bindAddr, port),
-		"accept one connection from self (127.0.0.1)",
+		"accept one connection from self through the bound address",
 	}
 }
 
 func (n *netListen) Cleanup(ctx context.Context) error {
-	if n.listener != nil {
-		return n.listener.Close()
+	return n.closeListener()
+}
+
+func (n *netListen) closeListener() error {
+	listener := n.listener
+	n.listener = nil
+	if listener == nil {
+		return nil
+	}
+	if err := listener.Close(); err != nil && !errors.Is(err, net.ErrClosed) {
+		return err
 	}
 	return nil
 }
