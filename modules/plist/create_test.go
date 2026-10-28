@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/0xv1n/macnoise/pkg/module"
@@ -38,6 +39,9 @@ func TestPlistCreate_GenerateAndCleanup(t *testing.T) {
 
 	var sawSuccess bool
 	for _, ev := range events {
+		if !slices.Contains(p.Info().EventTypes, ev.EventType) {
+			t.Errorf("emitted event type %q is not declared", ev.EventType)
+		}
 		if ev.EventType == "plist_create" && ev.Outcome == module.OutcomeExecuted {
 			sawSuccess = true
 		}
@@ -57,7 +61,11 @@ func TestPlistCreate_GenerateAndCleanup(t *testing.T) {
 func TestPlistCreate_LaunchAgentMode(t *testing.T) {
 	outPath := filepath.Join(t.TempDir(), "agent.plist")
 	p := &plistCreate{}
-	emit := func(module.TelemetryEvent) error { return nil }
+	var events []module.TelemetryEvent
+	emit := func(ev module.TelemetryEvent) error {
+		events = append(events, ev)
+		return nil
+	}
 
 	params := module.Params{
 		"output_path": outPath,
@@ -84,5 +92,11 @@ func TestPlistCreate_LaunchAgentMode(t *testing.T) {
 	}
 	if decoded["RunAtLoad"] != true {
 		t.Errorf("RunAtLoad = %v, want true", decoded["RunAtLoad"])
+	}
+	if len(events) != 1 || events[0].EventType != "plist_create_launchagent" {
+		t.Fatalf("events = %+v, want plist_create_launchagent", events)
+	}
+	if !slices.Contains(p.Info().EventTypes, events[0].EventType) {
+		t.Fatalf("emitted event type %q is not declared", events[0].EventType)
 	}
 }
