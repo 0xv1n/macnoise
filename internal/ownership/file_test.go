@@ -82,3 +82,26 @@ func TestRemoveDirectoriesRemovesOnlyCreatedDirectories(t *testing.T) {
 		t.Fatalf("existing parent was removed: %v", err)
 	}
 }
+
+func TestRemoveDirectoriesRefusesSymlinkReplacement(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "owned")
+	movedPath := filepath.Join(dir, "moved")
+	dirs, err := EnsureDirectories(path, 0o700)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(path, movedPath); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Symlink(movedPath, path); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := RemoveDirectories(dirs); err == nil || !strings.Contains(err.Error(), "cleanup conflict") {
+		t.Fatalf("RemoveDirectories = %v, want conflict", err)
+	}
+	if info, err := os.Lstat(path); err != nil || info.Mode()&os.ModeSymlink == 0 {
+		t.Fatalf("replacement symlink was not preserved: info=%v err=%v", info, err)
+	}
+}
