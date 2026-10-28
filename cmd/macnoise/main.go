@@ -392,7 +392,8 @@ func buildScenario() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("scenario input: %w", err)
 			}
-			if err := runner.ValidateScenario(args[0], inputs, nil); err != nil {
+			prepared, err := runner.PrepareScenario(args[0], inputs, nil)
+			if err != nil {
 				return err
 			}
 			em, closeEM, err := buildEmitter()
@@ -401,13 +402,8 @@ func buildScenario() *cobra.Command {
 			}
 			defer closeEM()
 
-			scenarioAuditLog := ""
-			if sc, err := runner.LoadScenario(args[0]); err == nil {
-				scenarioAuditLog = sc.AuditLog
-			}
-
 			runID := resolveRunID()
-			auditLogger, closeAL, err := buildAuditLogger(resolveAuditLogPath(scenarioAuditLog), runID)
+			auditLogger, closeAL, err := buildAuditLogger(resolveAuditLogPath(prepared.AuditLog()), runID)
 			if err != nil {
 				return err
 			}
@@ -416,11 +412,10 @@ func buildScenario() *cobra.Command {
 			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
 
 			opts := buildRunOpts(auditLogger, runID)
-			opts.ScenarioInputs = inputs
 			ctx, stop := signalContext()
 			defer stop()
 
-			report, runErr := runner.RunScenario(ctx, args[0], em.EmitFunc(), opts)
+			report, runErr := prepared.Run(ctx, em.EmitFunc(), opts)
 			if reportPath != "" {
 				data, err := json.MarshalIndent(report, "", "  ")
 				if err == nil {

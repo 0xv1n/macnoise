@@ -36,6 +36,13 @@ type scenarioPlan struct {
 	outputs  map[string]valueBinding
 }
 
+// PreparedScenario is a validated scenario plan that can run without reading
+// its source files again.
+type PreparedScenario struct {
+	plan     *scenarioPlan
+	registry *module.Registry
+}
+
 type plannedStep struct {
 	id          string
 	module      string
@@ -70,13 +77,27 @@ func preflightScenario(path string, rawInputs module.Params, registry *module.Re
 	return state.load(absPath, rootInputs, 0)
 }
 
-// ValidateScenario performs the same recursive preflight used by execution
-// without creating a workspace or invoking a module.
-func ValidateScenario(path string, inputs module.Params, registry *module.Registry) error {
+// PrepareScenario parses and validates a scenario and all local includes.
+func PrepareScenario(path string, inputs module.Params, registry *module.Registry) (*PreparedScenario, error) {
 	if registry == nil {
 		registry = &module.DefaultRegistry
 	}
-	_, err := preflightScenario(path, inputs, registry)
+	plan, err := preflightScenario(path, inputs, registry)
+	if err != nil {
+		return nil, err
+	}
+	return &PreparedScenario{plan: plan, registry: registry}, nil
+}
+
+// AuditLog returns the audit log path declared by the root scenario.
+func (p *PreparedScenario) AuditLog() string {
+	return p.plan.scenario.AuditLog
+}
+
+// ValidateScenario performs the same recursive preflight used by execution
+// without creating a workspace or invoking a module.
+func ValidateScenario(path string, inputs module.Params, registry *module.Registry) error {
+	_, err := PrepareScenario(path, inputs, registry)
 	return err
 }
 

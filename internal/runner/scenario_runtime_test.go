@@ -332,6 +332,51 @@ steps:
 	}
 }
 
+func TestPreparedScenarioRunsWithoutReadingSourceFilesAgain(t *testing.T) {
+	flow := &artifactFlow{}
+	registry := flowRegistry(flow, "secret_source", "secret_consumer")
+	dir := t.TempDir()
+	child := writeScenarioFile(t, dir, "child.yaml", `version: 1
+name: child
+steps:
+  - id: source
+    module: secret_source
+outputs:
+  secret:
+    output: source.value
+`)
+	parent := writeScenarioFile(t, dir, "parent.yaml", `version: 1
+name: parent
+audit_log: audit.jsonl
+steps:
+  - id: child
+    include: child.yaml
+  - module: secret_consumer
+    params:
+      secret:
+        output: child.secret
+`)
+
+	prepared, err := runner.PrepareScenario(parent, nil, registry)
+	if err != nil {
+		t.Fatalf("PrepareScenario: %v", err)
+	}
+	if prepared.AuditLog() != "audit.jsonl" {
+		t.Fatalf("AuditLog = %q, want audit.jsonl", prepared.AuditLog())
+	}
+	if err := errors.Join(os.Remove(parent), os.Remove(child)); err != nil {
+		t.Fatal(err)
+	}
+
+	report, err := prepared.Run(context.Background(), discardEvent, runner.Options{})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if report.Status != "passed" || flow.consumedSecret != "classified" {
+		t.Fatalf("report status = %q, consumed secret = %q", report.Status, flow.consumedSecret)
+	}
+}
+
 func TestScenarioStepFailurePolicyAndOutputContract(t *testing.T) {
 	flow := &artifactFlow{}
 	registry := flowRegistry(flow, "secret_consumer")

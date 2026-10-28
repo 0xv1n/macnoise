@@ -64,14 +64,17 @@ type scenarioExecution struct {
 // RunScenario preflights and executes a scenario, then returns its report even
 // when execution or cleanup fails.
 func RunScenario(ctx context.Context, path string, emit module.EventEmitter, opts Options) (report ScenarioReport, resultErr error) {
-	registry := opts.Registry
-	if registry == nil {
-		registry = &module.DefaultRegistry
-	}
-	plan, err := preflightScenario(path, opts.ScenarioInputs, registry)
+	prepared, err := PrepareScenario(path, opts.ScenarioInputs, opts.Registry)
 	if err != nil {
 		return ScenarioReport{SchemaVersion: ScenarioReportVersion, Source: path, Status: "failed", Error: err.Error()}, err
 	}
+	return prepared.Run(ctx, emit, opts)
+}
+
+// Run executes a prepared scenario without reading its source files again.
+// PrepareScenario has already captured the registry and scenario inputs.
+func (p *PreparedScenario) Run(ctx context.Context, emit module.EventEmitter, opts Options) (report ScenarioReport, resultErr error) {
+	plan := p.plan
 
 	workspace, err := os.MkdirTemp("", "macnoise-scenario-")
 	if err != nil {
@@ -98,7 +101,7 @@ func RunScenario(ctx context.Context, path string, emit module.EventEmitter, opt
 		fmt.Fprintf(os.Stderr, "  %s\n", plan.scenario.Description)
 	}
 
-	execution := scenarioExecution{ctx: ctx, registry: registry, emit: emit, opts: opts, workspace: workspace}
+	execution := scenarioExecution{ctx: ctx, registry: p.registry, emit: emit, opts: opts, workspace: workspace}
 	inputValues, err := resolvePlanInputs(plan.inputs, nil, nil, false)
 	if err == nil {
 		var outputs module.Params
