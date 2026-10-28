@@ -65,16 +65,20 @@ func preflightScenario(path string, rawInputs module.Params, registry *module.Re
 	if err != nil {
 		return nil, fmt.Errorf("scenario: resolve %s: %w", path, err)
 	}
+	resolvedPath, err := filepath.EvalSymlinks(absPath)
+	if err != nil {
+		return nil, fmt.Errorf("scenario: resolve %s: %w", path, err)
+	}
 	rootInputs := make(map[string]valueBinding, len(rawInputs))
 	for name, value := range rawInputs {
 		rootInputs[name] = valueBinding{literal: value}
 	}
 	state := &preflightState{
 		registry: registry,
-		rootDir:  filepath.Dir(absPath),
+		rootDir:  filepath.Dir(resolvedPath),
 		stack:    make(map[string]bool),
 	}
-	return state.load(absPath, rootInputs, 0)
+	return state.load(resolvedPath, rootInputs, 0)
 }
 
 // PrepareScenario parses and validates a scenario and all local includes.
@@ -273,7 +277,11 @@ func (s *preflightState) resolveInclude(parent, include string) (string, error) 
 	if filepath.IsAbs(include) {
 		return "", fmt.Errorf("include %q must be relative", include)
 	}
-	resolved, err := filepath.Abs(filepath.Join(filepath.Dir(parent), include))
+	candidate, err := filepath.Abs(filepath.Join(filepath.Dir(parent), include))
+	if err != nil {
+		return "", fmt.Errorf("resolve include %q: %w", include, err)
+	}
+	resolved, err := filepath.EvalSymlinks(candidate)
 	if err != nil {
 		return "", fmt.Errorf("resolve include %q: %w", include, err)
 	}

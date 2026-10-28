@@ -332,6 +332,57 @@ steps:
 	}
 }
 
+func TestScenarioIncludeRejectsSymlinkEscape(t *testing.T) {
+	flow := &artifactFlow{}
+	registry := flowRegistry(flow, "secret_source")
+	root := t.TempDir()
+	outside := t.TempDir()
+	outsideScenario := writeScenarioFile(t, outside, "outside.yaml", `version: 1
+name: outside
+steps:
+  - module: secret_source
+`)
+	if err := os.Symlink(outsideScenario, filepath.Join(root, "child.yaml")); err != nil {
+		t.Fatal(err)
+	}
+	parent := writeScenarioFile(t, root, "parent.yaml", `version: 1
+name: parent
+steps:
+  - include: child.yaml
+`)
+
+	err := runner.ValidateScenario(parent, nil, registry)
+	if err == nil || !strings.Contains(err.Error(), "escapes scenario root") {
+		t.Fatalf("ValidateScenario error = %v, want symlink escape rejection", err)
+	}
+}
+
+func TestScenarioIncludeDetectsSymlinkAliasCycle(t *testing.T) {
+	flow := &artifactFlow{}
+	registry := flowRegistry(flow, "secret_source")
+	dir := t.TempDir()
+	root := writeScenarioFile(t, dir, "root.yaml", `version: 1
+name: root
+steps:
+  - include: sub/alias.yaml
+`)
+	nested := dir
+	for range 10 {
+		nested = filepath.Join(nested, "sub")
+		if err := os.MkdirAll(nested, 0o700); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(root, filepath.Join(nested, "alias.yaml")); err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	err := runner.ValidateScenario(root, nil, registry)
+	if err == nil || !strings.Contains(err.Error(), "include cycle") {
+		t.Fatalf("ValidateScenario error = %v, want symlink cycle rejection", err)
+	}
+}
+
 func TestPreparedScenarioRunsWithoutReadingSourceFilesAgain(t *testing.T) {
 	flow := &artifactFlow{}
 	registry := flowRegistry(flow, "secret_source", "secret_consumer")
