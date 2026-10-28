@@ -103,7 +103,7 @@ func TestLoadRejectsNegativeTimeout(t *testing.T) {
 	}
 
 	_, err := config.Load(path)
-	if err == nil || !strings.Contains(err.Error(), "default_timeout must be 0 or greater") {
+	if err == nil || !strings.Contains(err.Error(), "default_timeout -1 must be 0 or greater") {
 		t.Fatalf("Load error = %v, want negative timeout error", err)
 	}
 }
