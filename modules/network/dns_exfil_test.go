@@ -59,7 +59,7 @@ func TestChunkExfilLabels_ShortInput(t *testing.T) {
 }
 
 func TestExfilQueries_DefaultPayload(t *testing.T) {
-	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain, "")
+	queries := requireExfilQueries(t, "macnoise-exfil-test", defaultExfilDomain, "")
 	if len(queries) == 0 {
 		t.Fatal("expected at least one query")
 	}
@@ -78,7 +78,7 @@ func TestExfilQueries_DefaultPayload(t *testing.T) {
 }
 
 func TestExfilQueries_ContainsSequenceNumber(t *testing.T) {
-	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain, "")
+	queries := requireExfilQueries(t, "macnoise-exfil-test", defaultExfilDomain, "")
 	for i, q := range queries {
 		seq := strings.SplitN(q, ".", 3)[1]
 		want := fmt.Sprintf("%d", i)
@@ -89,12 +89,22 @@ func TestExfilQueries_ContainsSequenceNumber(t *testing.T) {
 }
 
 func TestExfilQueries_NameTooLong(t *testing.T) {
-	longDomain := strings.Repeat("x", 200) + ".invalid"
-	queries := exfilQueries("test", longDomain, "")
-	for _, q := range queries {
-		if len(q) > dnsNameMax {
-			t.Errorf("query exceeds DNS name max: %s", q)
-		}
+	longDomain := strings.Repeat("x", 240) + ".invalid"
+	if _, err := exfilQueries("test", longDomain, ""); err == nil {
+		t.Fatal("exfilQueries accepted a query exceeding the DNS name maximum")
+	}
+}
+
+func TestExfilQueries_EmptyPayload(t *testing.T) {
+	if _, err := exfilQueries("", defaultExfilDomain, ""); err == nil {
+		t.Fatal("exfilQueries accepted an empty payload")
+	}
+}
+
+func TestExfilQueries_RejectsPartialPayload(t *testing.T) {
+	baseDomain := strings.Repeat("a", 63) + "." + strings.Repeat("b", 63) + "." + strings.Repeat("c", 51) + ".invalid"
+	if _, err := exfilQueries(strings.Repeat("payload", 100), baseDomain, ""); err == nil {
+		t.Fatal("exfilQueries silently dropped an unrepresentable payload chunk")
 	}
 }
 
@@ -118,7 +128,7 @@ func TestDNSExfilRejectsUnrepresentableQuery(t *testing.T) {
 
 func TestExfilQueries_RunIDLabel(t *testing.T) {
 	runID := "deadbeef01234567"
-	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain, runID)
+	queries := requireExfilQueries(t, "macnoise-exfil-test", defaultExfilDomain, runID)
 	if len(queries) == 0 {
 		t.Fatal("expected at least one query")
 	}
@@ -135,8 +145,17 @@ func TestExfilQueries_RunIDLabel(t *testing.T) {
 func TestDNSExfilDryRunMatchesQueries(t *testing.T) {
 	mod := &netDNSExfil{}
 	steps := mod.DryRun(module.Params{})
-	queries := exfilQueries("macnoise-exfil-test", defaultExfilDomain, "")
+	queries := requireExfilQueries(t, "macnoise-exfil-test", defaultExfilDomain, "")
 	if len(steps) != len(queries) {
 		t.Errorf("dry run listed %d steps, want %d", len(steps), len(queries))
 	}
+}
+
+func requireExfilQueries(t *testing.T, payload, baseDomain, runID string) []string {
+	t.Helper()
+	queries, err := exfilQueries(payload, baseDomain, runID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return queries
 }

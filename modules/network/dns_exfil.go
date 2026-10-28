@@ -55,7 +55,18 @@ func (n *netDNSExfil) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netDNSExfil) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
+func (n *netDNSExfil) CheckPrereqs(ctx context.Context, params module.Params) error {
+	return n.ValidateParams(params)
+}
+
+func (n *netDNSExfil) ValidateParams(params module.Params) error {
+	_, err := exfilQueries(
+		params.String("payload", "macnoise-exfil-test"),
+		params.String("base_domain", defaultExfilDomain),
+		"",
+	)
+	return err
+}
 
 // encodeExfilPayload base32-encodes a payload and returns it lowercased
 // with padding stripped. The resulting charset (a-z2-7) is DNS-safe.
@@ -82,22 +93,25 @@ func chunkExfilLabels(encoded string, max int) []string {
 // <chunk>.<seq>.<baseDomain>, or <chunk>.<seq>.<runID>.<baseDomain> when a
 // run ID is set, so a consumer can correlate the queries back to the run
 // (the run ID is a cleartext label, not part of the base32 payload). The
-// chunk label is capped at dnsLabelMax and the total name at dnsNameMax;
-// chunks that would exceed the name limit are dropped.
-func exfilQueries(payload, baseDomain, runID string) []string {
+// chunk label is capped at dnsLabelMax and the total name at dnsNameMax.
+func exfilQueries(payload, baseDomain, runID string) ([]string, error) {
 	encoded := encodeExfilPayload(payload)
 	chunks := chunkExfilLabels(encoded, dnsLabelMax)
+	if len(chunks) == 0 {
+		return nil, fmt.Errorf("DNS exfil payload produces no queries")
+	}
 	queries := make([]string, 0, len(chunks))
 	for i, chunk := range chunks {
 		name := fmt.Sprintf("%s.%d.%s", chunk, i, baseDomain)
 		if runID != "" {
 			name = fmt.Sprintf("%s.%d.%s.%s", chunk, i, runID, baseDomain)
 		}
-		if len(name) <= dnsNameMax {
-			queries = append(queries, name)
+		if len(name) > dnsNameMax {
+			return nil, fmt.Errorf("DNS exfil query %d exceeds DNS name max of %d bytes", i, dnsNameMax)
 		}
+		queries = append(queries, name)
 	}
-	return queries
+	return queries, nil
 }
 
 func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
@@ -105,7 +119,10 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 	baseDomain := params.String("base_domain", defaultExfilDomain)
 	info := n.Info()
 
-	queries := exfilQueries(payload, baseDomain, module.RunIDFromContext(ctx))
+	queries, err := exfilQueries(payload, baseDomain, module.RunIDFromContext(ctx))
+	if err != nil {
+		return err
+	}
 	resolver := net.DefaultResolver
 	for i, qname := range queries {
 		select {
@@ -149,7 +166,7 @@ func (n *netDNSExfil) Generate(ctx context.Context, params module.Params, emit m
 func (n *netDNSExfil) DryRun(params module.Params) []string {
 	payload := params.String("payload", "macnoise-exfil-test")
 	baseDomain := params.String("base_domain", defaultExfilDomain)
-	queries := exfilQueries(payload, baseDomain, "")
+	queries, _ := exfilQueries(payload, baseDomain, "")
 	steps := make([]string, len(queries))
 	for i, q := range queries {
 		steps[i] = fmt.Sprintf("DNS resolve: %s", q)
