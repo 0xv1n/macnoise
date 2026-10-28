@@ -223,8 +223,6 @@ Start from the [scenario template](docs/templates/scenario.yaml) for typed input
 
 Version 1.0 defines the supported CLI commands and flags, module names and contracts, scenario schema 1, telemetry schema 2.0, and scenario-report schema 1.0. Future incompatible changes to those interfaces require a new major release.
 
-Existing users should read [Migrating from v0.6.0 to v1.0.0](docs/migration-v1.md). It maps every removed module and describes the scenario, JSONL, and Go API changes.
-
 ## Contributing
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the primitive, scenario, and core-change paths.
