@@ -2,14 +2,15 @@ package evasion
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
 )
 
@@ -23,7 +24,8 @@ const (
 )
 
 type evadeMasquerade struct {
-	stageDir string
+	stagedBinary ownership.File
+	createdDirs  []ownership.Directory
 }
 
 func (e *evadeMasquerade) Info() module.ModuleInfo {
@@ -51,48 +53,55 @@ func (e *evadeMasquerade) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (e *evadeMasquerade) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
+func (e *evadeMasquerade) ValidateParams(params module.Params) error {
+	name := params.String("masquerade_name", defaultMasqueradeName)
+	if name == "" || name == "." || name == ".." || filepath.Base(name) != name {
+		return fmt.Errorf("masquerade_name must be a filename: %q", name)
+	}
+	return nil
+}
+
+func (e *evadeMasquerade) CheckPrereqs(ctx context.Context, params module.Params) error {
+	return e.ValidateParams(params)
+}
 
 // copyExecutable copies src to dst with executable permissions. It is the pure,
 // cross-platform-testable half of the module; the exec that follows is the
 // macOS-specific part.
-func copyExecutable(src, dst string) error {
+func copyExecutable(src, dst string) (ownership.File, error) {
 	in, err := os.Open(src)
 	if err != nil {
-		return err
+		return ownership.File{}, err
 	}
-	defer in.Close() //nolint:errcheck
-
-	out, err := os.OpenFile(dst, os.O_CREATE|os.O_WRONLY|os.O_TRUNC, 0o755)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(out, in); err != nil {
-		_ = out.Close()
-		return err
-	}
-	return out.Close()
+	defer func() { _ = in.Close() }()
+	return ownership.CreateFileFrom(dst, in, 0o755)
 }
 
 func (e *evadeMasquerade) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
+	if err := e.ValidateParams(params); err != nil {
+		return err
+	}
 	runID := module.RunIDFromContext(ctx)
 	stageDir := module.TagPath(params.String("stage_dir", defaultMasqueradeStageDir), runID)
 	source := params.String("source_binary", defaultMasqueradeSource)
 	masqName := params.String("masquerade_name", defaultMasqueradeName)
 	info := e.Info()
 
-	if err := os.MkdirAll(stageDir, 0o755); err != nil {
+	createdDirs, err := ownership.EnsureDirectories(stageDir, 0o755)
+	e.createdDirs = append(e.createdDirs, createdDirs...)
+	if err != nil {
 		return fmt.Errorf("mkdir %s: %w", stageDir, err)
 	}
-	e.stageDir = stageDir
 	destPath := filepath.Join(stageDir, masqName)
 
 	copyEv := output.NewEvent(info, "masquerade_copy", module.OutcomeError, module.File(destPath),
 		fmt.Sprintf("copying %s to %s (masquerading as %q)", source, destPath, masqName))
-	if err := copyExecutable(source, destPath); err != nil {
+	stagedBinary, err := copyExecutable(source, destPath)
+	if err != nil {
 		copyEv = output.WithError(copyEv, err)
-		return emit(copyEv)
+		return errors.Join(err, emit(copyEv))
 	}
+	e.stagedBinary = stagedBinary
 	copyEv.Outcome = module.OutcomeExecuted
 	copyEv.Message = fmt.Sprintf("staged %s as %s", source, destPath)
 	copyEv = output.WithDetails(copyEv, map[string]any{
@@ -143,10 +152,7 @@ func (e *evadeMasquerade) DryRun(params module.Params) []string {
 }
 
 func (e *evadeMasquerade) Cleanup(ctx context.Context) error {
-	if e.stageDir == "" {
-		return nil
-	}
-	return os.RemoveAll(e.stageDir)
+	return errors.Join(e.stagedBinary.Remove(), ownership.RemoveDirectories(e.createdDirs))
 }
 
 func init() {

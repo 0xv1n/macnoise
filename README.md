@@ -233,7 +233,7 @@ Releases are automated - [release-please](https://github.com/googleapis/release-
 
 ## Disclaimer
 
-MacNoise is intended for **authorized** security testing, EDR validation, and detection engineering on systems you own or have explicit written permission to test. The authors assume no liability for misuse.
+MacNoise is intended for **authorized** security testing, EDR validation, and detection engineering on systems you own or have explicit written permission to test. Its modules perform the real activity they describe. They are not sandboxed or redirected to harmless substitutes, and some actions can irreversibly delete or alter system and user data. Review module behavior and dry-run output before execution. The operator is responsible for target selection, authorization, and consequences. The authors assume no liability for misuse.
 
 ## AI Code Policy
 

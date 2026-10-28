@@ -2,6 +2,7 @@
 package ownership
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"errors"
 	"fmt"
@@ -19,6 +20,11 @@ type File struct {
 
 // CreateFile creates a new file without replacing an existing path.
 func CreateFile(path string, data []byte, mode os.FileMode) (File, error) {
+	return CreateFileFrom(path, bytes.NewReader(data), mode)
+}
+
+// CreateFileFrom streams src into a new file without replacing an existing path.
+func CreateFileFrom(path string, src io.Reader, mode os.FileMode) (File, error) {
 	f, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return File{}, err
@@ -28,13 +34,16 @@ func CreateFile(path string, data []byte, mode os.FileMode) (File, error) {
 		_ = f.Close()
 		return File{}, statErr
 	}
-	_, writeErr := f.Write(data)
+	h := sha256.New()
+	_, writeErr := io.Copy(io.MultiWriter(f, h), src)
 	closeErr := f.Close()
 	if err := errors.Join(writeErr, closeErr); err != nil {
 		removeFileIfSame(path, info)
 		return File{}, err
 	}
-	return File{path: path, info: info, hash: sha256.Sum256(data)}, nil
+	var digest [sha256.Size]byte
+	copy(digest[:], h.Sum(nil))
+	return File{path: path, info: info, hash: digest}, nil
 }
 
 func captureFile(path string) (File, error) {
@@ -144,7 +153,7 @@ func RemoveDirectories(dirs []Directory) error {
 	var errs []error
 	for index := len(dirs) - 1; index >= 0; index-- {
 		dir := dirs[index]
-		info, err := os.Stat(dir.path)
+		info, err := os.Lstat(dir.path)
 		switch {
 		case os.IsNotExist(err):
 			continue

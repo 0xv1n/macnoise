@@ -692,7 +692,7 @@ Modifies a user defaults plist key via 'defaults write' to generate plist write 
 
 ### `evade_log_clear`
 
-Timestomps a file, attempts unified log erasure, and clears a mock history file to generate defense evasion telemetry
+Timestomps a file, attempts unified log erasure, and removes real shell history files
 
 | Metadata | Value |
 |---|---|
@@ -707,6 +707,7 @@ Timestomps a file, attempts unified log erasure, and clears a mock history file 
 | Name | Type | Required | Sensitive | Default | Example | Constraints | Description |
 |---|---|---|---|---|---|---|---|
 | `stage_dir` | `path` | no | no | `"/tmp/macnoise_evasion"` | `"/var/tmp/macnoise_evasion"` | - | Directory for staging evasion artifacts |
+| `history_paths` | `path_list` | no | no | - | `["/Users/test/.zsh_history","/Users/test/.bash_history"]` | - | Real shell history files to remove (defaults to the current user's zsh and bash histories) |
 
 ### `evade_masquerade`
 
