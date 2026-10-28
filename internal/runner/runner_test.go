@@ -306,6 +306,30 @@ func TestRunManyCollectsErrors(t *testing.T) {
 	}
 }
 
+func TestRunManyPreservesErrorsOnCancel(t *testing.T) {
+	sentinel := errors.New("boom")
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	thirdRan := false
+	gens := []module.Generator{
+		&mockGen{name: "mock_fail", generateErr: sentinel},
+		&countingGen{name: "mock_cancel", onCall: cancel},
+		&countingGen{name: "mock_not_run", onCall: func() { thirdRan = true }},
+	}
+
+	err := runner.RunMany(ctx, gens, module.Params{}, discardEvent, runner.Options{})
+	if !errors.Is(err, sentinel) {
+		t.Errorf("RunMany error = %v, want wrapped sentinel", err)
+	}
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("RunMany error = %v, want context.Canceled", err)
+	}
+	if thirdRan {
+		t.Error("RunMany ran a module after cancellation")
+	}
+}
+
 type slowMockGen struct {
 	name          string
 	delay         time.Duration
