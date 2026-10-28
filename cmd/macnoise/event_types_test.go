@@ -21,9 +21,8 @@ var (
 // is the drift guard the ModuleInfo.EventTypes doc references: it scans source
 // rather than running modules, so it holds on any OS and needs no privileges.
 //
-// Direction is emitted-is-subset-of-declared. plist_create builds its event
-// type from a variable rather than a literal, so nothing is scanned there and
-// its declaration is taken on trust (the same blind spot classify_test notes).
+// Direction is emitted-is-subset-of-declared. Variable-built event types are
+// covered by behavior tests in their module packages rather than source parsing.
 func TestModuleEventTypesMatchEmitted(t *testing.T) {
 	root := filepath.Join("..", "..", "modules")
 	err := filepath.WalkDir(root, func(path string, d os.DirEntry, err error) error {

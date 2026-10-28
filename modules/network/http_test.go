@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -45,7 +46,8 @@ func TestHTTPGenerate_PerformsExactRequest(t *testing.T) {
 		"content_type": "text/plain",
 	}
 	var events []module.TelemetryEvent
-	if err := (&netHTTP{}).Generate(ctx, params, captureNetworkEvents(&events)); err != nil {
+	mod := &netHTTP{}
+	if err := mod.Generate(ctx, params, captureNetworkEvents(&events)); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 
@@ -56,6 +58,9 @@ func TestHTTPGenerate_PerformsExactRequest(t *testing.T) {
 	}
 	if len(events) != 1 || events[0].EventType != "http_post" || events[0].Outcome != module.OutcomeExecuted {
 		t.Fatalf("events = %+v, want one executed http_post", events)
+	}
+	if !slices.Contains(mod.Info().EventTypes, events[0].EventType) {
+		t.Fatalf("emitted event type %q is not declared", events[0].EventType)
 	}
 	if events[0].Details["status_code"] != http.StatusAccepted || events[0].Details["request_bytes"] != len("decoy payload") {
 		t.Errorf("event details = %+v", events[0].Details)
@@ -73,11 +78,15 @@ func TestHTTPGenerate_RefusedIsDenied(t *testing.T) {
 	}
 
 	var events []module.TelemetryEvent
-	if err := (&netHTTP{}).Generate(context.Background(), module.Params{"target": target}, captureNetworkEvents(&events)); err != nil {
+	mod := &netHTTP{}
+	if err := mod.Generate(context.Background(), module.Params{"target": target}, captureNetworkEvents(&events)); err != nil {
 		t.Fatalf("Generate: %v", err)
 	}
 	if len(events) != 1 || events[0].EventType != "http_get" || events[0].Outcome != module.OutcomeDenied || events[0].Error == "" {
 		t.Fatalf("events = %+v, want one denied request", events)
+	}
+	if !slices.Contains(mod.Info().EventTypes, events[0].EventType) {
+		t.Fatalf("emitted event type %q is not declared", events[0].EventType)
 	}
 }
 
