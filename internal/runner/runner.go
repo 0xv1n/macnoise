@@ -198,7 +198,10 @@ func RunMany(ctx context.Context, gens []module.Generator, params module.Params,
 	for _, g := range gens {
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
+			if len(errs) == 0 {
+				return ctx.Err()
+			}
+			return fmt.Errorf("%d module(s) failed: %w", len(errs), errors.Join(errors.Join(errs...), ctx.Err()))
 		default:
 		}
 		if err := RunSingle(ctx, g, params, emit, opts); err != nil {
