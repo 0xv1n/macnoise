@@ -4,20 +4,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"os/exec"
 	"path/filepath"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/internal/prereqs"
 	"github.com/0xv1n/macnoise/pkg/module"
-	"howett.net/plist"
 )
 
 type svcLaunchDaemon struct {
-	plistPath string
-	label     string
-	loaded    bool
+	plist  ownership.File
+	label  string
+	loaded bool
 }
 
 func (s *svcLaunchDaemon) Info() module.ModuleInfo {
@@ -54,31 +53,15 @@ func (s *svcLaunchDaemon) Generate(ctx context.Context, params module.Params, em
 
 	daemonDir := "/Library/LaunchDaemons"
 	plistPath := filepath.Join(daemonDir, label+".plist")
-	s.plistPath = plistPath
 	s.label = label
 
-	plistData := map[string]any{
-		"Label":            label,
-		"ProgramArguments": []string{program},
-		"RunAtLoad":        false,
-		"KeepAlive":        false,
-	}
-
 	createEv := output.NewEvent(info, "launchdaemon_create", module.OutcomeError, module.Service(label, systemDomain, plistPath), fmt.Sprintf("creating plist at %s", plistPath))
-	f, err := os.Create(plistPath)
+	created, err := createLaunchdPlist(plistPath, label, program)
 	if err != nil {
 		createEv = output.WithError(createEv, err)
 		return errors.Join(err, emit(createEv))
 	}
-	enc := plist.NewEncoder(f)
-	enc.Indent("\t")
-	if err := enc.Encode(plistData); err != nil {
-		_ = f.Close()
-		createEv = output.WithError(createEv, err)
-		return errors.Join(err, emit(createEv))
-	}
-	_ = f.Close()
-	os.Chmod(plistPath, 0o644) //nolint:errcheck
+	s.plist = created
 
 	createEv.Outcome = module.OutcomeExecuted
 	createEv.Message = fmt.Sprintf("created LaunchDaemon plist at %s", plistPath)
@@ -120,12 +103,7 @@ func (s *svcLaunchDaemon) Cleanup(ctx context.Context) error {
 			bootoutErr = fmt.Errorf("launchctl bootout %s: %v: %s", s.label, err, out)
 		}
 	}
-	if s.plistPath != "" {
-		if err := os.Remove(s.plistPath); err != nil {
-			return err
-		}
-	}
-	return bootoutErr
+	return errors.Join(bootoutErr, s.plist.Remove())
 }
 
 func init() {

@@ -3,19 +3,21 @@
 package plistmod
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"os"
 	"path/filepath"
 
 	"github.com/0xv1n/macnoise/internal/output"
+	"github.com/0xv1n/macnoise/internal/ownership"
 	"github.com/0xv1n/macnoise/pkg/module"
 	"howett.net/plist"
 )
 
 type plistCreate struct {
-	createdPath string
+	createdFile ownership.File
+	createdDirs []ownership.Directory
 }
 
 func (p *plistCreate) Info() module.ModuleInfo {
@@ -57,7 +59,9 @@ func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit m
 	mode := params.String("mode", "bundle")
 	info := p.Info()
 
-	if err := os.MkdirAll(filepath.Dir(outPath), 0o755); err != nil {
+	createdDirs, err := ownership.EnsureDirectories(filepath.Dir(outPath), 0o755)
+	p.createdDirs = append(p.createdDirs, createdDirs...)
+	if err != nil {
 		return fmt.Errorf("mkdir: %w", err)
 	}
 
@@ -87,20 +91,19 @@ func (p *plistCreate) Generate(ctx context.Context, params module.Params, emit m
 	}
 
 	ev := output.NewEvent(info, evAction, module.OutcomeError, module.File(outPath), evMsg)
-	f, err := os.Create(outPath)
+	var encoded bytes.Buffer
+	enc := plist.NewEncoder(&encoded)
+	enc.Indent("\t")
+	if err := enc.Encode(plistData); err != nil {
+		ev = output.WithError(ev, err)
+		return errors.Join(err, emit(ev))
+	}
+	createdFile, err := ownership.CreateFile(outPath, encoded.Bytes(), 0o644)
 	if err != nil {
 		ev = output.WithError(ev, err)
 		return errors.Join(err, emit(ev))
 	}
-	enc := plist.NewEncoder(f)
-	enc.Indent("\t")
-	if err := enc.Encode(plistData); err != nil {
-		_ = f.Close()
-		ev = output.WithError(ev, err)
-		return errors.Join(err, emit(ev))
-	}
-	_ = f.Close()
-	p.createdPath = outPath
+	p.createdFile = createdFile
 
 	if mode == "launchagent" {
 		label := params.String("label", bundleID)
@@ -134,15 +137,7 @@ func (p *plistCreate) DryRun(params module.Params) []string {
 }
 
 func (p *plistCreate) Cleanup(ctx context.Context) error {
-	if p.createdPath == "" {
-		return nil
-	}
-	if err := os.Remove(p.createdPath); err != nil {
-		return err
-	}
-	dir := filepath.Dir(p.createdPath)
-	_ = os.Remove(dir)
-	return nil
+	return errors.Join(p.createdFile.Remove(), ownership.RemoveDirectories(p.createdDirs))
 }
 
 func init() {

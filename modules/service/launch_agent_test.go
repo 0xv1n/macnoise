@@ -4,6 +4,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,6 +12,34 @@ import (
 	"github.com/0xv1n/macnoise/pkg/module"
 	"howett.net/plist"
 )
+
+func TestSvcLaunchAgentRefusesExistingPlist(t *testing.T) {
+	target, err := resolveLaunchdUser()
+	if err != nil {
+		t.Fatalf("resolveLaunchdUser: %v", err)
+	}
+	label := fmt.Sprintf("com.macnoise.integrationtest.existing.%d", os.Getpid())
+	plistPath := filepath.Join(target.home, "Library", "LaunchAgents", label+".plist")
+	if err := os.MkdirAll(filepath.Dir(plistPath), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(plistPath, []byte("keep"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	s := &svcLaunchAgent{}
+	t.Cleanup(func() {
+		_ = s.Cleanup(context.Background())
+		_ = os.Remove(plistPath)
+	})
+	err = s.Generate(context.Background(), module.Params{"label": label, "program": "/usr/bin/true"}, discardServiceEvent)
+	if err == nil {
+		t.Fatal("Generate overwrote an existing LaunchAgent plist")
+	}
+	if data, readErr := os.ReadFile(plistPath); readErr != nil || string(data) != "keep" {
+		t.Fatalf("existing plist changed: data=%q err=%v", data, readErr)
+	}
+}
 
 // This module has no parameter for the agent directory - it always writes to
 // the real ~/Library/LaunchAgents - so the test uses a distinctive label and
