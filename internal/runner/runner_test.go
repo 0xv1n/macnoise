@@ -292,13 +292,17 @@ func TestRunSingleTimeout(t *testing.T) {
 }
 
 func TestRunManyCollectsErrors(t *testing.T) {
+	sentinel := errors.New("boom")
 	gens := []module.Generator{
 		&mockGen{name: "mock_ok"},
-		&mockGen{name: "mock_fail", generateErr: errors.New("boom")},
+		&mockGen{name: "mock_fail", generateErr: sentinel},
 	}
 	err := runner.RunMany(context.Background(), gens, module.Params{}, discardEvent, runner.Options{})
 	if err == nil {
 		t.Error("expected combined error")
+	}
+	if !errors.Is(err, sentinel) {
+		t.Fatalf("RunMany error = %v, want wrapped sentinel", err)
 	}
 }
 

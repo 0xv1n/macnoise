@@ -33,8 +33,8 @@ type Options struct {
 	// retrieve it via module.RunIDFromContext so they can fold it into
 	// artifact names, DNS labels, and command arguments.
 	RunID string
-	// ScenarioInputs supplies typed values declared by a scenario. It is
-	// ignored by RunSingle and RunMany.
+	// ScenarioInputs supplies typed values declared by a scenario to
+	// RunScenario. PrepareScenario captures inputs before PreparedScenario.Run.
 	ScenarioInputs module.Params
 
 	workspace        string
@@ -206,7 +206,7 @@ func RunMany(ctx context.Context, gens []module.Generator, params module.Params,
 		}
 	}
 	if len(errs) > 0 {
-		return fmt.Errorf("%d module(s) failed: %v", len(errs), errs)
+		return fmt.Errorf("%d module(s) failed: %w", len(errs), errors.Join(errs...))
 	}
 	return nil
 }

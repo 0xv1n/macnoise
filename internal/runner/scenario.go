@@ -76,7 +76,7 @@ type Scenario struct {
 }
 
 // LoadScenario strictly parses one scenario document. Registry-dependent and
-// recursive checks happen during preflight in RunScenario.
+// recursive checks happen during scenario preparation.
 func LoadScenario(path string) (Scenario, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
