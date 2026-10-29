@@ -107,3 +107,40 @@ func TestLoadRejectsNegativeTimeout(t *testing.T) {
 		t.Fatalf("Load error = %v, want negative timeout error", err)
 	}
 }
+
+func TestLoadRejectsInvalidDefaultFormat(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "invalid-format.yaml")
+	if err := os.WriteFile(path, []byte("default_format: csv\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := config.Load(path)
+	if err == nil || !strings.Contains(err.Error(), `default_format "csv" must be "human" or "jsonl"`) {
+		t.Fatalf("Load error = %v, want invalid default_format error", err)
+	}
+}
+
+func TestLoadPreservesUnsetDefaultFormat(t *testing.T) {
+	for _, tc := range []struct {
+		name, yaml, want string
+	}{
+		{name: "omitted", yaml: "default_timeout: 30\n", want: "human"},
+		{name: "null", yaml: "default_format: null\n", want: "human"},
+		{name: "empty", yaml: "default_format: ''\n", want: ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "config.yaml")
+			if err := os.WriteFile(path, []byte(tc.yaml), 0o644); err != nil {
+				t.Fatal(err)
+			}
+
+			cfg, err := config.Load(path)
+			if err != nil {
+				t.Fatalf("Load returned unexpected error: %v", err)
+			}
+			if cfg.DefaultFormat != tc.want {
+				t.Errorf("DefaultFormat = %q, want %q", cfg.DefaultFormat, tc.want)
+			}
+		})
+	}
+}
