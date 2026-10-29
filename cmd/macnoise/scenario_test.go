@@ -27,7 +27,7 @@ func TestScenarioPreflightDoesNotCreateOutputFiles(t *testing.T) {
 		globalAuditLog = ""
 	})
 
-	cmd := buildScenario()
+	cmd := buildScenario(commandResources{emitter: buildEmitter, auditLogger: buildAuditLogger})
 	if err := cmd.Flags().Set("report", reportPath); err != nil {
 		t.Fatal(err)
 	}
