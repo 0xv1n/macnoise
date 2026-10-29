@@ -137,18 +137,11 @@ func (f *fileCopy) Generate(ctx context.Context, params module.Params, emit modu
 }
 
 func copyOwnedFile(source, destination string) (int64, ownership.File, error) {
-	in, err := os.Open(source)
+	in, err := openRegularFile(source)
 	if err != nil {
 		return 0, ownership.File{}, err
 	}
 	defer func() { _ = in.Close() }()
-	info, err := in.Stat()
-	if err != nil {
-		return 0, ownership.File{}, err
-	}
-	if !info.Mode().IsRegular() {
-		return 0, ownership.File{}, errNotRegularFile
-	}
 
 	owned, err := ownership.CreateFileFrom(destination, in, 0o600)
 	if err != nil {
