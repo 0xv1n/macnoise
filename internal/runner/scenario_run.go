@@ -193,11 +193,11 @@ func (e *scenarioExecution) runPlan(plan *scenarioPlan, inputValues module.Param
 			}
 			report.CleanupStatus = "not_applicable"
 		} else {
-			params, err := resolveBindings(step.params, inputValues, stepValues, e.opts.DryRun, e.moduleParamSpecs(step.module))
+			gen, _ := e.registry.Get(step.module)
+			params, err := resolveBindings(step.params, inputValues, stepValues, e.opts.DryRun, gen.ParamSpecs())
 			if err != nil {
 				stepErr = err
 			} else {
-				gen, _ := e.registry.Get(step.module)
 				invocationOpts := e.opts
 				invocationOpts.workspace = e.workspace
 				invocationOpts.invocationOutput = &outputs
@@ -259,11 +259,6 @@ func (e *scenarioExecution) runPlan(plan *scenarioPlan, inputValues module.Param
 		exported[name] = value
 	}
 	return reports, exported, runErr
-}
-
-func (e *scenarioExecution) moduleParamSpecs(name string) []module.ParamSpec {
-	gen, _ := e.registry.Get(name)
-	return gen.ParamSpecs()
 }
 
 func sensitiveBindingNames(bindings map[string]valueBinding) []string {
