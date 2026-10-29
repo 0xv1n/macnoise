@@ -227,8 +227,9 @@ func (e *scenarioExecution) runPlan(plan *scenarioPlan, inputValues module.Param
 
 		if err := e.ctx.Err(); err != nil {
 			report.Status = "interrupted"
-			report.Error = errors.Join(stepErr, err).Error()
-			runErr = errors.Join(runErr, fmt.Errorf("scenario %q interrupted during %s: %w", plan.scenario.Name, step.id, err))
+			interruptedErr := errors.Join(stepErr, err)
+			report.Error = interruptedErr.Error()
+			runErr = errors.Join(runErr, fmt.Errorf("scenario %q interrupted during %s: %w", plan.scenario.Name, step.id, interruptedErr))
 			stopped = true
 			continue
 		}

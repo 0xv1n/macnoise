@@ -500,6 +500,33 @@ steps:
 	}
 }
 
+func TestScenarioCancellationPreservesModuleError(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	moduleErr := errors.New("module generation failed")
+	registry := &module.Registry{}
+	registry.Register(func() module.Generator {
+		return &mockGen{name: "cancel_with_error", generateErr: moduleErr, onGenerate: cancel}
+	})
+	path := writeScenarioFile(t, t.TempDir(), "cancel.yaml", `version: 1
+name: cancel
+steps:
+  - module: cancel_with_error
+`)
+
+	report, err := runner.RunScenario(ctx, path, discardEvent, runner.Options{Registry: registry})
+	if !errors.Is(err, context.Canceled) {
+		t.Errorf("RunScenario error = %v, want context.Canceled", err)
+	}
+	if !errors.Is(err, moduleErr) {
+		t.Errorf("RunScenario error = %v, want module error", err)
+	}
+	if !strings.Contains(report.Steps[0].Error, moduleErr.Error()) {
+		t.Errorf("step error = %q, want module error", report.Steps[0].Error)
+	}
+}
+
 type cancelModule struct {
 	name   string
 	cancel context.CancelFunc
