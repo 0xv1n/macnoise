@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"os"
 	"os/signal"
 	"strings"
@@ -113,13 +114,13 @@ func parseFormat(s string) (output.Format, error) {
 	}
 }
 
-func buildEmitter() (*output.Emitter, func(), error) {
+func buildEmitter(w io.Writer) (*output.Emitter, func(), error) {
 	format, err := parseFormat(globalFormat)
 	if err != nil {
 		return nil, nil, err
 	}
 
-	em := output.NewEmitter(format, os.Stdout)
+	em := output.NewEmitter(format, w)
 	closeFile := func() {}
 
 	if globalOutput != "" {
@@ -127,7 +128,7 @@ func buildEmitter() (*output.Emitter, func(), error) {
 		if err != nil {
 			return nil, nil, fmt.Errorf("cannot open output file: %w", err)
 		}
-		em = output.NewEmitter(format, os.Stdout, f)
+		em = output.NewEmitter(format, w, f)
 		closeFile = func() { _ = f.Close() }
 	}
 
@@ -227,7 +228,7 @@ func buildRun() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			em, closeEM, err := buildEmitter()
+			em, closeEM, err := buildEmitter(cmd.OutOrStdout())
 			if err != nil {
 				return err
 			}
@@ -287,6 +288,7 @@ func buildList() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			out := cmd.OutOrStdout()
 
 			var gens []module.Generator
 			if catFilter != "" {
@@ -306,14 +308,14 @@ func buildList() *cobra.Command {
 			}
 
 			if len(gens) == 0 {
-				fmt.Println("No modules found.")
+				_, _ = fmt.Fprintln(out, "No modules found.")
 				return nil
 			}
-			fmt.Printf("%-25s %-20s %s\n", "MODULE", "CATEGORY", "DESCRIPTION")
-			fmt.Println(strings.Repeat("-", 80))
+			_, _ = fmt.Fprintf(out, "%-25s %-20s %s\n", "MODULE", "CATEGORY", "DESCRIPTION")
+			_, _ = fmt.Fprintln(out, strings.Repeat("-", 80))
 			for _, g := range gens {
 				info := g.Info()
-				fmt.Printf("%-25s %-20s %s\n", info.Name, info.Category, info.Description)
+				_, _ = fmt.Fprintf(out, "%-25s %-20s %s\n", info.Name, info.Category, info.Description)
 			}
 			return nil
 		},
@@ -329,51 +331,52 @@ func buildInfo() *cobra.Command {
 		Short: "Show detailed module metadata",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
 			gen, ok := module.Get(args[0])
 			if !ok {
 				return fmt.Errorf("module %q not found", args[0])
 			}
 			info := gen.Info()
-			fmt.Printf("Name:        %s\n", info.Name)
-			fmt.Printf("Category:    %s\n", info.Category)
-			fmt.Printf("Description: %s\n", info.Description)
-			fmt.Printf("Privileges:  %s\n", info.Privileges)
+			_, _ = fmt.Fprintf(out, "Name:        %s\n", info.Name)
+			_, _ = fmt.Fprintf(out, "Category:    %s\n", info.Category)
+			_, _ = fmt.Fprintf(out, "Description: %s\n", info.Description)
+			_, _ = fmt.Fprintf(out, "Privileges:  %s\n", info.Privileges)
 			if info.MinMacOS != "" {
-				fmt.Printf("Min macOS:   %s\n", info.MinMacOS)
+				_, _ = fmt.Fprintf(out, "Min macOS:   %s\n", info.MinMacOS)
 			}
 			if len(info.Tags) > 0 {
-				fmt.Printf("Tags:        %s\n", strings.Join(info.Tags, ", "))
+				_, _ = fmt.Fprintf(out, "Tags:        %s\n", strings.Join(info.Tags, ", "))
 			}
 			if len(info.MITRE) > 0 {
-				fmt.Println("MITRE ATT&CK:")
+				_, _ = fmt.Fprintln(out, "MITRE ATT&CK:")
 				for _, m := range info.MITRE {
-					fmt.Printf("  %s%s - %s\n", m.Technique, m.SubTech, m.Name)
+					_, _ = fmt.Fprintf(out, "  %s%s - %s\n", m.Technique, m.SubTech, m.Name)
 				}
 			}
 			if info.Author != "" {
-				fmt.Printf("Author:      %s\n", info.Author)
+				_, _ = fmt.Fprintf(out, "Author:      %s\n", info.Author)
 			}
 			specs := gen.ParamSpecs()
 			if len(specs) > 0 {
-				fmt.Println("\nParameters:")
+				_, _ = fmt.Fprintln(out, "\nParameters:")
 				for _, s := range specs {
 					req := ""
 					if s.Required {
 						req = " (required)"
 					}
-					fmt.Printf("  %-20s %s%s\n", s.Name+" ("+string(s.Type)+")", s.Description, req)
+					_, _ = fmt.Fprintf(out, "  %-20s %s%s\n", s.Name+" ("+string(s.Type)+")", s.Description, req)
 					if s.Default != nil {
-						fmt.Printf("    default: %v\n", s.Default)
+						_, _ = fmt.Fprintf(out, "    default: %v\n", s.Default)
 					}
 					if s.Example != nil {
-						fmt.Printf("    example: %v\n", s.Example)
+						_, _ = fmt.Fprintf(out, "    example: %v\n", s.Example)
 					}
 				}
 			}
 			if provider, ok := gen.(module.OutputProvider); ok && len(provider.OutputSpecs()) > 0 {
-				fmt.Println("\nOutputs:")
+				_, _ = fmt.Fprintln(out, "\nOutputs:")
 				for _, spec := range provider.OutputSpecs() {
-					fmt.Printf("  %-20s %s\n", spec.Name+" ("+string(spec.Type)+")", spec.Description)
+					_, _ = fmt.Fprintf(out, "  %-20s %s\n", spec.Name+" ("+string(spec.Type)+")", spec.Description)
 				}
 			}
 			return nil
@@ -399,7 +402,7 @@ func buildScenario() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			em, closeEM, err := buildEmitter()
+			em, closeEM, err := buildEmitter(cmd.OutOrStdout())
 			if err != nil {
 				return err
 			}
@@ -443,11 +446,12 @@ func buildCategories() *cobra.Command {
 		Use:   "categories",
 		Short: "List all telemetry categories with module counts",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			out := cmd.OutOrStdout()
 			counts := module.CategoryCounts()
-			fmt.Printf("%-25s %s\n", "CATEGORY", "MODULES")
-			fmt.Println(strings.Repeat("-", 35))
+			_, _ = fmt.Fprintf(out, "%-25s %s\n", "CATEGORY", "MODULES")
+			_, _ = fmt.Fprintln(out, strings.Repeat("-", 35))
 			for _, cat := range module.AllCategories() {
-				fmt.Printf("%-25s %d\n", cat, counts[cat])
+				_, _ = fmt.Fprintf(out, "%-25s %d\n", cat, counts[cat])
 			}
 			return nil
 		},
@@ -459,7 +463,7 @@ func buildVersion() *cobra.Command {
 		Use:   "version",
 		Short: "Print version information",
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Printf("MacNoise %s\n", version)
+			_, _ = fmt.Fprintf(cmd.OutOrStdout(), "MacNoise %s\n", version)
 		},
 	}
 }
