@@ -229,7 +229,7 @@ func buildRun(resources commandResources) *cobra.Command {
 		Example: `  macnoise run net_connect --param target=127.0.0.1 --param port=8080
   macnoise run --category network
   macnoise run --all --format jsonl`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (resultErr error) {
 			params, err := parseParams(paramFlags)
 			if err != nil {
 				return err
@@ -238,14 +238,14 @@ func buildRun(resources commandResources) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer closeEM()
+			defer func() { resultErr = errors.Join(resultErr, closeEM()) }()
 
 			runID := resolveRunID()
 			auditLogger, closeAL, err := resources.auditLogger(resolveAuditLogPath(""), runID)
 			if err != nil {
 				return err
 			}
-			defer closeAL()
+			defer func() { resultErr = errors.Join(resultErr, closeAL()) }()
 
 			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
 
@@ -399,7 +399,7 @@ func buildScenario(resources commandResources) *cobra.Command {
 		Use:   "scenario <file.yaml>",
 		Short: "Run a YAML scenario file",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (resultErr error) {
 			inputs, err := parseParams(inputFlags)
 			if err != nil {
 				return fmt.Errorf("scenario input: %w", err)
@@ -412,14 +412,14 @@ func buildScenario(resources commandResources) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			defer closeEM()
+			defer func() { resultErr = errors.Join(resultErr, closeEM()) }()
 
 			runID := resolveRunID()
 			auditLogger, closeAL, err := resources.auditLogger(resolveAuditLogPath(prepared.AuditLog()), runID)
 			if err != nil {
 				return err
 			}
-			defer closeAL()
+			defer func() { resultErr = errors.Join(resultErr, closeAL()) }()
 
 			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
 
