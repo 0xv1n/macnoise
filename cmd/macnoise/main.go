@@ -91,11 +91,12 @@ EDR validation, and detection engineering.`,
 	root.PersistentFlags().StringVar(&globalConfig, "config", "", "Config YAML file (default: none)")
 	root.PersistentFlags().StringVar(&globalRunID, "run-id", "", "Correlation ID for this run (auto-generated if omitted)")
 
+	resources := commandResources{emitter: buildEmitter, auditLogger: buildAuditLogger}
 	root.AddCommand(
-		buildRun(),
+		buildRun(resources),
 		buildList(),
 		buildInfo(),
-		buildScenario(),
+		buildScenario(resources),
 		buildCategories(),
 		buildVersion(),
 	)
@@ -114,14 +115,19 @@ func parseFormat(s string) (output.Format, error) {
 	}
 }
 
-func buildEmitter(w io.Writer) (*output.Emitter, func(), error) {
+type commandResources struct {
+	emitter     func(io.Writer) (*output.Emitter, func() error, error)
+	auditLogger func(string, string) (*audit.Logger, func() error, error)
+}
+
+func buildEmitter(w io.Writer) (*output.Emitter, func() error, error) {
 	format, err := parseFormat(globalFormat)
 	if err != nil {
 		return nil, nil, err
 	}
 
 	em := output.NewEmitter(format, w)
-	closeFile := func() {}
+	closeFile := func() error { return nil }
 
 	if globalOutput != "" {
 		f, err := os.OpenFile(globalOutput, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
@@ -129,7 +135,7 @@ func buildEmitter(w io.Writer) (*output.Emitter, func(), error) {
 			return nil, nil, fmt.Errorf("cannot open output file: %w", err)
 		}
 		em = output.NewEmitter(format, w, f)
-		closeFile = func() { _ = f.Close() }
+		closeFile = f.Close
 	}
 
 	return em, closeFile, nil
@@ -145,15 +151,15 @@ func resolveAuditLogPath(scenarioAuditLog string) string {
 	return loadedConfig.AuditLog
 }
 
-func buildAuditLogger(path, runID string) (*audit.Logger, func(), error) {
+func buildAuditLogger(path, runID string) (*audit.Logger, func() error, error) {
 	if path == "" {
-		return nil, func() {}, nil
+		return nil, func() error { return nil }, nil
 	}
 	l, err := audit.NewLogger(path, version, runID)
 	if err != nil {
 		return nil, nil, err
 	}
-	return l, func() { _ = l.Close() }, nil
+	return l, l.Close, nil
 }
 
 // signalContext returns a context that is cancelled on SIGINT or SIGTERM.
@@ -206,7 +212,7 @@ func buildRunOpts(auditLogger *audit.Logger, runID string) runner.Options {
 	}
 }
 
-func buildRun() *cobra.Command {
+func buildRun(resources commandResources) *cobra.Command {
 	var (
 		paramFlags []string
 		category   string
@@ -223,23 +229,23 @@ func buildRun() *cobra.Command {
 		Example: `  macnoise run net_connect --param target=127.0.0.1 --param port=8080
   macnoise run --category network
   macnoise run --all --format jsonl`,
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (resultErr error) {
 			params, err := parseParams(paramFlags)
 			if err != nil {
 				return err
 			}
-			em, closeEM, err := buildEmitter(cmd.OutOrStdout())
+			em, closeEM, err := resources.emitter(cmd.OutOrStdout())
 			if err != nil {
 				return err
 			}
-			defer closeEM()
+			defer func() { resultErr = errors.Join(resultErr, closeEM()) }()
 
 			runID := resolveRunID()
-			auditLogger, closeAL, err := buildAuditLogger(resolveAuditLogPath(""), runID)
+			auditLogger, closeAL, err := resources.auditLogger(resolveAuditLogPath(""), runID)
 			if err != nil {
 				return err
 			}
-			defer closeAL()
+			defer func() { resultErr = errors.Join(resultErr, closeAL()) }()
 
 			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
 
@@ -384,7 +390,7 @@ func buildInfo() *cobra.Command {
 	}
 }
 
-func buildScenario() *cobra.Command {
+func buildScenario(resources commandResources) *cobra.Command {
 	var (
 		inputFlags []string
 		reportPath string
@@ -393,7 +399,7 @@ func buildScenario() *cobra.Command {
 		Use:   "scenario <file.yaml>",
 		Short: "Run a YAML scenario file",
 		Args:  cobra.ExactArgs(1),
-		RunE: func(cmd *cobra.Command, args []string) error {
+		RunE: func(cmd *cobra.Command, args []string) (resultErr error) {
 			inputs, err := parseParams(inputFlags)
 			if err != nil {
 				return fmt.Errorf("scenario input: %w", err)
@@ -402,18 +408,18 @@ func buildScenario() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			em, closeEM, err := buildEmitter(cmd.OutOrStdout())
+			em, closeEM, err := resources.emitter(cmd.OutOrStdout())
 			if err != nil {
 				return err
 			}
-			defer closeEM()
+			defer func() { resultErr = errors.Join(resultErr, closeEM()) }()
 
 			runID := resolveRunID()
-			auditLogger, closeAL, err := buildAuditLogger(resolveAuditLogPath(prepared.AuditLog()), runID)
+			auditLogger, closeAL, err := resources.auditLogger(resolveAuditLogPath(prepared.AuditLog()), runID)
 			if err != nil {
 				return err
 			}
-			defer closeAL()
+			defer func() { resultErr = errors.Join(resultErr, closeAL()) }()
 
 			fmt.Fprintf(os.Stderr, "run_id=%s\n", runID)
 

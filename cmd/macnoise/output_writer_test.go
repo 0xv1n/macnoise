@@ -63,7 +63,7 @@ func TestRunEventsUseConfiguredOutputAndFile(t *testing.T) {
 		globalNoCleanup = noCleanup
 	})
 
-	cmd := buildRun()
+	cmd := buildRun(commandResources{emitter: buildEmitter, auditLogger: buildAuditLogger})
 	if err := cmd.Flags().Set("param", "base_dir="+t.TempDir()); err != nil {
 		t.Fatal(err)
 	}
