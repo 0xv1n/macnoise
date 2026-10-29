@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"fmt"
 	"net"
+	"strconv"
 	"strings"
 	"time"
 
@@ -49,7 +50,41 @@ func (n *netTLS) ParamSpecs() []module.ParamSpec {
 	}
 }
 
-func (n *netTLS) CheckPrereqs(ctx context.Context, params module.Params) error { return nil }
+func (n *netTLS) ValidateParams(params module.Params) error {
+	for _, raw := range params.Strings("targets", []string{"example.com:443", "github.com:443"}) {
+		target := strings.TrimSpace(raw)
+		if target == "" {
+			continue
+		}
+		if err := validateTLSTarget(target); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateTLSTarget(target string) error {
+	host, port, err := net.SplitHostPort(target)
+	if err != nil {
+		return fmt.Errorf("target %q must be a host:port pair: %w", target, err)
+	}
+	if host == "" {
+		return fmt.Errorf("target %q must include a host", target)
+	}
+
+	portNumber, err := strconv.Atoi(port)
+	if err != nil {
+		portNumber, err = net.LookupPort("tcp", port)
+	}
+	if err != nil || portNumber < 1 || portNumber > 65535 {
+		return fmt.Errorf("target %q has an invalid TCP port", target)
+	}
+	return nil
+}
+
+func (n *netTLS) CheckPrereqs(ctx context.Context, params module.Params) error {
+	return n.ValidateParams(params)
+}
 
 // tlsConnect dials one target and returns the event. Extracted so the
 // handshake metadata parsing is testable against a local TLS server.
@@ -102,6 +137,9 @@ func tlsConnect(ctx context.Context, info module.ModuleInfo, target string, inse
 }
 
 func (n *netTLS) Generate(ctx context.Context, params module.Params, emit module.EventEmitter) error {
+	if err := n.ValidateParams(params); err != nil {
+		return err
+	}
 	targets := params.Strings("targets", []string{"example.com:443", "github.com:443"})
 	insecure := params.Bool("insecure", false)
 	info := n.Info()

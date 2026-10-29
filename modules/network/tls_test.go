@@ -108,6 +108,36 @@ func TestTLSConnect_RefusedIsTelemetry(t *testing.T) {
 	}
 }
 
+func TestTLSGenerateRejectsMalformedTarget(t *testing.T) {
+	var events []module.TelemetryEvent
+	err := (&netTLS{}).Generate(context.Background(), module.Params{"targets": []string{"not-a-hostport"}}, captureNetworkEvents(&events))
+	if err == nil {
+		t.Fatal("Generate accepted a target without a port")
+	}
+	if len(events) != 0 {
+		t.Fatalf("Generate emitted events before rejecting its target: %+v", events)
+	}
+}
+
+func TestTLSValidateParamsChecksHostAndPort(t *testing.T) {
+	mod := &netTLS{}
+	for _, target := range []string{"not-a-hostport", ":443", "example.com:", "example.com:0", "example.com:65536", "[::1]443"} {
+		t.Run(target, func(t *testing.T) {
+			if err := mod.ValidateParams(module.Params{"targets": []string{target}}); err == nil {
+				t.Fatalf("ValidateParams accepted invalid target %q", target)
+			}
+		})
+	}
+
+	for _, target := range []string{"localhost:443", "[::1]:443", "localhost:https"} {
+		t.Run(target, func(t *testing.T) {
+			if err := mod.ValidateParams(module.Params{"targets": []string{target}}); err != nil {
+				t.Fatalf("ValidateParams rejected valid target %q: %v", target, err)
+			}
+		})
+	}
+}
+
 func TestTLSConnect_CertDetails(t *testing.T) {
 	addr := selfSignedTLSListener(t)
 	info := (&netTLS{}).Info()
