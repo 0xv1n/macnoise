@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 
+	"github.com/0xv1n/macnoise/internal/output"
 	"gopkg.in/yaml.v3"
 )
 
@@ -55,6 +56,11 @@ func Load(path string) (Config, error) {
 	}
 	if cfg.DefaultTimeout < 0 {
 		return cfg, fmt.Errorf("config: default_timeout %d must be 0 or greater", cfg.DefaultTimeout)
+	}
+	switch output.Format(cfg.DefaultFormat) {
+	case "", output.FormatHuman, output.FormatJSONL:
+	default:
+		return cfg, fmt.Errorf("config: default_format %q must be %q or %q", cfg.DefaultFormat, output.FormatHuman, output.FormatJSONL)
 	}
 	return cfg, nil
 }
