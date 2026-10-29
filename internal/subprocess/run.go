@@ -9,8 +9,9 @@ import (
 
 // Result records the observable result of a completed process invocation.
 type Result struct {
-	Output   []byte
-	ExitCode int
+	Output         []byte
+	ExitCode       int
+	ExecutablePath string
 }
 
 // Run executes one process, captures its combined output, and waits for it to exit.
@@ -30,6 +31,9 @@ func run(ctx context.Context, dir, executable string, args ...string) (Result, e
 	}
 
 	cmd := exec.CommandContext(ctx, executable, args...)
+	if cmd.Err == nil {
+		result.ExecutablePath = cmd.Path
+	}
 	cmd.Dir = dir
 	configureCancellation(cmd)
 	output, err := cmd.CombinedOutput()

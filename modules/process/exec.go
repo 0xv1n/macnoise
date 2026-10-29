@@ -56,18 +56,21 @@ func (p *procExec) Generate(ctx context.Context, params module.Params, emit modu
 	workingDir := params.String("working_dir", "")
 	argv := append([]string{executable}, args...)
 	info := p.Info()
-	subjectExecutable := executable
-	if workingDir != "" && !filepath.IsAbs(executable) {
-		subjectExecutable = filepath.Join(workingDir, executable)
-	}
-	ev := output.NewEvent(info, "process_exec", module.OutcomeError,
-		module.Process(filepath.Base(executable), subjectExecutable, executable, 0),
-		fmt.Sprintf("executing %s with %d argument(s)", executable, len(args)))
-
 	result, runErr := subprocess.RunInDir(ctx, workingDir, executable, args...)
 	if ctx.Err() != nil {
 		return errors.Join(runErr, ctx.Err())
 	}
+	subjectExecutable := result.ExecutablePath
+	if subjectExecutable != "" && !filepath.IsAbs(subjectExecutable) {
+		if workingDir != "" {
+			subjectExecutable = workingDir + string(filepath.Separator) + subjectExecutable
+		}
+	} else if subjectExecutable == "" {
+		subjectExecutable = executable
+	}
+	ev := output.NewEvent(info, "process_exec", module.OutcomeError,
+		module.Process(filepath.Base(executable), subjectExecutable, executable, 0),
+		fmt.Sprintf("executing %s with %d argument(s)", executable, len(args)))
 	if runErr != nil {
 		var exitErr *exec.ExitError
 		if !errors.As(runErr, &exitErr) {
