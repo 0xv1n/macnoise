@@ -10,6 +10,36 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 > Conventional Commits PR titles - see CONTRIBUTING.md#versioning for the
 > required format. You no longer need to hand-edit this file.
 
+## [1.0.1](https://github.com/0xv1n/macnoise/compare/v1.0.0...v1.0.1) (2026-10-29)
+
+
+### Bug Fixes
+
+* avoid blocking on nonregular file inputs ([#108](https://github.com/0xv1n/macnoise/issues/108)) ([c75c54c](https://github.com/0xv1n/macnoise/commit/c75c54cbed3d92c0e291707f7eb81474537815fe))
+* handle absent plist keys ([#90](https://github.com/0xv1n/macnoise/issues/90)) ([9283693](https://github.com/0xv1n/macnoise/commit/92836939c783f713fa4015b00f687497f876ce18))
+* honor zero timeout configuration ([#99](https://github.com/0xv1n/macnoise/issues/99)) ([71b3d30](https://github.com/0xv1n/macnoise/commit/71b3d3079efa504ae643f620e3c822d23a39a4ba))
+* manage proc signal process lifecycle ([#98](https://github.com/0xv1n/macnoise/issues/98)) ([5679c6a](https://github.com/0xv1n/macnoise/commit/5679c6a5683f58e6b48487bfbd6e7a0d0c772724))
+* preserve batch errors on cancellation ([#95](https://github.com/0xv1n/macnoise/issues/95)) ([eb901f7](https://github.com/0xv1n/macnoise/commit/eb901f701d38d70b7e548af0d11ecd1cb9eedd7d))
+* preserve scenario step errors on cancellation ([#103](https://github.com/0xv1n/macnoise/issues/103)) ([b349a9e](https://github.com/0xv1n/macnoise/commit/b349a9e39912ad091b05a41c07f68eb1348e9a01))
+* redact sensitive scenario audit values ([#96](https://github.com/0xv1n/macnoise/issues/96)) ([261ff2e](https://github.com/0xv1n/macnoise/commit/261ff2e2408855d0993df9d82fef8839923018e2))
+* reject incomplete DNS exfil queries ([#97](https://github.com/0xv1n/macnoise/issues/97)) ([dc3ebed](https://github.com/0xv1n/macnoise/commit/dc3ebedd5fff169d888d0fb84765dcffe8c76a9a))
+* report output and audit close errors ([#111](https://github.com/0xv1n/macnoise/issues/111)) ([53375a8](https://github.com/0xv1n/macnoise/commit/53375a8e5259c49f72f8e55c1a5c7eac054fcc85))
+* report the selected executable path ([#110](https://github.com/0xv1n/macnoise/issues/110)) ([5b7abd3](https://github.com/0xv1n/macnoise/commit/5b7abd3c4d7a7c77bcd70c1e3a8ef005ca6b92dd))
+* resolve scenario include symlinks ([#92](https://github.com/0xv1n/macnoise/issues/92)) ([8bd24ab](https://github.com/0xv1n/macnoise/commit/8bd24abc11f60e5ad8899c01f2b56fecee329c3c))
+* use bound listener address ([#94](https://github.com/0xv1n/macnoise/issues/94)) ([9e1734c](https://github.com/0xv1n/macnoise/commit/9e1734c0de6f2dee8e00b4c09f8e65ab9c03139b))
+* validate configured output formats on load ([#112](https://github.com/0xv1n/macnoise/issues/112)) ([3d6c56e](https://github.com/0xv1n/macnoise/commit/3d6c56eb3d50ea659e0111138c759ffe715f4656))
+* validate TLS targets before execution ([#104](https://github.com/0xv1n/macnoise/issues/104)) ([ecfcc34](https://github.com/0xv1n/macnoise/commit/ecfcc347c44caa06a62e26e16e0f1f236fdae584))
+
+
+### Code Refactoring
+
+* consolidate artifact ownership ([#91](https://github.com/0xv1n/macnoise/issues/91)) ([4cfffa7](https://github.com/0xv1n/macnoise/commit/4cfffa740499823f85a554ee411e3f53bc2b1538))
+* prepare scenarios once ([#86](https://github.com/0xv1n/macnoise/issues/86)) ([293fc29](https://github.com/0xv1n/macnoise/commit/293fc29e272d59bbcf64c7c579fc7098d9921e63))
+* protect owned artifacts ([#88](https://github.com/0xv1n/macnoise/issues/88)) ([f61fe77](https://github.com/0xv1n/macnoise/commit/f61fe77762374caa46341a50ab4a7e99d4ea12eb))
+* reuse scenario module invocation ([#106](https://github.com/0xv1n/macnoise/issues/106)) ([c1e9d83](https://github.com/0xv1n/macnoise/commit/c1e9d834c1fa937c0320927edc1f7f7350f484ad))
+* route CLI output through command writers ([#107](https://github.com/0xv1n/macnoise/issues/107)) ([2371f31](https://github.com/0xv1n/macnoise/commit/2371f319ebd7116b516a5f5c3a6616d003629d25))
+* track evasion staging ownership ([#89](https://github.com/0xv1n/macnoise/issues/89)) ([1c3fdc0](https://github.com/0xv1n/macnoise/commit/1c3fdc071373166d1274c3931a658c58e4d853bd))
+
 ## [1.0.0](https://github.com/0xv1n/macnoise/compare/v0.6.0...v1.0.0) (2026-09-15)
 
 
