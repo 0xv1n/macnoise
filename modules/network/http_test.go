@@ -51,13 +51,14 @@ func TestHTTPGenerate_PerformsExactRequest(t *testing.T) {
 		t.Fatalf("Generate: %v", err)
 	}
 
+	if len(events) != 1 || events[0].EventType != "http_post" || events[0].Outcome != module.OutcomeExecuted {
+		t.Fatalf("events = %+v, want one executed http_post", events)
+	}
+
 	got := <-observed
 	want := observedRequest{http.MethodPost, "decoy payload", "text/plain", "httprun42"}
 	if got != want {
 		t.Errorf("request = %+v, want %+v", got, want)
-	}
-	if len(events) != 1 || events[0].EventType != "http_post" || events[0].Outcome != module.OutcomeExecuted {
-		t.Fatalf("events = %+v, want one executed http_post", events)
 	}
 	if !slices.Contains(mod.Info().EventTypes, events[0].EventType) {
 		t.Fatalf("emitted event type %q is not declared", events[0].EventType)
